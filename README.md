@@ -11,19 +11,18 @@ the entire Pothos software suite in one build.
 
 ## Build Status
 
-- Travis: [![Travis Build Status](https://travis-ci.org/pothosware/PothosCore.svg?branch=master)](https://travis-ci.org/pothosware/PothosCore)
-- AppVeyor: [![AppVeyor Build status](https://ci.appveyor.com/api/projects/status/7owo8qb9oldw8iq8)](https://ci.appveyor.com/project/guruofquality/pothos)
+- GitHub Actions: [![CI](https://github.com/markvin/PothosCore/actions/workflows/ci.yml/badge.svg)](https://github.com/markvin/PothosCore/actions/workflows/ci.yml)
 
 ## Dependencies
 
-The poco, muparserx, and spuce libraries are available
-as git submodules to simplify building this project from source.
-The user may install these dependencies separately prior to building,
-or the build will install them automatically from submodule if missing.
+The framework is being made self-contained: every dependency it needs
+is built from the source tree and kept private to the library.
 
-* poco C++ utility library (framework+toolkit dependency)
-* muparserx expression parser (framework dependency)
-* spuce filter design library (toolkit dependency)
+* poco C++ utility library (transitional submodule, being removed)
+* muparserx expression parser (transitional submodule, being replaced)
+* libsimdpp SIMD library (submodule, header only)
+* nlohmann/json (vendored in third_party/)
+* spuce filter design library (toolkit dependency, not used by the framework)
 
 ## Toolkits
 
@@ -43,11 +42,24 @@ The following toolkits are available as git submodules:
 
 ## Building
 
-configure, build, and install with CMake
+Requirements: CMake 3.25 or newer, Ninja (or another generator) and a C++23
+compiler (GCC 13+, Clang 17+, Xcode 15+, Visual Studio 2022 17.8+).
+The build needs no network access and no system libraries.
+
+```sh
+git submodule update --init poco muparserx libsimdpp
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+ctest --test-dir build --output-on-failure
+cmake --install build
+```
+
+Only the framework library is built; the toolkit submodules are not part
+of this build.
 
 ## Layout
 
-* include/ - public API C++11 header files
+* include/ - public API C++23 header files
 * lib/ - C++ sources for the Pothos library
 * docs/ - doxygen configuration and generation
 * apps/ - the source for the PothosUtil binary
