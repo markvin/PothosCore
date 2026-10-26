@@ -154,7 +154,7 @@ Pothos::Proxy Pothos::ProxyEnvironment::convertObjectToProxy(const Pothos::Objec
     //thow an error when the conversion is not supported
     if (it == getConvertToProxyMap().end()) throw Pothos::ProxyEnvironmentConvertError(
         "Pothos::ProxyEnvironment::convertObjectToProxy()",
-        Poco::format("doesnt support Object of type %s to %s environment",
+        std::format("doesnt support Object of type {} to {} environment",
         local.getTypeString(), this->getName()));
 
     const auto &callable = it->second.getObject().extract<Pothos::Callable>();
@@ -181,7 +181,7 @@ Pothos::Object Pothos::ProxyEnvironment::convertProxyToObject(const Pothos::Prox
     //thow an error when the conversion is not supported
     if (it == getConvertToLocalMap().end()) throw Pothos::ProxyEnvironmentConvertError(
         "Pothos::ProxyEnvironment::convertProxyToObject()",
-        Poco::format("doesnt support environment %s type %s to Object",
+        std::format("doesnt support environment {} type {} to Object",
         this->getName(), std::string(proxy.getHandle()->getClassName())));
 
     const auto &callable = it->second.getObject().extract<Pothos::ProxyConvertPair>().second;

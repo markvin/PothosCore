@@ -4,7 +4,7 @@
 #include "PothosUtil.hpp"
 #include <Pothos/Util/BlockDescription.hpp>
 #include <Pothos/Plugin.hpp>
-#include <Poco/Format.h>
+#include <format>
 #include <format>
 #include <iostream>
 #include <fstream>
@@ -18,7 +18,7 @@ static void jsonArrayToCppStaticBlock(const Pothos::Util::BlockDescriptionParser
 {
     os << "#include <Pothos/Framework.hpp>\n";
     os << "#include <Pothos/Plugin.hpp>\n";
-    os << Poco::format("pothos_static_block(registerPothosBlockDocs%s)\n", target);
+    os << std::format("pothos_static_block(registerPothosBlockDocs{})\n", target);
     os << "{\n";
     for (const auto &factory : parser.listFactories())
     {
@@ -31,7 +31,7 @@ static void jsonArrayToCppStaticBlock(const Pothos::Util::BlockDescriptionParser
 
         //register the block description at the specified path
         const auto pluginPath = Pothos::PluginPath("/blocks/docs", factory);
-        os << Poco::format("    Pothos::PluginRegistry::add(\"%s\", std::string(\"%s\"));\n", pluginPath.toString(), escaped);
+        os << std::format("    Pothos::PluginRegistry::add(\"{}\", std::string(\"{}\"));\n", pluginPath.toString(), escaped);
     }
     os << "}\n";
 }

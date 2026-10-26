@@ -7,7 +7,7 @@
 #include <Pothos/Plugin.hpp>
 #include <Poco/Path.h>
 #include <Poco/File.h>
-#include <Poco/Format.h>
+#include <format>
 
 //from lib/Framework/ConfLoader.cpp
 std::vector<Pothos::PluginPath> Pothos_ConfLoader_loadConfFiles(void);
@@ -63,29 +63,29 @@ Pothos::InitSingleton::InitSingleton(void)
     //check the root
     const Poco::File rootPath(System::getRootPath());
     if (not rootPath.exists() or not rootPath.isDirectory()) throw Exception(
-        "Pothos::init()", Poco::format(
-        "Pothos installation FAIL - \"%s\" does not exist",
+        "Pothos::init()", std::format(
+        "Pothos installation FAIL - \"{}\" does not exist",
         System::getRootPath()
     ));
 
     //check for the util executable
     const Poco::File utilExecutablePath(System::getPothosUtilExecutablePath());
     if (not utilExecutablePath.exists()) throw Exception(
-        "Pothos::init()", Poco::format(
-        "Pothos installation FAIL - \"%s\" does not exist",
+        "Pothos::init()", std::format(
+        "Pothos installation FAIL - \"{}\" does not exist",
         System::getPothosUtilExecutablePath()
     ));
     if (not utilExecutablePath.canExecute()) throw Exception(
-        "Pothos::init()", Poco::format(
-        "Pothos installation FAIL - \"%s\" not executable",
+        "Pothos::init()", std::format(
+        "Pothos installation FAIL - \"{}\" not executable",
         System::getPothosUtilExecutablePath()
     ));
 
     //check for the runtime library
     const Poco::File runtimeLibraryPath(System::getPothosRuntimeLibraryPath());
     if (not runtimeLibraryPath.exists() or not runtimeLibraryPath.isFile()) throw Exception(
-        "Pothos::init()", Poco::format(
-        "Pothos installation FAIL - \"%s\" does not exist",
+        "Pothos::init()", std::format(
+        "Pothos installation FAIL - \"{}\" does not exist",
         System::getPothosRuntimeLibraryPath()
     ));
 
@@ -93,8 +93,8 @@ Pothos::InitSingleton::InitSingleton(void)
     Poco::File userDataPath(System::getUserDataPath());
     if (not userDataPath.exists()) userDataPath.createDirectories();
     if (not userDataPath.exists() or not userDataPath.canWrite()) throw Exception(
-        "Pothos::init()", Poco::format(
-        "Pothos user directory FAIL - \"%s\" permissions error",
+        "Pothos::init()", std::format(
+        "Pothos user directory FAIL - \"{}\" permissions error",
         System::getUserDataPath()
     ));
 
@@ -102,24 +102,24 @@ Pothos::InitSingleton::InitSingleton(void)
     Poco::File userConfigPath(System::getUserConfigPath());
     if (not userConfigPath.exists()) userConfigPath.createDirectories();
     if (not userConfigPath.exists() or not userConfigPath.canWrite()) throw Exception(
-        "Pothos::init()", Poco::format(
-        "Pothos user directory FAIL - \"%s\" permissions error",
+        "Pothos::init()", std::format(
+        "Pothos user directory FAIL - \"{}\" permissions error",
         System::getUserConfigPath()
     ));
 
     //check the development environment (includes)
     Poco::File devIncludePath(System::getPothosDevIncludePath());
     if (not devIncludePath.exists()) throw Exception(
-        "Pothos::init()", Poco::format(
-        "Pothos development include directory FAIL - \"%s\" does not exist",
+        "Pothos::init()", std::format(
+        "Pothos development include directory FAIL - \"{}\" does not exist",
         System::getPothosDevIncludePath()
     ));
 
     //check the development environment (libraries)
     Poco::File devLibraryPath(System::getPothosDevLibraryPath());
     if (not devLibraryPath.exists()) throw Exception(
-        "Pothos::init()", Poco::format(
-        "Pothos development library directory FAIL - \"%s\" does not exist",
+        "Pothos::init()", std::format(
+        "Pothos development library directory FAIL - \"{}\" does not exist",
         System::getPothosDevLibraryPath()
     ));
 }

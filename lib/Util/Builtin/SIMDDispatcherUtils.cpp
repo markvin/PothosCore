@@ -7,7 +7,7 @@
 
 #include <nlohmann/json.hpp>
 
-#include <Poco/Format.h>
+#include <format>
 
 #include <algorithm>
 #include <functional>
@@ -89,7 +89,7 @@ static std::string getAddedIncludesString(const SIMDInfo& simdInfo)
         std::back_inserter(includeStrings),
         [](const std::string& addedInclude)
         {
-            return Poco::format("#include <%s>", addedInclude);
+            return std::format("#include <{}>", addedInclude);
         });
 
     return join(includeStrings, "\n");
@@ -105,8 +105,8 @@ static std::string getFunctionString(const SIMDInfo& simdInfo)
 {
     if(!simdInfo.paramTypes.empty())
     {
-        return Poco::format(
-                   "%s<%s>",
+        return std::format(
+                   "{}<{}>",
                    simdInfo.name,
                    getParamTypeString(simdInfo));
     }
@@ -118,8 +118,8 @@ static std::string getFunctionTypeString(const SIMDInfo& simdInfo)
 {
     if(!simdInfo.paramTypes.empty())
     {
-        return Poco::format(
-                   "%sFcn<%s>",
+        return std::format(
+                   "{}Fcn<{}>",
                    simdInfo.name,
                    getParamTypeString(simdInfo));
     }
@@ -137,9 +137,9 @@ static std::string getTemplateTypenameString(const SIMDInfo& simdInfo)
         simdInfo.paramTypes.begin(),
         simdInfo.paramTypes.end(),
         std::back_inserter(typenameStrings),
-        [](const std::string& paramType) {return Poco::format("typename %s", paramType); });
+        [](const std::string& paramType) {return std::format("typename {}", paramType); });
 
-    return Poco::format("template <%s>", join(typenameStrings, ", "));
+    return std::format("template <{}>", join(typenameStrings, ", "));
 }
 
 static inline std::string getParamString(const SIMDInfo& simdInfo)
@@ -149,14 +149,14 @@ static inline std::string getParamString(const SIMDInfo& simdInfo)
 
 static inline std::string getDeclTypeString(const SIMDInfo& simdInfo)
 {
-    return Poco::format("decltype(&%s::fallback::%s)",
+    return std::format("decltype(&{}::fallback::{})",
                simdInfo.simdNamespace,
                getFunctionString(simdInfo));
 }
 
 static inline std::string getUsingFunctionTypeString(const SIMDInfo& simdInfo)
 {
-    return Poco::format("%s using %sFcn = %s;",
+    return std::format("{} using {}Fcn = {};",
                getTemplateTypenameString(simdInfo),
                simdInfo.name,
                getDeclTypeString(simdInfo));
@@ -164,8 +164,8 @@ static inline std::string getUsingFunctionTypeString(const SIMDInfo& simdInfo)
 
 static inline std::string getArchFuncDeclString(const SIMDInfo& simdInfo, const std::string& arch)
 {
-    return Poco::format(
-               "namespace %s { %s %s %s(%s); }",
+    return std::format(
+               "namespace {} {{ {} {} {}({}); }}",
                arch,
                getTemplateTypenameString(simdInfo),
                simdInfo.returnType,
@@ -194,8 +194,8 @@ static std::string getMapEntry(
     const SIMDInfo& simdInfo,
     const std::string& arch)
 {
-    return Poco::format(
-               "{\"%s\", &%s::%s::%s}",
+    return std::format(
+               "{{\"{}\", &{}::{}::{}}}",
                arch,
                simdInfo.simdNamespace,
                arch,
@@ -221,8 +221,8 @@ static std::string getMapEntries(const SIMDInfo& simdInfo)
 
 static std::string getMapString(const SIMDInfo& simdInfo)
 {
-    return Poco::format(
-               "static const std::unordered_map<std::string, %s> Impls = \n{\n%s\n};",
+    return std::format(
+               "static const std::unordered_map<std::string, {}> Impls = \n{{\n{}\n}};",
                getFunctionTypeString(simdInfo),
                getMapEntries(simdInfo));
 }
@@ -241,32 +241,32 @@ static std::string getFeatureSetKeyString(const SIMDInfo& simdInfo)
             return "\"" + arch + "\"";
         });
 
-    return Poco::format("Pothos::System::getOptimalSIMDFeatureSetKey(std::vector<std::string>{%s})", join(archesWithQuotes, ","));
+    return std::format("Pothos::System::getOptimalSIMDFeatureSetKey(std::vector<std::string>{{{}}})", join(archesWithQuotes, ","));
 }
 
 static std::string getFullFuncString(const SIMDInfo& simdInfo)
 {
-    static const std::string formatStr =
-        "%s\n\n"
+    static constexpr char formatStr[] =
+        "{}\n\n"
 
-        "namespace %s\n"
-        "{\n\n"
+        "namespace {}\n"
+        "{{\n\n"
 
-        "%s\n\n"
+        "{}\n\n"
 
-        "    %s\n\n"
+        "    {}\n\n"
 
-        "    %s\n"
-        "    %s %sDispatch()\n"
-        "    {\n"
-        "%s\n"
-        "        auto implIter = Impls.find(%s);\n"
+        "    {}\n"
+        "    {} {}Dispatch()\n"
+        "    {{\n"
+        "{}\n"
+        "        auto implIter = Impls.find({});\n"
         "        if (implIter != Impls.end()) return implIter->second;\n"
         "        else return Impls.at(\"fallback\");\n"
-        "    }\n"
-        "}";
+        "    }}\n"
+        "}}";
 
-    return Poco::format(
+    return std::format(
                formatStr,
 
                getAddedIncludesString(simdInfo),
@@ -348,7 +348,7 @@ static inline std::string getSIMDDispatcherString(
     const nlohmann::json& json,
     const std::vector<std::string>& arches)
 {
-    static const std::string formatStr =
+    static constexpr char formatStr[] =
         "// Machine-generated code\n\n"
 
         "#pragma once\n\n"
@@ -358,9 +358,9 @@ static inline std::string getSIMDDispatcherString(
         "#include <unordered_map>\n"
         "#include <vector>\n\n"
 
-        "%s";
+        "{}";
 
-    return Poco::format(formatStr, getAllFuncsString(importSIMDFromJSON(json, arches)));
+    return std::format(formatStr, getAllFuncsString(importSIMDFromJSON(json, arches)));
 }
 
 class SIMDDispatcherUtils

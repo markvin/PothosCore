@@ -87,12 +87,12 @@ POTHOS_OBJECT_SERIALIZE(std::vector<Pothos::Label>)
 
 #include <Pothos/Object.hpp>
 
-#include <Poco/Format.h>
+#include <format>
 #include <string>
 
 static std::string labelToString(const Pothos::Label& label)
 {
-    return Poco::format("Pothos::Label (id: %s, data: %s, index: %s, width: %s)",
+    return std::format("Pothos::Label (id: {}, data: {}, index: {}, width: {})",
                         label.id,
                         label.data.toString(),
                         std::to_string((unsigned long)label.index),

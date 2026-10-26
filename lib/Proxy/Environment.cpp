@@ -8,7 +8,7 @@
 #include <Pothos/Plugin.hpp>
 #include <Pothos/System/HostInfo.hpp>
 
-#include <Poco/Format.h>
+#include <format>
 
 Pothos::ProxyEnvironment::Sptr Pothos::ProxyEnvironment::make(const std::string &name, const ProxyEnvironmentArgs &args)
 {
@@ -68,7 +68,7 @@ static auto managedProxyEnvironment = Pothos::ManagedClass()
 
 static inline std::string proxyEnvironmentToString(const Pothos::ProxyEnvironment& env)
 {
-    return Poco::format("Pothos::ProxyEnvironment (%s, %s)", env.getName(), env.getNodeId());
+    return std::format("Pothos::ProxyEnvironment ({}, {})", env.getName(), env.getNodeId());
 }
 
 #include <Pothos/Object.hpp>

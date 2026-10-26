@@ -9,7 +9,7 @@
 #include <Poco/Logger.h>
 #include <Poco/Path.h>
 #include <Poco/File.h>
-#include <Poco/Format.h>
+#include <format>
 #include <Poco/Util/PropertyFileConfiguration.h>
 #include <future>
 #include <map>
@@ -53,11 +53,11 @@ static std::vector<Pothos::PluginPath> loadConfFile(const std::string &path)
     {
         //get the loader
         if (not conf->hasProperty("loader")) throw Pothos::Exception(
-            Poco::format("%s does not specify a loader", path));
+            std::format("{} does not specify a loader", path));
         const std::string loader(conf->getString("loader"));
         const auto loaderPath = Pothos::PluginPath("/framework/conf_loader").join(loader);
         if (not Pothos::PluginRegistry::exists(loaderPath)) throw Pothos::Exception(
-            Poco::format("%s loader %s does not exist", path, loader));
+            std::format("{} loader {} does not exist", path, loader));
 
         //call the loader
         const auto plugin = Pothos::PluginRegistry::get(loaderPath);

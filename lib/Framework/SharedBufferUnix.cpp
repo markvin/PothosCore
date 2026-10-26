@@ -4,7 +4,7 @@
 #include <Pothos/Framework/SharedBuffer.hpp>
 #include <Pothos/Framework/Exception.hpp>
 #include <Poco/TemporaryFile.h>
-#include <Poco/Format.h>
+#include <format>
 #include <cassert>
 #include <fcntl.h> //open
 #include <unistd.h> //close
@@ -114,7 +114,7 @@ private:
         this->cleanup();
         throw Pothos::SharedBufferError(
             "Pothos::CircularBufferContainer::"+what,
-            Poco::format("errno %d - %s", errnoSave, std::string(strerror(errnoSave))));
+            std::format("errno {} - {}", errnoSave, std::string(strerror(errnoSave))));
     }
 
     void cleanup(void)

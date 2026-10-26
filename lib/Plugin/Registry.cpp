@@ -170,8 +170,8 @@ void Pothos::PluginRegistry::add(const Plugin &plugin_)
         {
             const auto newModulePath = getActiveModuleLoading().getFilePath();
             const auto currentModulePath = root->plugin.getModule().getFilePath();
-            throw Pothos::PluginRegistryError("Pothos::PluginRegistry::add("+path.toString()+")", Poco::format(
-                "plugin already registered\n\tLoading: %s, Conflicts: %s", newModulePath, currentModulePath));
+            throw Pothos::PluginRegistryError("Pothos::PluginRegistry::add("+path.toString()+")", std::format(
+                "plugin already registered\n\tLoading: {}, Conflicts: {}", newModulePath, currentModulePath));
         }
 
         //store the plugin and attach the module

@@ -9,7 +9,7 @@
 #include <Pothos/System/Paths.hpp>
 #include <Pothos/Util/TypeInfo.hpp>
 
-#include <Poco/Format.h>
+#include <format>
 #include <Poco/Path.h>
 
 #include <iostream>
@@ -42,18 +42,18 @@ static std::string getEnvironmentModuleFilepath(const std::string& proxyEnvName)
     // look in all potential locations for a plugin registered in paths designated
     // for proxy-specific plugins.
     const auto convertersPluginPath = "/proxy/converters/" + proxyEnvName;
-    const auto testsPluginPath = Poco::format("/proxy/%s/tests", proxyEnvName);
+    const auto testsPluginPath = std::format("/proxy/{}/tests", proxyEnvName);
 
     for (const auto& pluginLeaf : Pothos::PluginRegistry::list(convertersPluginPath))
     {
-        const auto pluginPath = Poco::format("%s/%s", convertersPluginPath, pluginLeaf);
+        const auto pluginPath = std::format("{}/{}", convertersPluginPath, pluginLeaf);
         const auto plugin = Pothos::PluginRegistry::get(pluginPath);
 
         return plugin.getModule().getFilePath();
     }
     for (const auto& pluginLeaf : Pothos::PluginRegistry::list(testsPluginPath))
     {
-        const auto pluginPath = Poco::format("%s/%s", testsPluginPath, pluginLeaf);
+        const auto pluginPath = std::format("{}/{}", testsPluginPath, pluginLeaf);
         const auto plugin = Pothos::PluginRegistry::get(pluginPath);
 
         return plugin.getModule().getFilePath();
@@ -73,7 +73,7 @@ static void printConverters(const std::string& proxyEnvName)
 
         for (const auto& pluginLeaf : Pothos::PluginRegistry::list(convertersPluginPath))
         {
-            const auto pluginPath = Poco::format("%s/%s", convertersPluginPath, pluginLeaf);
+            const auto pluginPath = std::format("{}/{}", convertersPluginPath, pluginLeaf);
             const auto plugin = Pothos::PluginRegistry::get(pluginPath);
 
             if (plugin.getObject().type() == typeid(Pothos::Callable))
@@ -109,7 +109,7 @@ static void printConverters(const std::string& proxyEnvName)
 
 static void printTests(const std::string& proxyEnvName)
 {
-    const auto testsPluginPath = Poco::format("/proxy/%s/tests", proxyEnvName);
+    const auto testsPluginPath = std::format("/proxy/{}/tests", proxyEnvName);
 
     if (Pothos::PluginRegistry::exists(testsPluginPath))
     {

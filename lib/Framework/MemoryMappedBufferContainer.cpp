@@ -6,7 +6,6 @@
 #include <Pothos/Exception.hpp>
 #include <Pothos/Util/ExceptionForErrorCode.hpp>
 
-#include <Poco/Format.h>
 #include <Poco/File.h>
 #include <Poco/Logger.h>
 #include <Poco/Platform.h>

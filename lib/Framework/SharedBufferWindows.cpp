@@ -3,7 +3,7 @@
 
 #include <Pothos/Framework/SharedBuffer.hpp>
 #include <Pothos/Framework/Exception.hpp>
-#include <Poco/Format.h>
+#include <format>
 #include <windows.h>
 #include <algorithm> //min/max
 
@@ -55,7 +55,7 @@ public:
         );
         if (virtualAddr == nullptr) throw Pothos::SharedBufferError(
             "Pothos::GenericBufferContainer::VirtualAllocExNuma()",
-            Poco::format("error code %d", int(GetLastError())));
+            std::format("error code {}", int(GetLastError())));
     }
 
     ~GenericBufferContainer(void)
@@ -96,7 +96,7 @@ private:
         this->cleanup();
         throw Pothos::SharedBufferError(
             "Pothos::CircularBufferContainer::"+what,
-            Poco::format("error code %d", int(errorCode)));
+            std::format("error code {}", int(errorCode)));
     }
 
     void cleanup(void)

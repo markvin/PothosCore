@@ -4,7 +4,7 @@
 #include <Pothos/Object/ObjectImpl.hpp>
 #include <Pothos/Object/Exception.hpp>
 #include <Pothos/Util/TypeInfo.hpp>
-#include <Poco/Format.h>
+#include <format>
 #include <cassert>
 
 /***********************************************************************
@@ -56,7 +56,7 @@ void Pothos::Detail::throwExtract(const Pothos::Object &obj, const std::type_inf
 {
     assert(obj.type() != type);
     throw ObjectConvertError("Pothos::Object::extract()",
-        Poco::format("Cannot convert Object of type %s to %s",
+        std::format("Cannot convert Object of type {} to {}",
         obj.getTypeString(), Util::typeInfoToString(type)));
 }
 

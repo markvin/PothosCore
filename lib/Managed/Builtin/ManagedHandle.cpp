@@ -5,7 +5,7 @@
 #include <Pothos/Managed.hpp>
 #include <Pothos/Object.hpp>
 #include <Pothos/Util/TypeInfo.hpp>
-#include <Poco/Format.h>
+#include <format>
 #include <cassert>
 #include <iostream>
 
@@ -119,7 +119,7 @@ Pothos::Proxy ManagedProxyHandle::call(const std::string &name, const Pothos::Pr
         {
             throw Pothos::ProxyHandleCallError(
                 "ManagedProxyHandle::call("+name+")",
-                Poco::format("convert arg %z - %s", i, ex.displayText()));
+                std::format("convert arg {} - {}", i, ex.displayText()));
         }
     }
 

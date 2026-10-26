@@ -5,7 +5,7 @@
 #include <Pothos/Framework/InputPortImpl.hpp>
 #include <Pothos/Framework/OutputPortImpl.hpp>
 #include <Pothos/Object/Containers.hpp>
-#include <Poco/Format.h>
+#include <format>
 #include <Poco/Logger.h>
 #include <cassert>
 #include <algorithm> //min/max
@@ -108,7 +108,7 @@ void Pothos::WorkerActor::ensureOutputBufferManagerNoLock(const std::string &nam
     //ensure that a buffer manager has been installed
     if (not port._bufferManager) throw RuntimeException(
         "Pothos::WorkerActor::ensureBufferManager()",
-        Poco::format("%s[%s] has no buffer manager set", block->getName(), name));
+        std::format("{}[{}] has no buffer manager set", block->getName(), name));
 }
 
 /***********************************************************************
@@ -126,13 +126,13 @@ void Pothos::WorkerActor::subscribeInput(const std::string &action, const std::s
     if (action == "add") //add to the output port's subscribers list
     {
         if (found) throw PortAccessError("Pothos::WorkerActor::subscribePort()",
-            Poco::format("input %s subscription exists in output port %s", inputPort->name(), myPortName));
+            std::format("input {} subscription exists in output port {}", inputPort->name(), myPortName));
         subscribers.push_back(inputPort);
     }
     if (action == "remove") //remove from the output port's subscribers list
     {
         if (not found) throw PortAccessError("Pothos::WorkerActor::unsubscribePort()",
-            Poco::format("input %s subscription missing from output port %s", inputPort->name(), myPortName));
+            std::format("input {} subscription missing from output port {}", inputPort->name(), myPortName));
         subscribers.erase(it);
     }
 
@@ -157,13 +157,13 @@ void Pothos::WorkerActor::subscribeOutput(const std::string &action, const std::
     if (action == "add") //add to the input port's subscribers list
     {
         if (found) throw PortAccessError("Pothos::WorkerActor::subscribePort()",
-            Poco::format("output %s subscription exists in input port %s", outputPort->name(), myPortName));
+            std::format("output {} subscription exists in input port {}", outputPort->name(), myPortName));
         subscribers.push_back(outputPort);
     }
     if (action == "remove") //remove from the input port's subscribers list
     {
         if (not found) throw PortAccessError("Pothos::WorkerActor::unsubscribePort()",
-            Poco::format("output %s subscription missing from input port %s", outputPort->name(), myPortName));
+            std::format("output {} subscription missing from input port {}", outputPort->name(), myPortName));
         subscribers.erase(it);
     }
 

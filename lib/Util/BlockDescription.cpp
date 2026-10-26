@@ -6,7 +6,7 @@
 #include <Pothos/Exception.hpp>
 #include <Pothos/Plugin.hpp>
 #include "Util/StringUtils.hpp"
-#include <Poco/Format.h>
+#include <format>
 #include <Poco/Path.h>
 #include <Poco/File.h>
 #include <Poco/Path.h>
@@ -29,7 +29,7 @@ struct CodeLine
     size_t lineNo;
     std::string toString(void) const
     {
-        return Poco::format("%z:%s", lineNo, text);
+        return std::format("{}:{}", lineNo, text);
     }
 };
 
@@ -43,7 +43,7 @@ bool trimCheck(const MatchType &m, const size_t ofs = 1)
         const std::string s(m[i]);
         if (s.empty()) continue;
         if (not std::isspace(s.front()) and not std::isspace(s.back())) continue;
-        std::cerr << Poco::format("Failed to trim m[%d]='%s'; m[0]='%s'", int(i), s, std::string(m[0])) << std::endl;
+        std::cerr << std::format("Failed to trim m[{}]='{}'; m[0]='{}'", int(i), s, std::string(m[0])) << std::endl;
         return false;
     }
     return true;

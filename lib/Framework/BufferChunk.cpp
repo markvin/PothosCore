@@ -6,7 +6,7 @@
 #include <Pothos/Object.hpp>
 #include <Pothos/Plugin.hpp>
 
-#include <Poco/Format.h>
+#include <format>
 #include <string>
 
 #include <cstring> //memcpy
@@ -144,8 +144,8 @@ POTHOS_OBJECT_SERIALIZE(Pothos::BufferChunk)
 
 static std::string bufferChunkToString(const Pothos::BufferChunk& bufferChunk)
 {
-    return Poco::format(
-               "Pothos::BufferChunk (dtype: %s, elements: %s)",
+    return std::format(
+               "Pothos::BufferChunk (dtype: {}, elements: {})",
                bufferChunk.dtype.toString(),
                std::to_string(bufferChunk.elements()));
 }

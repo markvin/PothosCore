@@ -9,7 +9,6 @@
 #include <Poco/SharedLibrary.h>
 #include <Poco/Platform.h>
 #include <Poco/Logger.h>
-#include <Poco/Format.h>
 #include <mutex>
 
 /***********************************************************************

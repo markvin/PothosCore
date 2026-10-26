@@ -9,7 +9,7 @@
 #include <Pothos/Plugin.hpp>
 #include <Pothos/Util/CompareTo.hpp>
 #include <Poco/Logger.h>
-#include <Poco/Format.h>
+#include <format>
 #include <mutex>
 #include <map>
 
@@ -92,7 +92,7 @@ int Pothos::Object::compareTo(const Pothos::Object &other) const
     //thow an error when the compare is not supported
     if (it == getCompareMap().end()) throw Pothos::ObjectCompareError(
         "Pothos::Object::compareTo()",
-        Poco::format("not supported for %s, %s",
+        std::format("not supported for {}, {}",
         this->toString(), other.toString()));
 
     Object args[2];

@@ -31,14 +31,14 @@ static auto managedWorkInfo = Pothos::ManagedClass()
 
 #include <Pothos/Object.hpp>
 #include <Pothos/Plugin.hpp>
-#include <Poco/Format.h>
+#include <format>
 #include <string>
 
 static std::string workInfoToString(const Pothos::WorkInfo& workInfo)
 {
-    return Poco::format(
-            "Pothos::WorkInfo (minElements: %s, minInElements: %s, minOutElements: %s, "
-            "minAllElements: %s, minAllInElements: %s, minAllOutElements: %s, maxTimeoutNs: %s)",
+    return std::format(
+            "Pothos::WorkInfo (minElements: {}, minInElements: {}, minOutElements: {}, "
+            "minAllElements: {}, minAllInElements: {}, minAllOutElements: {}, maxTimeoutNs: {})",
             std::to_string(workInfo.minElements),
             std::to_string(workInfo.minInElements),
             std::to_string(workInfo.minOutElements),

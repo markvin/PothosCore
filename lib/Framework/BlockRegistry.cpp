@@ -84,8 +84,8 @@ static Pothos::Object blockRegistryMake(const std::string &path, const Pothos::O
 
     //check that the number of args match
     if (numArgs != factory.getNumArgs()) throw Pothos::InvalidArgumentException(
-        "Pothos::BlockRegistry("+path+")", Poco::format(
-        "factory expected %z args, but got %z args",
+        "Pothos::BlockRegistry("+path+")", std::format(
+        "factory expected {} args, but got {} args",
         factory.getNumArgs(), numArgs));
 
     //handle factories that return Block pointer types

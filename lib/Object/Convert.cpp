@@ -9,7 +9,7 @@
 #include <Pothos/Callable.hpp>
 #include <Pothos/Plugin.hpp>
 #include <Poco/Logger.h>
-#include <Poco/Format.h>
+#include <format>
 #include <mutex>
 #include <set>
 #include <map>
@@ -113,7 +113,7 @@ static Pothos::Object convertObject(const Pothos::Object &inputObj, const std::t
     //thow an error when the conversion is not supported
     if (it == getConvertMap().end()) throw Pothos::ObjectConvertError(
         "Pothos::Object::convert()",
-        Poco::format("doesnt support %s to %s",
+        std::format("doesnt support {} to {}",
         inputObj.getTypeString(),
         Pothos::Util::typeInfoToString(outputType)));
 

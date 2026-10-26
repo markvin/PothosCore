@@ -6,7 +6,6 @@
 #include <Pothos/Framework.hpp>
 #include <Pothos/Util/Templates.hpp>
 #include <Pothos/Util/TypeInfo.hpp>
-#include <Poco/Format.h>
 #include <random>
 #include <random>
 #include <cstdint>

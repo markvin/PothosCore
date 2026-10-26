@@ -5,7 +5,7 @@
 #include <Pothos/Callable/Exception.hpp>
 #include <Pothos/Object/Exception.hpp>
 #include <Pothos/Util/TypeInfo.hpp>
-#include <Poco/Format.h>
+#include <format>
 #include <cassert>
 #include <algorithm> //min/max
 
@@ -37,8 +37,8 @@ Pothos::Object Pothos::Callable::opaqueCall(const Object *inputArgs, const size_
         {
             if (numArgs <= inputArgsIndex)
             {
-                throw Pothos::CallableArgumentError("Pothos::Callable::call()", Poco::format(
-                    "expected input argument at %z", inputArgsIndex));
+                throw Pothos::CallableArgumentError("Pothos::Callable::call()", std::format(
+                    "expected input argument at {}", inputArgsIndex));
             }
             callArgs[i] = inputArgs[inputArgsIndex++];
         }
@@ -50,8 +50,8 @@ Pothos::Object Pothos::Callable::opaqueCall(const Object *inputArgs, const size_
         }
         catch(const Pothos::ObjectConvertError &ex)
         {
-            throw Pothos::CallableArgumentError("Pothos::Callable::call()", Poco::format(
-                "failed to convert arg%z\n%s", i, std::string(ex.displayText())));
+            throw Pothos::CallableArgumentError("Pothos::Callable::call()", std::format(
+                "failed to convert arg{}\n{}", i, std::string(ex.displayText())));
         }
     }
 
@@ -85,13 +85,13 @@ const std::type_info &Pothos::Callable::type(const int argNo) const
 
     if (argNo < -1)
     {
-        throw Pothos::CallableArgumentError("Pothos::Callable::type()", Poco::format(
-            "unexpected argNo %d", argNo));
+        throw Pothos::CallableArgumentError("Pothos::Callable::type()", std::format(
+            "unexpected argNo {}", argNo));
     }
     if (argNo >= int(this->getNumArgs()))
     {
-        throw Pothos::CallableArgumentError("Pothos::Callable::type()", Poco::format(
-            "unexpected argNo %d but call takes %z arguments", argNo, this->getNumArgs()));
+        throw Pothos::CallableArgumentError("Pothos::Callable::type()", std::format(
+            "unexpected argNo {} but call takes {} arguments", argNo, this->getNumArgs()));
     }
 
     if (argNo == -1) return _impl->type(-1);

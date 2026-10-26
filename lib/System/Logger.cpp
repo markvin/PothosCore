@@ -5,7 +5,6 @@
 #include <Pothos/Util/Network.hpp>
 #include <Pothos/Plugin/Static.hpp> //static block
 #include <Poco/Logger.h>
-#include <Poco/Format.h>
 #include <Poco/Environment.h>
 #include <Poco/ConsoleChannel.h>
 #include <Poco/Platform.h>

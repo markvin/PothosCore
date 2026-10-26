@@ -4,7 +4,7 @@
 #include "Framework/TopologyImpl.hpp"
 #include <Pothos/Framework/Block.hpp>
 #include <Pothos/Framework/Exception.hpp>
-#include <Poco/Format.h>
+#include <format>
 #include <iostream>
 #include <future>
 #include <algorithm>
@@ -99,7 +99,7 @@ static void installBufferManagers(const std::vector<Flow> &flatFlows)
                 std::string otherDstDomain = otherDst.obj.call("input", otherDst.name).call("domain");
                 if (getBufferMode(otherDst, srcDomain, true) != "ABDICATE" and not otherDstDomain.empty())
                 {
-                    throw Pothos::Exception("Pothos::Topology::installBufferManagers", Poco::format("%s->%s\n"
+                    throw Pothos::Exception("Pothos::Topology::installBufferManagers", std::format("{}->{}\n"
                         "rectifyDomainFlows() logic does not /yet/ handle multiple destinations w/ custom buffer managers",
                         src.toString(), otherDst.toString()));
                 }
@@ -116,7 +116,7 @@ static void installBufferManagers(const std::vector<Flow> &flatFlows)
         }
 
         std::shared_future<void> result(std::async(std::launch::async, setOutputBufferManager, src, manager));
-        infoFutures.push_back(FutureInfo(Poco::format("setOutputBufferManager(%s)", src.name), src.obj, result));
+        infoFutures.push_back(FutureInfo(std::format("setOutputBufferManager({})", src.name), src.obj, result));
     }
 
     //check all subscribe message results

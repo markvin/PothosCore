@@ -7,7 +7,6 @@
 #include <Pothos/Callable.hpp>
 #include <Pothos/Plugin.hpp>
 #include <Poco/Logger.h>
-#include <Poco/Format.h>
 #include <mutex>
 #include <map>
 
