@@ -74,8 +74,9 @@ jobs:
           -DCMAKE_CXX_COMPILER=${{ matrix.cxx }}
           ${{ matrix.extra }}
 
+      # keep going after the first error to report all of them in one run
       - name: Build
-        run: cmake --build build
+        run: cmake --build build -- -k 0
 
       - name: Test
         run: ctest --test-dir build --output-on-failure
