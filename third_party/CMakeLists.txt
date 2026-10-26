@@ -25,3 +25,9 @@ add_library(pothos_muparserx STATIC ${MUPARSERX_SOURCES})
 set_target_properties(pothos_muparserx PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(pothos_muparserx SYSTEM PUBLIC
     $<BUILD_INTERFACE:${MUPARSERX_SOURCE_DIR}>)
+
+#muparserx headers use std::binary_function (removed in C++17):
+#re-enable it in libc++ and the MSVC STL for everything that includes them
+target_compile_definitions(pothos_muparserx PUBLIC
+    _LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION
+    _HAS_AUTO_PTR_ETC=1)
