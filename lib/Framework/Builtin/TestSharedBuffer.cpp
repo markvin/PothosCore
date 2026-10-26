@@ -82,6 +82,7 @@ POTHOS_TEST_BLOCK("/framework/tests", test_mmap_shared_buffer)
 
     std::ofstream ofile(tempFile.path(), std::ios::binary);
     ofile.write(reinterpret_cast<const char*>(input.address), input.length);
+    ofile.close(); //flush the stream buffer to the file before checking its size
     POTHOS_TEST_TRUE(ofile.good());
     POTHOS_TEST_EQUAL(input.length, tempFile.getSize());
 
