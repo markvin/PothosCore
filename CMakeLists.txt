@@ -140,6 +140,7 @@ if (APPLE)
     target_compile_definitions(Foundation PRIVATE "fdopen=fdopen")
 endif ()
 
+#XML is not used by Pothos, but PocoUtil needs it at runtime
 install(TARGETS Foundation Util XML Net
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} NAMELINK_SKIP COMPONENT pothos_runtime
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT pothos_runtime)

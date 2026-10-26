@@ -2,49 +2,55 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include "Framework/TopologyImpl.hpp"
-#include <Poco/DOM/Document.h>
-#include <Poco/DOM/Element.h>
-#include <Poco/DOM/Text.h>
-#include <Poco/DOM/DOMWriter.h>
-#include <Poco/XML/XMLWriter.h>
-#include <Poco/AutoPtr.h>
 #include <charconv>
 #include <sstream>
+#include <string_view>
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
 
-static Poco::AutoPtr<Poco::XML::Element> portInfoToElem(Poco::AutoPtr<Poco::XML::Document> xmlDoc, const json &portsInfo, const std::string &prefix)
+//! Escape text and attribute values for a graphviz HTML-like label
+static std::string htmlEscape(std::string_view s)
 {
-    auto nodeTd = xmlDoc->createElement("td");
-    nodeTd->setAttribute("border", "0");
-    auto table = xmlDoc->createElement("table");
-    nodeTd->appendChild(table);
-    table->setAttribute("border", "0");
-    table->setAttribute("cellspacing", "0");
+    std::string out;
+    for (const char ch : s)
+    {
+        switch (ch)
+        {
+        case '&': out += "&amp;"; break;
+        case '<': out += "&lt;"; break;
+        case '>': out += "&gt;"; break;
+        case '"': out += "&quot;"; break;
+        case '\'': out += "&#39;"; break;
+        default: out += ch;
+        }
+    }
+    return out;
+}
 
+static std::string portInfoToElem(const json &portsInfo, const std::string &prefix)
+{
+    std::string out = "<td border=\"0\"><table border=\"0\" cellspacing=\"0\">";
     for (const auto &portInfo : portsInfo)
     {
         std::string name = portInfo["name"];
         const bool isSigSlot = portInfo["isSigSlot"];
 
-        auto tr = xmlDoc->createElement("tr");
-        table->appendChild(tr);
-        auto td = xmlDoc->createElement("td");
-        tr->appendChild(td);
-        td->setAttribute("border", "1");
-        if (prefix == "in"  and isSigSlot)     td->setAttribute("bgcolor", "#AEC6CF");
-        if (prefix == "in"  and not isSigSlot) td->setAttribute("bgcolor", "#779ECB");
-        if (prefix == "out" and isSigSlot)     td->setAttribute("bgcolor", "#77DD77");
-        if (prefix == "out" and not isSigSlot) td->setAttribute("bgcolor", "#03C03C");
-        td->setAttribute("port", "__"+prefix+"__"+name);
+        std::string bgcolor;
+        if (prefix == "in"  and isSigSlot)     bgcolor = "#AEC6CF";
+        if (prefix == "in"  and not isSigSlot) bgcolor = "#779ECB";
+        if (prefix == "out" and isSigSlot)     bgcolor = "#77DD77";
+        if (prefix == "out" and not isSigSlot) bgcolor = "#03C03C";
+        const auto port = "__"+prefix+"__"+name;
         unsigned value = 0;
         const auto parsed = std::from_chars(name.data(), name.data()+name.size(), value);
         if (not name.empty() and parsed.ec == std::errc() and parsed.ptr == name.data()+name.size()) name = prefix+name;
-        td->appendChild(xmlDoc->createTextNode(name));
-    }
 
-    return nodeTd;
+        out += "<tr><td bgcolor=\"" + bgcolor + "\" border=\"1\" port=\"" + htmlEscape(port) + "\">";
+        out += htmlEscape(name) + "</td></tr>";
+    }
+    out += "</table></td>";
+    return out;
 }
 
 static json getConnectedPortInfos(
@@ -104,46 +110,23 @@ std::string Pothos::Topology::toDotMarkup(const std::string &request)
         const auto blockId = it.key();
         const auto blockObj = it.value();
 
-        //form xml
-        Poco::AutoPtr<Poco::XML::Document> xmlDoc(new Poco::XML::Document());
-        auto nodeTable = xmlDoc->createElement("table");
-        xmlDoc->appendChild(nodeTable);
-        nodeTable->setAttribute("border", "0");
-        nodeTable->setAttribute("cellpadding", "0");
-        nodeTable->setAttribute("cellspacing", "0");
-        auto nodeTr = xmlDoc->createElement("tr");
-        nodeTable->appendChild(nodeTr);
+        //form the html-like label
+        std::string label = "<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\"><tr>";
 
         const bool enbFilter = portConfig == "connected";
         const auto inputPorts = getConnectedPortInfos(topObj, blockId, enbFilter, true);
         const auto outputPorts = getConnectedPortInfos(topObj, blockId, enbFilter, false);
 
-        if (not inputPorts.empty())
+        if (not inputPorts.empty()) label += portInfoToElem(inputPorts, "in");
         {
-            nodeTr->appendChild(portInfoToElem(xmlDoc, inputPorts, "in"));
-        }
-        {
-            auto nodeTd = xmlDoc->createElement("td");
-            nodeTd->setAttribute("border", "0");
-            nodeTr->appendChild(nodeTd);
-            auto table = xmlDoc->createElement("table");
-            nodeTd->appendChild(table);
-            table->setAttribute("border", "0");
-            table->setAttribute("cellspacing", "0");
-            auto tr = xmlDoc->createElement("tr");
-            table->appendChild(tr);
-            auto td = xmlDoc->createElement("td");
-            td->setAttribute("border", "1");
-            td->setAttribute("bgcolor", "azure");
-            tr->appendChild(td);
             std::string name = blockObj["name"];
             if (name.empty()) name = "Empty Name";
-            td->appendChild(xmlDoc->createTextNode(name));
+            label += "<td border=\"0\"><table border=\"0\" cellspacing=\"0\"><tr>";
+            label += "<td bgcolor=\"azure\" border=\"1\">" + htmlEscape(name) + "</td>";
+            label += "</tr></table></td>";
         }
-        if (not outputPorts.empty())
-        {
-            nodeTr->appendChild(portInfoToElem(xmlDoc, outputPorts, "out"));
-        }
+        if (not outputPorts.empty()) label += portInfoToElem(outputPorts, "out");
+        label += "</tr></table>";
 
         //dot node entry
         os << "    ";
@@ -151,9 +134,7 @@ std::string Pothos::Topology::toDotMarkup(const std::string &request)
         os << "[" << std::endl;
         os << "    shape=none," << std::endl;
         os << "    label=<" << std::endl;
-        Poco::XML::DOMWriter write;
-        write.setOptions(Poco::XML::XMLWriter::PRETTY_PRINT);
-        write.writeNode(os, xmlDoc);
+        os << label << std::endl;
         os << "    >" << std::endl;
         os << "];" << std::endl;
     }

@@ -102,6 +102,7 @@ add_library(Pothos SHARED
     Framework/Builtin/TestLabel.cpp
     Framework/Builtin/TestThreadPool.cpp
     Framework/Builtin/TestTopology.cpp
+    Framework/Builtin/TestDotMarkup.cpp
 
     Plugin/Path.cpp
     Plugin/Plugin.cpp
@@ -232,7 +233,7 @@ endif(MSVC)
 ########################################################################
 #Poco and muparserx are transitional private dependencies
 target_link_libraries(Pothos PRIVATE
-    PocoFoundation PocoUtil PocoXML PocoNet
+    PocoFoundation PocoUtil PocoNet
     pothos_muparserx
     pothos_json)
 
