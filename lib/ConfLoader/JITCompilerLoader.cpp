@@ -14,6 +14,7 @@
 #include <memory>
 #include <mutex>
 #include <cctype>
+#include <exception>
 #include <map>
 
 static Poco::Logger &sourceLoaderLogger(void)
