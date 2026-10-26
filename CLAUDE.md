@@ -37,7 +37,7 @@ ctest --test-dir build --output-on-failure
   `pothos.selftests` runs `stage/bin/PothosUtil --self-tests` with
   `POTHOS_ROOT` and isolated `XDG_*`/`APPDATA` dirs (`cmake/PothosTestEnv.cmake`).
 - Single self-test:
-  `cmake -DPREFIX=build/stage -DHOME_DIR=build/test-home -DBINDIR=bin -DLIBDIR=lib -DTEST_PATH=/framework/tests/test_mmap_shared_buffer -P cmake/PothosRunSelfTests.cmake`
+  `cmake -DPREFIX=build/stage -DTEST_HOME_DIR=build/test-home -DBINDIR=bin -DLIBDIR=lib -DTEST_PATH=/framework/tests/test_mmap_shared_buffer -P cmake/PothosRunSelfTests.cmake`
 - CI: `.github/workflows/ci.yml` (Linux GCC/Clang, macOS, Windows MSVC).
 
 ## Conventions
