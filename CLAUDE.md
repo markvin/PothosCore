@@ -39,6 +39,7 @@ ctest --test-dir build --output-on-failure
 - Single self-test:
   `cmake -DPREFIX=build/stage -DTEST_HOME_DIR=build/test-home -DBINDIR=bin -DLIBDIR=lib -DTEST_PATH=/framework/tests/test_mmap_shared_buffer -P cmake/PothosRunSelfTests.cmake`
 - CI: `.github/workflows/ci.yml` (Linux GCC/Clang, macOS, Windows MSVC).
+- `build/compile_commands.json` is always generated (clangd finds it there).
 
 ## Conventions
 

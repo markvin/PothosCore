@@ -17,6 +17,9 @@ set(POTHOS_LIBVER "${CMAKE_MATCH_1}")
 project(Pothos VERSION ${POTHOS_LIBVER} LANGUAGES C CXX)
 enable_testing()
 
+#compile_commands.json in the build directory for code navigation (clangd)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 #C++23 is a required language feature for this project
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
