@@ -46,6 +46,9 @@ ctest --test-dir build --output-on-failure
 
 ## Notes
 
+- Branches: `pothos2` is the integration branch of the modernization (new,
+  incompatible API); every phase is merged into it via PR. `master` keeps the
+  original API. CI runs on pushes and PRs.
 - Remotes: `origin` = fork (markvin), `upstream` = pothosware/PothosCore.
 - spuce: the URL in `.gitmodules` (audiofilter/spuce) is dead — the account was
   renamed and the repo is no longer public. The recorded commit `ad08df7` is
