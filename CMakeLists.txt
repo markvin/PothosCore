@@ -195,6 +195,12 @@ add_test(NAME pothos.consumer
         -P ${PROJECT_SOURCE_DIR}/cmake/PothosConsumerTest.cmake)
 set_tests_properties(pothos.consumer PROPERTIES FIXTURES_REQUIRED pothos_stage)
 
+add_test(NAME pothos.poco_allowlist
+    COMMAND ${CMAKE_COMMAND}
+        -DSRC=${PROJECT_SOURCE_DIR}
+        -DALLOWLIST=${PROJECT_SOURCE_DIR}/cmake/poco-allowlist.txt
+        -P ${PROJECT_SOURCE_DIR}/cmake/PothosCheckPoco.cmake)
+
 add_test(NAME pothos.test_env_guard
     COMMAND ${CMAKE_COMMAND}
         -DWORK=${CMAKE_BINARY_DIR}/test-env-guard
