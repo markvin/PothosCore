@@ -64,10 +64,15 @@ static LoggerState &state(void)
     return *s;
 }
 
-static void writeToSink(const Detail::LogRecord &record)
+static void writeToSink(const Detail::LogRecord &record, const bool tryOnly = false)
 {
     auto &s = state();
-    std::lock_guard<std::mutex> lock(s.sinkMutex);
+    std::unique_lock<std::mutex> lock(s.sinkMutex, std::defer_lock);
+    if (tryOnly)
+    {
+        if (not lock.try_lock()) return; //give up rather than hang
+    }
+    else lock.lock();
     if (not s.sink) return;
     try {s.sink(record);}
     catch (...) {} //a failing sink must never break the caller
@@ -217,8 +222,14 @@ void Detail::shutdownLogging(void)
         s.queueCond.notify_all();
     }
     //write what the writer did not get to here: at process exit on Windows
-    //the writer thread may already be gone, so it is never waited on for this
-    for (const auto &record : remaining) writeToSink(record);
+    //the writer thread may already be gone (killed while holding the sink
+    //lock), so it is never waited on and the lock is only tried
+    #ifdef _WIN32
+    constexpr bool tryOnly = true;
+    #else
+    constexpr bool tryOnly = false;
+    #endif
+    for (const auto &record : remaining) writeToSink(record, tryOnly);
     {
         std::lock_guard<std::mutex> lock(s.queueMutex);
         s.written += remaining.size();

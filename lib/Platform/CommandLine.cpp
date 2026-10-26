@@ -79,7 +79,11 @@ static void appendQuoted(std::wstring &cmd, const std::wstring &arg)
 std::wstring Pothos::Platform::buildWindowsCommandLine(const std::filesystem::path &exe, const std::vector<std::string> &args)
 {
     std::wstring cmd;
+    #ifdef _WIN32
+    appendQuoted(cmd, exe.wstring()); //native UTF-16, no code page round trip
+    #else
     appendQuoted(cmd, utf8ToWide(exe.string()));
+    #endif
     for (const auto &arg : args)
     {
         cmd.push_back(L' ');

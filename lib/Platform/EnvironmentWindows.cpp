@@ -12,29 +12,47 @@
 #include <windows.h>
 #include <iphlpapi.h>
 
+static std::wstring toWide(const std::string &utf8)
+{
+    if (utf8.empty()) return std::wstring();
+    const int n = MultiByteToWideChar(CP_UTF8, 0, utf8.data(), int(utf8.size()), nullptr, 0);
+    std::wstring out(n, L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, utf8.data(), int(utf8.size()), out.data(), n);
+    return out;
+}
+
+static std::string toUtf8(const std::wstring &wide)
+{
+    if (wide.empty()) return std::string();
+    const int n = WideCharToMultiByte(CP_UTF8, 0, wide.data(), int(wide.size()), nullptr, 0, nullptr, nullptr);
+    std::string out(n, '\0');
+    WideCharToMultiByte(CP_UTF8, 0, wide.data(), int(wide.size()), out.data(), n, nullptr, nullptr);
+    return out;
+}
+
+//environment strings are UTF-8 in Pothos: use the wide CRT functions,
+//which update the CRT environment and the block that child processes inherit
 std::optional<std::string> Pothos::Platform::getEnv(const std::string &name)
 {
-    char *value = nullptr;
+    wchar_t *value = nullptr;
     size_t len = 0;
-    if (_dupenv_s(&value, &len, name.c_str()) != 0 or value == nullptr) return std::nullopt;
-    std::string result(value);
+    if (_wdupenv_s(&value, &len, toWide(name).c_str()) != 0 or value == nullptr) return std::nullopt;
+    std::string result = toUtf8(value);
     std::free(value);
     return result;
 }
 
 void Pothos::Platform::setEnv(const std::string &name, const std::string &value)
 {
-    //_putenv_s updates both the CRT environment (getenv) and the process
-    //environment block that child processes inherit
-    if (_putenv_s(name.c_str(), value.c_str()) != 0)
-        throw Pothos::SystemException("Pothos::Platform::setEnv("+name+")", "_putenv_s failed");
+    if (_wputenv_s(toWide(name).c_str(), toWide(value).c_str()) != 0)
+        throw Pothos::SystemException("Pothos::Platform::setEnv("+name+")", "_wputenv_s failed");
 }
 
 void Pothos::Platform::unsetEnv(const std::string &name)
 {
     //an empty value removes the variable
-    if (_putenv_s(name.c_str(), "") != 0)
-        throw Pothos::SystemException("Pothos::Platform::unsetEnv("+name+")", "_putenv_s failed");
+    if (_wputenv_s(toWide(name).c_str(), L"") != 0)
+        throw Pothos::SystemException("Pothos::Platform::unsetEnv("+name+")", "_wputenv_s failed");
 }
 
 std::string Pothos::Platform::osName(void)
