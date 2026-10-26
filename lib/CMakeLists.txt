@@ -219,9 +219,9 @@ if(CMAKE_COMPILER_IS_GNUCXX OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang"))
     target_compile_options(Pothos PRIVATE -Wno-unused-local-typedefs)
 
     #common warnings to help encourage good coding practices
-    target_compile_options(Pothos PUBLIC -Wall)
-    target_compile_options(Pothos PUBLIC -Wextra)
-    target_compile_options(Pothos PUBLIC -Wnon-virtual-dtor)
+    target_compile_options(Pothos PRIVATE -Wall)
+    target_compile_options(Pothos PRIVATE -Wextra)
+    target_compile_options(Pothos PRIVATE -Wnon-virtual-dtor)
 endif()
 
 if(APPLE)
@@ -231,7 +231,7 @@ endif()
 
 if(MSVC)
     #we always want to use multiple cores for compilation
-    target_compile_options(Pothos PUBLIC /MP)
+    target_compile_options(Pothos PRIVATE /MP)
 
     #projects should be cross-platform and standard stl functions should work
     target_compile_definitions(Pothos PUBLIC -DNOMINMAX) #enables std::min and std::max
@@ -380,7 +380,7 @@ endif(MSVC)
 ########################################################################
 # Generate dynamic dispatch files for SIMD code
 ########################################################################
-target_include_directories(Pothos PRIVATE ${PROJECT_SOURCE_DIR}/libsimdpp)
+target_include_directories(Pothos SYSTEM PRIVATE ${PROJECT_SOURCE_DIR}/libsimdpp)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/../libsimdpp/cmake/SimdppMultiarch.cmake)
 
