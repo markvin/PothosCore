@@ -5,7 +5,9 @@
 #include <Pothos/System/Logger.hpp>
 #include "System/LoggerSinks.hpp"
 #include "Platform/Environment.hpp"
+#include <atomic>
 #include <chrono>
+#include <future>
 #include <mutex>
 #include <set>
 #include <string>
@@ -120,6 +122,30 @@ POTHOS_TEST_BLOCK("/system/tests", test_logger_fatal_sync)
     const auto records = capture.get();
     POTHOS_TEST_EQUAL(records.size(), 101u);
     POTHOS_TEST_EQUAL(records.back().text, "stop");
+}
+
+POTHOS_TEST_BLOCK("/system/tests", test_logger_flush_under_load)
+{
+    //a slow sink and a thread that never stops logging:
+    //flush() must still return once the messages logged before it are written
+    //the sink writes one record per 2ms while two arrive: the queue never empties
+    CaptureSink capture(std::chrono::milliseconds(2));
+    std::atomic<bool> stop(false);
+    std::thread spammer([&stop]
+    {
+        while (not stop)
+        {
+            POTHOS_LOG_ERROR("t.load", "spam");
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    });
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    auto flushed = std::async(std::launch::async, []{Logger::flush();});
+    const bool returned = flushed.wait_for(std::chrono::seconds(5)) == std::future_status::ready;
+    stop = true;
+    spammer.join();
+    flushed.wait();
+    POTHOS_TEST_TRUE(returned);
 }
 
 POTHOS_TEST_BLOCK("/system/tests", test_logger_after_shutdown)

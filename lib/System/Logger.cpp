@@ -49,7 +49,8 @@ struct LoggerState
     std::mutex queueMutex;
     std::condition_variable queueCond, idleCond;
     std::deque<Detail::LogRecord> queue;
-    bool busy = false;
+    unsigned long long enqueued = 0; //records ever queued
+    unsigned long long written = 0; //records taken off the queue and written
     bool stopWorker = false;
     std::thread worker;
     std::atomic<bool> async{true};
@@ -82,12 +83,11 @@ static void workerLoop(void)
         if (s.queue.empty()) break; //stop requested and nothing left
         auto record = std::move(s.queue.front());
         s.queue.pop_front();
-        s.busy = true;
         lock.unlock();
         writeToSink(record);
         lock.lock();
-        s.busy = false;
-        if (s.queue.empty()) s.idleCond.notify_all();
+        s.written++;
+        s.idleCond.notify_all();
     }
 }
 
@@ -105,6 +105,7 @@ static void dispatch(Detail::LogRecord &&record)
     std::lock_guard<std::mutex> lock(s.queueMutex);
     if (not s.worker.joinable()) s.worker = std::thread(&workerLoop); //started on first use
     s.queue.push_back(std::move(record));
+    s.enqueued++;
     s.queueCond.notify_one();
 }
 
@@ -174,7 +175,9 @@ void Logger::flush(void)
     auto &s = state();
     std::unique_lock<std::mutex> lock(s.queueMutex);
     if (not s.worker.joinable()) return;
-    s.idleCond.wait(lock, [&s]{return s.queue.empty() and not s.busy;});
+    //only the records logged before this call: other threads may keep logging
+    const auto target = s.enqueued;
+    s.idleCond.wait(lock, [&s, target]{return s.written >= target;});
 }
 
 /***********************************************************************
@@ -216,6 +219,10 @@ void Detail::shutdownLogging(void)
     //write what the writer did not get to here: at process exit on Windows
     //the writer thread may already be gone, so it is never waited on for this
     for (const auto &record : remaining) writeToSink(record);
+    {
+        std::lock_guard<std::mutex> lock(s.queueMutex);
+        s.written += remaining.size();
+    }
     if (s.worker.joinable())
     {
         #ifdef _WIN32
@@ -226,7 +233,6 @@ void Detail::shutdownLogging(void)
     }
     std::lock_guard<std::mutex> lock(s.queueMutex);
     s.stopWorker = false;
-    s.busy = false;
     s.idleCond.notify_all();
 }
 
