@@ -171,6 +171,12 @@ private:
  */
 std::wstring buildWindowsCommandLine(const std::filesystem::path &exe, const std::vector<std::string> &args);
 
+/*!
+ * Name of the Windows event that asks a Poco ServerApplication (PothosUtil
+ * until phase 5) to terminate: "POCOTRM" + the pid as 8 upper case hex digits.
+ */
+std::wstring terminationEventName(const int pid);
+
 //! UTF-8 to wide string (UTF-16 on Windows, UTF-32 elsewhere)
 std::wstring utf8ToWide(const std::string &s);
 

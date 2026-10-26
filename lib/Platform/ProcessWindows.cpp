@@ -232,7 +232,7 @@ void Pothos::Platform::Process::requestTermination(void)
     if (this->tryWait()) return;
     //PothosUtil (a Poco ServerApplication until phase 5 replaces it) waits
     //for the named event POCOTRM<pid>; fall back to terminating the process
-    const auto name = L"POCOTRM" + std::to_wstring(_impl->pid);
+    const auto name = terminationEventName(int(_impl->pid));
     const HANDLE event = OpenEventW(EVENT_MODIFY_STATE, FALSE, name.c_str());
     if (event != nullptr)
     {

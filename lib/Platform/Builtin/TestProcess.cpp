@@ -20,6 +20,13 @@ POTHOS_TEST_BLOCK("/platform/tests", test_windows_command_line_quoting)
     POTHOS_TEST_TRUE(cmd == L"\"C:\\Program Files\\P\\PothosUtil.exe\" --load-module \"C:\\my mods\\a.dll\" \"say \\\"hi\\\"\" trail\\ \"\"");
 }
 
+POTHOS_TEST_BLOCK("/platform/tests", test_termination_event_name)
+{
+    //the named event of Poco::Util::ServerApplication: POCOTRM + 8 upper case hex digits
+    POTHOS_TEST_TRUE(terminationEventName(0xABCD) == L"POCOTRM0000ABCD");
+    POTHOS_TEST_TRUE(terminationEventName(1234) == L"POCOTRM000004D2");
+}
+
 POTHOS_TEST_BLOCK("/platform/tests", test_pipe_roundtrip)
 {
     Pipe p;

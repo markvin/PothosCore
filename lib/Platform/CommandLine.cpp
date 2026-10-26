@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include "Platform/Process.hpp"
+#include <format>
 
 std::wstring Pothos::Platform::utf8ToWide(const std::string &s)
 {
@@ -85,4 +86,9 @@ std::wstring Pothos::Platform::buildWindowsCommandLine(const std::filesystem::pa
         appendQuoted(cmd, utf8ToWide(arg));
     }
     return cmd;
+}
+
+std::wstring Pothos::Platform::terminationEventName(const int pid)
+{
+    return std::format(L"POCOTRM{:08X}", static_cast<unsigned>(pid));
 }
