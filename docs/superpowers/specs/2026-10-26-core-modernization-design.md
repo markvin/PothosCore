@@ -1,0 +1,179 @@
+# Модернизация ядра PothosCore — дизайн
+
+Дата: 2026-10-26
+Ветка: `worktree-restore-update`
+
+## Зачем
+
+PothosCore — фреймворк потоковой обработки данных (блоки, порты, топологии,
+плагины, удалённое выполнение). Проект заброшен: собирается под C++11,
+`cmake_minimum_required(VERSION 3.1.0)` (CMake 4.x, установленный локально —
+4.4.4 — такие проекты уже не конфигурирует), тянет Poco как публичную
+зависимость, качает `json.hpp` из интернета во время конфигурации.
+
+Цель — вернуть ядро к жизни как современную самодостаточную C++23-библиотеку,
+на основе которой позже будут адаптированы модули (toolkits).
+
+## Цели
+
+1. **C++23.** Весь код ядра компилируется в режиме C++23; устаревшие конструкции
+   заменены стандартными (`std::format`, `std::filesystem`, `std::span`,
+   `std::any`, `std::optional`, `<random>`, `<regex>`, `<chrono>` и т.п.).
+2. **Современный CMake.** Target-based сборка, без глобальных
+   `include_directories`/`add_definitions`; корректный экспорт пакета
+   (`find_package(Pothos CONFIG)` + импортируемый target, например
+   `Pothos::Pothos`); собирается свежим CMake 4.x.
+3. **Без Poco.** Poco полностью удалён: из исходников, из сборки, из
+   `PothosConfig.cmake`, из сабмодулей ядра.
+4. **Самодостаточность.** Для сборки нужны только CMake и C++-компилятор.
+   Если зависимость неизбежна — она лежит в дереве исходников, используется
+   только внутри библиотеки и **не просачивается в публичный API** (ни в
+   заголовки `include/Pothos/**`, ни в экспортируемые CMake-зависимости).
+5. **Платформы:** Linux, macOS, Windows.
+6. **CI на GitHub Actions** в форке (`markvin/PothosCore`): сборка и
+   самотесты на всех трёх платформах.
+
+## Не цели
+
+- Модули (`blocks`, `comms`, `audio`, `soapy`, `python`, `flow`, `widgets`,
+  `plotters`) — не трогаем, адаптируем позже. Ядро должно собираться без них
+  (`ENABLE_TOOLKITS` по умолчанию выключен или удалён — на усмотрение
+  исполнителя).
+- Изменение архитектуры: модель блоков/портов/топологий, `Object`,
+  `Callable`, `Proxy`, `Plugin`-реестр, `Archive` — сохраняются концептуально.
+- Обратная совместимость API/ABI не требуется: API можно менять ради
+  стандартных типов; модули подтянутся потом.
+
+## Анти-цели (провал, даже если «работает»)
+
+- Тип из внутренней зависимости (Asio, muparserx, json, libsimdpp) виден в
+  публичном заголовке или требуется потребителю через `PothosConfig.cmake`.
+- Сборка что-то скачивает из сети или требует установленных в системе
+  библиотек.
+- Переписывание архитектуры «заодно» (новая модель планировщика, замена
+  `Object` на `std::any` целиком и т.п.).
+- Потеря функциональности Remote или поддержки одной из трёх платформ.
+
+## Текущее состояние (результаты анализа)
+
+- Ядро: ~35 тыс. строк в `lib/`, `include/`, `apps/`.
+- **Публичные заголовки Poco не включают.** Единственная утечка — макрос в
+  `include/Pothos/Exception.hpp:58`, перехватывающий `Poco::Exception`.
+- Но Poco — публичная зависимость на уровне CMake: `PothosConfig.cmake`
+  делает `include(SetupPoco)`, модули пользуются Poco напрямую (в основном
+  `Poco::Logger`/`poco_error(...)`).
+- Использование Poco в `lib/` и `apps/` (число `#include`):
+  - заменяется стандартом: `Format` (37), `Path` (17), `File` (13),
+    `StringTokenizer` (9), `String` (8), `NumberFormatter` (7), `Types`,
+    `TemporaryFile`, `Random`/`RandomStream`, `HashMap`, `Hash`, `ByteOrder`,
+    `RegularExpression`, `Glob`, `NumberParser`, `Exception`, `AutoPtr`,
+    `Bugcheck`;
+  - нужны свои платформенные обёртки: `SharedLibrary` (Plugin/Module,
+    Loader, JIT), `Process`/`Pipe`/`PipeStream` (ModuleSafeLoad, JIT-компилятор,
+    HostInfo, Remote Server, PothosUtil), `Environment`, `Platform`, `URI`;
+  - логирование: `Logger` и каналы (25) — `lib/System/Logger.cpp`, вызовы по
+    всему ядру;
+  - сеть (`lib/Remote/*`, `lib/Util/Network.cpp`, `System/Logger.cpp`):
+    `TCPServer`, `ServerSocket`, `StreamSocket`, `SocketStream`,
+    `SocketAddress`, `DatagramSocket`, `RemoteSyslogChannel/Listener`;
+  - `Poco::Util` (`Application`, `ServerApplication`, `OptionSet`,
+    `HelpFormatter`, `PropertyFileConfiguration`) — `apps/PothosUtil*`;
+  - XML DOM — только `lib/Framework/TopologyDotMarkup.cpp`.
+- Другие зависимости:
+  - `json.hpp` (nlohmann, v2.1.1) — скачивается при конфигурации;
+  - `muparserx` — сабмодуль (v4.0.8, `cmake_minimum_required(2.8.12)`),
+    используется в `lib/Util/EvalEnvironment.cpp`;
+  - `libsimdpp` — сабмодуль (`cmake_minimum_required(2.8.0)`), используется в
+    `lib/SIMD`, `lib/System/SIMD.cpp`, `cmake/Modules/PothosConfigSIMD.cmake`;
+  - `spuce` — ядром не используется (нужен только модулям). URL сабмодуля
+    мёртв (см. CLAUDE.md).
+- Тесты: самотесты регистрируются макросом `POTHOS_TEST_BLOCK` как плагины и
+  запускаются через `PothosUtil --self-tests`.
+- Устаревший CI: `.travis.yml`, `appveyor.yml`.
+
+## Решения (приняты пользователем)
+
+- Стандарт C++23; платформы Linux, macOS, Windows.
+- Poco удаляется полностью.
+- **Remote сохраняется** и переписывается на собственном сетевом слое
+  поверх **standalone Asio**, вендоренного в дерево исходников; Asio не
+  виден в публичном API.
+- Публичный API осовременивается; архитектура сохраняется; устаревшее
+  заменяется стандартным.
+- CI — GitHub Actions.
+- **Совместимость внешних интерфейсов со старыми установками не требуется:**
+  - сетевой протокол Remote и формат сериализации `Archive` можно менять —
+    новый клиент не обязан работать со старым `PothosUtil --proxy-server`;
+  - синтаксис командной строки `PothosUtil` можно менять (`--opt=value`,
+    Windows-синтаксис `/opt` не обязательны); вызывающий код в ядре
+    (`lib/Remote/Server.cpp`) обновляется соответственно.
+  - **Исключение:** пересылка логов по UDP остаётся **совместимой с syslog**
+    (сообщения читаются rsyslog/journald; listener принимает стандартный
+    syslog).
+- **Режимы `PothosUtil` сохраняются в полном объёме** (сейчас их даёт
+  `Poco::Util::ServerApplication`, `apps/PothosUtil.hpp:12`):
+  - корректное завершение по SIGTERM / SIGINT / Ctrl-C (аналог
+    `waitForTerminationRequest`);
+  - Unix: `--daemon`, `--pidfile`, `--umask`;
+  - Windows: регистрация/снятие и запуск как службы Windows
+    (аналог `/registerService`, `/unregisterService`; имена опций можно
+    привести к общему стилю).
+- **Тесты:** самотесты, зависящие от окружения CI, а не от порта (JIT-
+  компилятор во время выполнения, IPv6, NUMA/CPU-info и т.п.), разрешается
+  отключать на конкретной платформе — с комментарием о причине в коде/CI.
+  Отдельный этап «поднять старое дерево с Poco ради базовой линии» не нужен.
+
+## Предложения, принятые как разумные умолчания (подтверждены в общем)
+
+- **Логирование:** собственный публичный `Pothos` logging API на
+  `std::format` (уровни как сейчас: fatal/critical/error/warning/notice/
+  information/debug/trace; именованные логгеры), заменяющий `Poco::Logger`
+  в ядре и, позже, в модулях. Сохраняются переменные окружения
+  `POTHOS_LOG_LEVEL`, `POTHOS_LOG_CHANNEL`, `POTHOS_LOG_FILE` и функции
+  `Pothos::System::Logger` (`startSyslogListener`, `startSyslogForwarding`,
+  `forwardStdIoToLogging`, `setupDefaultLogging`); пересылка логов по UDP
+  реализуется на Asio.
+- **Платформенный слой** (внутренний, не публичный): загрузка разделяемых
+  библиотек (dlopen / LoadLibrary), запуск процессов с пайпами
+  (posix_spawn/fork+exec / CreateProcess), переменные окружения, сведения о
+  платформе.
+- **`PothosUtil`** сохраняется (Remote-сервер, самотесты, прочие команды);
+  разбор аргументов и режим сервера переписываются без `Poco::Util`.
+- **Вендоринг:** `json.hpp` (актуальная версия nlohmann/json, один заголовок),
+  standalone Asio, muparserx, libsimdpp — в дереве. Форма (сабмодуль или
+  копия в `third_party/`) — на усмотрение исполнителя, но сборка не должна
+  требовать сети, кроме `git submodule update`. Если старый CMake вендоренной
+  библиотеки несовместим с CMake 4.x, ядро собирает её своим CMake-кодом.
+- **spuce** — убрать из сборки ядра.
+- **Минимальные компиляторы (моё решение):** GCC 13+, Clang 17+,
+  Apple Clang из Xcode 15+, MSVC из Visual Studio 2022 17.8+. Использовать
+  только возможности C++23, которые поддерживают все они (например,
+  `std::print`/`std::expected` — проверить по таблицам поддержки; при
+  отсутствии — `std::format` + вывод в поток).
+- **Глубина модернизации API (моё решение, по словам пользователя
+  «архитектуру сохраняем, заменяем устаревшее на стандартное»):**
+  систематический проход по `include/Pothos/**` — устаревшие самописные
+  конструкции и сигнатуры заменяются стандартными (`std::span` в буферных
+  API, `std::optional`, стандартные примитивы синхронизации вместо
+  самописных и т.п.), но абстракции (`Object`, `Callable`, `Proxy`, блоки,
+  порты, топологии) не меняются.
+- **macOS (моё решение):** минимальная версия — macOS 13.3 (нужна для
+  `std::format`/`std::to_chars` с плавающей точкой в libc++ Apple). CI —
+  arm64 (`macos-latest`); x86_64 не тестируется, но и не ломается намеренно.
+- **Критерий готовности:** ядро конфигурируется и собирается «с нуля»
+  (свежий клон + сабмодули ядра, без сети на этапе сборки, без системных
+  библиотек кроме стандартных ОС), `PothosUtil --self-tests` проходят на всех
+  трёх платформах в CI (кроме явно отключённых тестов, зависящих от
+  окружения), Remote-тесты (`lib/Remote/Builtin/TestRemote.cpp`) включены.
+
+## Оставлено исполнителю
+
+- Порядок и разбиение работы на этапы; промежуточные состояния могут
+  временно держать Poco, если это сохраняет тесты зелёными.
+- Конкретная форма logging API и платформенных обёрток.
+- Структура CMake (имена targets, опции, install-раскладка, pkg-config,
+  uninstall, Doxygen), при условии целей выше.
+- Что делать с `debian/`, `.travis.yml`, `appveyor.yml` (вероятно удалить
+  устаревший CI; debian — оставить как есть или пометить устаревшим).
+- Замена XML DOM в `TopologyDotMarkup.cpp` (вероятно, простой генератор
+  строк — DOT/HTML-лейблы).
