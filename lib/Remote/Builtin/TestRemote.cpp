@@ -7,9 +7,7 @@
 #include <Pothos/Remote.hpp>
 #include <Pothos/Managed.hpp>
 #include <Pothos/Util/Network.hpp>
-#include <Poco/Pipe.h>
-#include <Poco/PipeStream.h>
-#include <Poco/URI.h>
+#include "Platform/Process.hpp"
 #include <iostream>
 #include <future>
 #include <thread>
@@ -148,11 +146,11 @@ POTHOS_TEST_BLOCK("/proxy/remote/tests", test_inception)
 }
 
 //! A thread to handle remote proxy requests
-static void runRemoteProxy(Poco::Pipe &p0, Poco::Pipe &p1)
+static void runRemoteProxy(Pothos::Platform::Pipe &p0, Pothos::Platform::Pipe &p1)
 {
     //std::cout << "run start \n";
-    Poco::PipeInputStream is(p0);
-    Poco::PipeOutputStream os(p1);
+    Pothos::Platform::PipeInputStream is(p0);
+    Pothos::Platform::PipeOutputStream os(p1);
     Pothos::RemoteHandler handler;
     handler.runHandler(is, os);
     //std::cout << "run exit \n";
@@ -164,9 +162,9 @@ POTHOS_TEST_BLOCK("/proxy/remote/tests", test_remote)
     test_simple_runner(Pothos::ProxyEnvironment::make("managed"));
 
     //tests remote proxy as well as managed:
-    Poco::Pipe p0, p1;
-    Poco::PipeInputStream is(p1);
-    Poco::PipeOutputStream os(p0);
+    Pothos::Platform::Pipe p0, p1;
+    Pothos::Platform::PipeInputStream is(p1);
+    Pothos::Platform::PipeOutputStream os(p0);
 
     std::thread t0(&runRemoteProxy, std::ref(p0), std::ref(p1));
 
@@ -201,9 +199,9 @@ POTHOS_TEST_BLOCK("/proxy/remote/tests", test_multithread_safe)
         .registerClass<EchoTester>()
         .registerStaticMethod(POTHOS_FCN_TUPLE(EchoTester, echo))
         .commit("EchoTester");
-    Poco::Pipe p0, p1;
-    Poco::PipeInputStream is(p1);
-    Poco::PipeOutputStream os(p0);
+    Pothos::Platform::Pipe p0, p1;
+    Pothos::Platform::PipeInputStream is(p1);
+    Pothos::Platform::PipeOutputStream os(p0);
     std::thread t0(&runRemoteProxy, std::ref(p0), std::ref(p1));
     {
         auto env = Pothos::RemoteClient::makeEnvironment(is, os, "managed");

@@ -5,6 +5,7 @@
 #
 # Required: -DWORK=<scratch dir>
 ########################################################################
+cmake_minimum_required(VERSION 3.25) #policies for cmake -P scripts
 if (NOT DEFINED WORK)
     message(FATAL_ERROR "test_env_guard: WORK is not set")
 endif ()

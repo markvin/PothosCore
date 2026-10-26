@@ -9,8 +9,6 @@
 #include <Pothos/System/Paths.hpp>
 #include <Pothos/Util/TypeInfo.hpp>
 
-#include <Poco/Format.h>
-#include <Poco/Path.h>
 
 #include <iostream>
 #include <string>

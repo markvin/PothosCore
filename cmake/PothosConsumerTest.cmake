@@ -7,6 +7,7 @@
 #           -DCONFIG=<build config> -DBINDIR=<relative bin dir>
 #           -DLIBDIR=<relative lib dir>
 ########################################################################
+cmake_minimum_required(VERSION 3.25) #policies for cmake -P scripts
 foreach(var PREFIX SRC WORK GENERATOR CONFIG BINDIR LIBDIR)
     if (NOT DEFINED ${var})
         message(FATAL_ERROR "PothosConsumerTest: ${var} is not set")

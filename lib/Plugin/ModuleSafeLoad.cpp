@@ -5,10 +5,9 @@
 #include <Pothos/Plugin/Module.hpp>
 #include <Pothos/Plugin/Exception.hpp>
 #include <Pothos/Util/FileLock.hpp>
-#include <Poco/Process.h>
-#include <Poco/Pipe.h>
-#include <Poco/File.h>
-#include <Poco/Path.h>
+#include "Platform/Process.hpp"
+#include <filesystem>
+#include <chrono>
 #include <Poco/AutoPtr.h>
 #include <Poco/Util/PropertyFileConfiguration.h>
 #include <mutex>
@@ -17,9 +16,7 @@
 //! The path used to cache the safe loads
 static std::string getModuleLoaderCachePath(void)
 {
-    Poco::Path path(Pothos::System::getUserConfigPath());
-    path.append("ModuleLoader.cache");
-    return path.toString();
+    return (std::filesystem::path(Pothos::System::getUserConfigPath()) / "ModuleLoader.cache").string();
 }
 
 /***********************************************************************
@@ -50,7 +47,8 @@ static std::mutex &getLoaderMutex(void)
 //! Get the string representation of a file's modification time
 static std::string getLastModifiedTimeStr(const std::string &path)
 {
-    return std::to_string(Poco::File(path).getLastModified().epochMicroseconds());
+    const auto modified = std::filesystem::last_write_time(path).time_since_epoch();
+    return std::to_string(std::chrono::duration_cast<std::chrono::microseconds>(modified).count());
 }
 
 //! Escape PropertyFile keys, problem with slashes
@@ -110,20 +108,15 @@ Pothos::PluginModule Pothos::PluginModule::safeLoad(const std::string &path)
     const int success = 200;
 
     //create args
-    Poco::Process::Args args;
-    args.push_back("--load-module");
-    args.push_back("\""+path+"\""); //add quotes for paths with spaces
-    args.push_back("--success-code");
-    args.push_back(std::to_string(success));
+    //the process layer quotes arguments (paths with spaces) as needed
+    Pothos::Platform::ProcessOptions opts;
+    opts.args = {"--load-module", path, "--success-code", std::to_string(success)};
 
-    //launch
-    Poco::Pipe outPipe, errPipe;
-    Poco::Process::Env env;
-    Poco::ProcessHandle ph(Poco::Process::launch(
-        Pothos::System::getPothosUtilExecutablePath(),
-        args, nullptr, &outPipe, &errPipe, env));
-
-    //close pipes to not overfill and backup
+    //launch: output is discarded (pipes closed so the child never blocks)
+    Pothos::Platform::Pipe outPipe, errPipe;
+    opts.out = &outPipe;
+    opts.err = &errPipe;
+    auto ph = Pothos::Platform::Process::launch(Pothos::System::getPothosUtilExecutablePath(), opts);
     outPipe.close();
     errPipe.close();
 

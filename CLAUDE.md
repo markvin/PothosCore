@@ -39,6 +39,28 @@ ctest --test-dir build --output-on-failure
 - Single self-test:
   `cmake -DPREFIX=build/stage -DTEST_HOME_DIR=build/test-home -DBINDIR=bin -DLIBDIR=lib -DTEST_PATH=/framework/tests/test_mmap_shared_buffer -P cmake/PothosRunSelfTests.cmake`
 - CI: `.github/workflows/ci.yml` (Linux GCC/Clang, macOS, Windows MSVC).
+- `build/compile_commands.json` is always generated (clangd finds it there).
+
+## Conventions (modernization)
+
+- Poco is confined by a ratchet: `cmake/poco-allowlist.txt` lists the only
+  files allowed to use Poco (`pothos.poco_allowlist` test). Remove a line as
+  soon as a file stops using Poco; never add one. After phase 3 only Poco Net
+  (Remote, syslog, network utils) and Poco::Util (PothosUtil CLI/server,
+  `PropertyFileConfiguration`) users remain.
+- OS-specific code goes into the internal platform layer `lib/Platform/`
+  (namespace `Pothos::Platform`: environment, host info, `DynamicLibrary`,
+  `Process`/`Pipe`). Its sources are compiled into both libPothos and
+  PothosUtil (`POTHOS_PLATFORM_SOURCES`) because libPothos exports no
+  internal symbols.
+- Internal helpers: `lib/Util/StringUtils.hpp`, `FileSystem.hpp`,
+  `TempFile.hpp` (namespace `Pothos::Util::Detail`). Not installed.
+- Logging: `POTHOS_LOG_ERROR("My.Source", "fmt {}", value)` etc. from
+  `<Pothos/System/Logger.hpp>` (std::format, async writer, Fatal/Critical
+  synchronous, `Logger::flush()`). Sinks/config internals:
+  `lib/System/LoggerSinks.hpp`. Env: `POTHOS_LOG_LEVEL`, `POTHOS_LOG_CHANNEL`
+  (color/console/file/null), `POTHOS_LOG_FILE`, `POTHOS_LOG_FORMAT`,
+  `POTHOS_LOG_TIMEZONE`, `POTHOS_LOG_ASYNC`, `POTHOS_SYSLOG_ADDR`.
 
 ## Conventions
 

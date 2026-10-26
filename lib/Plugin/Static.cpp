@@ -3,15 +3,14 @@
 
 #include <Pothos/Plugin/Static.hpp>
 #include <Pothos/Exception.hpp>
-#include <Poco/Logger.h>
+#include <Pothos/System/Logger.hpp>
 
 void Pothos::Detail::safeInit(const std::string &clientAbi, const std::string &name, InitFcn init)
 {
     if (clientAbi != Pothos::System::getAbiVersion())
     {
-        poco_error_f3(Poco::Logger::get("Pothos.StaticBlock.safeInit"),
-            "ABI mismatch when loading %s\n"
-            "Client expected ABI %s but got %s from the library.",
+        POTHOS_LOG_ERROR("Pothos.StaticBlock.safeInit", "ABI mismatch when loading {}\n"
+            "Client expected ABI {} but got {} from the library.",
             name, clientAbi, Pothos::System::getAbiVersion());
         return;
     }
@@ -21,7 +20,6 @@ void Pothos::Detail::safeInit(const std::string &clientAbi, const std::string &n
     }
     POTHOS_EXCEPTION_CATCH(const Exception &ex)
     {
-        poco_error_f2(Poco::Logger::get("Pothos.StaticBlock.safeInit"),
-        "loading %s, exception %s", name, ex.displayText());
+        POTHOS_LOG_ERROR("Pothos.StaticBlock.safeInit", "loading {}, exception {}", name, ex.displayText());
     }
 }

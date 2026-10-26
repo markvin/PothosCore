@@ -4,7 +4,7 @@
 #include <Pothos/Framework/TopologyImpl.hpp>
 #include <Pothos/Util/EvalEnvironment.hpp>
 #include <Pothos/Proxy.hpp>
-#include <Poco/Format.h>
+#include <format>
 #include <map>
 #include <nlohmann/json.hpp>
 
@@ -124,7 +124,7 @@ static Pothos::Proxy makeBlock(
     {
         std::string argsStr;
         for (const auto &arg : ctorArgs) argsStr += arg.toString() + (argsStr.empty()?"":", ");
-        throw Pothos::RuntimeException(Poco::format("%s = %s(%s)", id, path, argsStr), ex);
+        throw Pothos::RuntimeException(std::format("{} = {}({})", id, path, argsStr), ex);
     }
 
     //set the name of the block as supplied by the ID field
@@ -144,7 +144,7 @@ static Pothos::Proxy makeBlock(
         {
             std::string argsStr;
             for (const auto &arg : callArgs) argsStr += arg.toString() + (argsStr.empty()?"":", ");
-            throw Pothos::RuntimeException(Poco::format("%s.%s(%s)", id, name, argsStr), ex);
+            throw Pothos::RuntimeException(std::format("{}.{}({})", id, name, argsStr), ex);
         }
     }
 

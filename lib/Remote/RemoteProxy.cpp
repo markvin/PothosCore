@@ -5,7 +5,7 @@
 #include "RemoteProxyDatagram.hpp"
 #include <Pothos/Remote/Client.hpp>
 #include <Pothos/Plugin.hpp>
-#include <Poco/Logger.h>
+#include <Pothos/System/Logger.hpp>
 #include <iostream>
 #include <sstream>
 #include <thread>
@@ -137,7 +137,7 @@ RemoteProxyEnvironment::~RemoteProxyEnvironment(void)
     catch(const Pothos::Exception &ex)
     {
         if (not this->connectionActive) return;
-        poco_error(Poco::Logger::get("Pothos.RemoteProxyEnvironment"), "destructor threw: "+ex.displayText());
+        POTHOS_LOG_ERROR("Pothos.RemoteProxyEnvironment", "{}", "destructor threw: "+ex.displayText());
     }
 }
 

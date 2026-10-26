@@ -3,22 +3,16 @@
 
 #include <Pothos/System.hpp>
 #include <Pothos/Plugin.hpp>
-#include <Poco/StringTokenizer.h>
-#include <Poco/SharedLibrary.h>
-#include <Poco/Environment.h>
-#include <Poco/Logger.h>
-#include <Poco/Path.h>
-#include <Poco/File.h>
-#include <Poco/Format.h>
+#include "Util/StringUtils.hpp"
+#include "Platform/Environment.hpp"
+#include <Pothos/System/Logger.hpp>
+#include <filesystem>
+#include <system_error>
+#include <format>
 #include <Poco/Util/PropertyFileConfiguration.h>
 #include <future>
 #include <map>
 
-static Poco::Logger &confLoaderLogger(void)
-{
-    static Poco::Logger &logger(Poco::Logger::get("Pothos.ConfLoader"));
-    return logger;
-}
 
 std::string Pothos_FileRealPath(const std::string &path);
 
@@ -27,7 +21,7 @@ std::string Pothos_FileRealPath(const std::string &path);
  **********************************************************************/
 static std::vector<Pothos::PluginPath> loadConfFile(const std::string &path)
 {
-    poco_debug_f1(confLoaderLogger(), "loading %s", path);
+    POTHOS_LOG_DEBUG("Pothos.ConfLoader", "loading {}", path);
 
     //parse the configuration file with the INI parser
     Poco::AutoPtr<Poco::Util::PropertyFileConfiguration> conf;
@@ -53,11 +47,11 @@ static std::vector<Pothos::PluginPath> loadConfFile(const std::string &path)
     {
         //get the loader
         if (not conf->hasProperty("loader")) throw Pothos::Exception(
-            Poco::format("%s does not specify a loader", path));
+            std::format("{} does not specify a loader", path));
         const std::string loader(conf->getString("loader"));
         const auto loaderPath = Pothos::PluginPath("/framework/conf_loader").join(loader);
         if (not Pothos::PluginRegistry::exists(loaderPath)) throw Pothos::Exception(
-            Poco::format("%s loader %s does not exist", path, loader));
+            std::format("{} loader {} does not exist", path, loader));
 
         //call the loader
         const auto plugin = Pothos::PluginRegistry::get(loaderPath);
@@ -73,24 +67,23 @@ static std::vector<Pothos::PluginPath> loadConfFile(const std::string &path)
 /***********************************************************************
  * Traverse a path for configuration files
  **********************************************************************/
-static std::vector<Poco::Path> getConfFilePaths(const Poco::Path &path)
+static std::vector<std::filesystem::path> getConfFilePaths(const std::filesystem::path &path)
 {
-    poco_debug_f1(confLoaderLogger(), "traversing %s", path.toString());
+    POTHOS_LOG_DEBUG("Pothos.ConfLoader", "traversing {}", path.string());
 
-    std::vector<Poco::Path> paths;
+    std::vector<std::filesystem::path> paths;
 
-    const Poco::File file(path);
-    if (not file.exists()) return paths;
-    else if (file.isFile() and (path.getExtension() == "conf"))
+    std::error_code ec;
+    if (not std::filesystem::exists(path, ec)) return paths;
+    else if (std::filesystem::is_regular_file(path, ec) and (path.extension() == ".conf"))
     {
-        paths.push_back(Pothos_FileRealPath(path.toString()));
+        paths.push_back(Pothos_FileRealPath(path.string()));
     }
-    else if (file.isDirectory())
+    else if (std::filesystem::is_directory(path, ec))
     {
-        std::vector<std::string> files; file.list(files);
-        for (size_t i = 0; i < files.size(); i++)
+        for (const auto &entry : std::filesystem::directory_iterator(path, ec))
         {
-            auto subpaths = getConfFilePaths(Poco::Path(path, files[i]).absolute());
+            auto subpaths = getConfFilePaths(std::filesystem::absolute(entry.path()));
             paths.insert(paths.end(), subpaths.begin(), subpaths.end());
         }
     }
@@ -104,12 +97,8 @@ static std::vector<Poco::Path> getConfFilePaths(const Poco::Path &path)
 std::vector<Pothos::PluginPath> Pothos_ConfLoader_loadConfFiles(void)
 {
     //the default search path
-    std::vector<Poco::Path> searchPaths;
-    Poco::Path confPath = Pothos::System::getRootPath();
-    confPath.append("share");
-    confPath.append("Pothos");
-    confPath.append("modules");
-    searchPaths.push_back(confPath);
+    std::vector<std::filesystem::path> searchPaths;
+    searchPaths.push_back(std::filesystem::path(Pothos::System::getRootPath()) / "share" / "Pothos" / "modules");
 
     //support /usr/local module installs when the install prefix is /usr
     if (Pothos::System::getRootPath() == "/usr")
@@ -118,28 +107,30 @@ std::vector<Pothos::PluginPath> Pothos_ConfLoader_loadConfFiles(void)
     }
 
     //the user's home config path
-    confPath = Pothos::System::getUserConfigPath();
-    confPath.append("modules");
-    searchPaths.push_back(confPath);
+    searchPaths.push_back(std::filesystem::path(Pothos::System::getUserConfigPath()) / "modules");
 
     //separator for search paths
-    const std::string sep(1, Poco::Path::pathSeparator());
+    #ifdef _WIN32
+    const std::string sep(";");
+    #else
+    const std::string sep(":");
+    #endif
 
     //check the environment's search path
-    const auto confPaths = Poco::Environment::get("POTHOS_CONF_PATH", "");
-    for (const auto &confPath : Poco::StringTokenizer(confPaths, sep))
+    const auto confPaths = Pothos::Platform::getEnv("POTHOS_CONF_PATH").value_or("");
+    for (const auto &confPath : Pothos::Util::Detail::split(confPaths, sep, false, false))
     {
         if (confPath.empty()) continue;
-        searchPaths.push_back(Poco::Path(confPath));
+        searchPaths.push_back(confPath);
     }
 
     //traverse the search paths and spawn futures
     std::vector<std::future<std::vector<Pothos::PluginPath>>> futures;
     for (const auto &searchPath : searchPaths)
     {
-        for (const auto &path : getConfFilePaths(searchPath.absolute()))
+        for (const auto &path : getConfFilePaths(std::filesystem::absolute(searchPath)))
         {
-            futures.push_back(std::async(std::launch::async, &loadConfFile, path.toString()));
+            futures.push_back(std::async(std::launch::async, &loadConfFile, path.string()));
         }
     }
 
@@ -154,7 +145,7 @@ std::vector<Pothos::PluginPath> Pothos_ConfLoader_loadConfFiles(void)
         }
         catch(const Pothos::Exception &ex)
         {
-            confLoaderLogger().error(ex.message());
+            POTHOS_LOG_ERROR("Pothos.ConfLoader", "{}", ex.message());
         }
     }
     return entries;

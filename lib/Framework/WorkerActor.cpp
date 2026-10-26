@@ -5,8 +5,8 @@
 #include <Pothos/Framework/InputPortImpl.hpp>
 #include <Pothos/Framework/OutputPortImpl.hpp>
 #include <Pothos/Object/Containers.hpp>
-#include <Poco/Format.h>
-#include <Poco/Logger.h>
+#include <format>
+#include <Pothos/System/Logger.hpp>
 #include <cassert>
 #include <algorithm> //min/max
 #include <nlohmann/json.hpp>
@@ -108,7 +108,7 @@ void Pothos::WorkerActor::ensureOutputBufferManagerNoLock(const std::string &nam
     //ensure that a buffer manager has been installed
     if (not port._bufferManager) throw RuntimeException(
         "Pothos::WorkerActor::ensureBufferManager()",
-        Poco::format("%s[%s] has no buffer manager set", block->getName(), name));
+        std::format("{}[{}] has no buffer manager set", block->getName(), name));
 }
 
 /***********************************************************************
@@ -126,13 +126,13 @@ void Pothos::WorkerActor::subscribeInput(const std::string &action, const std::s
     if (action == "add") //add to the output port's subscribers list
     {
         if (found) throw PortAccessError("Pothos::WorkerActor::subscribePort()",
-            Poco::format("input %s subscription exists in output port %s", inputPort->name(), myPortName));
+            std::format("input {} subscription exists in output port {}", inputPort->name(), myPortName));
         subscribers.push_back(inputPort);
     }
     if (action == "remove") //remove from the output port's subscribers list
     {
         if (not found) throw PortAccessError("Pothos::WorkerActor::unsubscribePort()",
-            Poco::format("input %s subscription missing from output port %s", inputPort->name(), myPortName));
+            std::format("input {} subscription missing from output port {}", inputPort->name(), myPortName));
         subscribers.erase(it);
     }
 
@@ -157,13 +157,13 @@ void Pothos::WorkerActor::subscribeOutput(const std::string &action, const std::
     if (action == "add") //add to the input port's subscribers list
     {
         if (found) throw PortAccessError("Pothos::WorkerActor::subscribePort()",
-            Poco::format("output %s subscription exists in input port %s", outputPort->name(), myPortName));
+            std::format("output {} subscription exists in input port {}", outputPort->name(), myPortName));
         subscribers.push_back(outputPort);
     }
     if (action == "remove") //remove from the input port's subscribers list
     {
         if (not found) throw PortAccessError("Pothos::WorkerActor::unsubscribePort()",
-            Poco::format("output %s subscription missing from input port %s", outputPort->name(), myPortName));
+            std::format("output {} subscription missing from input port {}", outputPort->name(), myPortName));
         subscribers.erase(it);
     }
 
@@ -237,7 +237,7 @@ void Pothos::WorkerActor::workTask(void)
     }
     POTHOS_EXCEPTION_CATCH(const Exception &ex)
     {
-        poco_error_f2(Poco::Logger::get("Pothos.Block.work"), "%s: %s", block->getName(), ex.displayText());
+        POTHOS_LOG_ERROR("Pothos.Block.work", "{}: {}", block->getName(), ex.displayText());
     }
 
     //postwork
@@ -279,7 +279,7 @@ void Pothos::WorkerActor::handleSlotCalls(InputPort &port)
         }
         POTHOS_EXCEPTION_CATCH(const Exception &ex)
         {
-            poco_error_f3(Poco::Logger::get("Pothos.Block.callSlot"), "%s[%s]: %s", block->getName(), port.alias(), ex.displayText());
+            POTHOS_LOG_ERROR("Pothos.Block.callSlot", "{}[{}]: {}", block->getName(), port.alias(), ex.displayText());
         }
     }
 }
@@ -426,7 +426,7 @@ void Pothos::WorkerActor::postWorkTasks(void)
             }
             POTHOS_EXCEPTION_CATCH(const Exception &ex)
             {
-                poco_error_f2(Poco::Logger::get("Pothos.Block.propagateLabels"), "%s: %s", block->getName(), ex.displayText());
+                POTHOS_LOG_ERROR("Pothos.Block.propagateLabels", "{}: {}", block->getName(), ex.displayText());
             }
 
             allLabels.erase(allLabels.begin(), allLabels.begin()+numLabels);
@@ -472,7 +472,7 @@ void Pothos::WorkerActor::postWorkTasks(void)
             {
                 if (buffer.length > buffer.getBuffer().getLength())
                 {
-                    poco_error_f4(Poco::Logger::get("Pothos.Block.produce"), "%s[%s] overproduced %z bytes, %z available",
+                    POTHOS_LOG_ERROR("Pothos.Block.produce", "{}[{}] overproduced {} bytes, {} available",
                         block->getName(), port.alias(), buffer.length, buffer.getBuffer().getLength());
                 }
 

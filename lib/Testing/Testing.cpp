@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include <Pothos/Testing.hpp>
-#include <Poco/Logger.h>
-#include <Poco/Path.h>
-#include <Poco/Format.h>
+#include <Pothos/System/Logger.hpp>
+#include <filesystem>
+#include <format>
 #include <mutex>
 #include <vector>
 #include <cassert>
@@ -87,16 +87,16 @@ void Pothos::TestingBase::report(
     lastFile = file;
 
     //format an informational message
-    std::string testMessage = Poco::format(
-        "%s:%d\n  %s", Poco::Path(file).getFileName(), line, message);
+    std::string testMessage = std::format(
+        "{}:{}\n  {}", std::filesystem::path(file).filename().string(), line, message);
     if (error.empty())
     {
-        poco_debug(Poco::Logger::get("Pothos.Testing"), testMessage);
+        POTHOS_LOG_DEBUG("Pothos.Testing", "{}", testMessage);
     }
     else
     {
         testMessage += "\n  " + error;
-        poco_debug(Poco::Logger::get("Pothos.Testing"), testMessage);
+        POTHOS_LOG_DEBUG("Pothos.Testing", "{}", testMessage);
         throw TestingReportError("Pothos::Testing " + testMessage);
     }
 }

@@ -4,6 +4,7 @@
 
 #include <Pothos/Framework/InputPortImpl.hpp>
 #include "Framework/WorkerActor.hpp"
+#include <Pothos/System/Logger.hpp>
 
 /*!
  * An arbitrary bound on the queue size to detect buggy situations
@@ -83,8 +84,7 @@ void Pothos::InputPort::asyncMessagesPush(const Pothos::Object &message, const P
             if (_asyncMessages.size() >= MaxQueueCapacity)
             {
                 _asyncMessages.clear();
-                poco_error_f2(Poco::Logger::get("Pothos.InputPort.messages"),
-                    "%s[%s] detected input message overflow condition",
+                POTHOS_LOG_ERROR("Pothos.InputPort.messages", "{}[{}] detected input message overflow condition",
                     _actor->block->getName(), this->alias());
             }
             else _asyncMessages.set_capacity(_asyncMessages.capacity()*2);
@@ -111,8 +111,7 @@ void Pothos::InputPort::slotCallsPush(const Pothos::Object &args, const Pothos::
             if (_slotCalls.size() >= MaxQueueCapacity)
             {
                 _slotCalls.clear();
-                poco_error_f2(Poco::Logger::get("Pothos.InputPort.slots"),
-                    "%s[%s] detected input slot overflow condition",
+                POTHOS_LOG_ERROR("Pothos.InputPort.slots", "{}[{}] detected input slot overflow condition",
                     _actor->block->getName(), this->alias());
             }
             else _slotCalls.set_capacity(_slotCalls.capacity()*2);
@@ -157,7 +156,7 @@ void Pothos::InputPort::bufferAccumulatorPushNoLock(BufferChunk &&buffer)
     }
     else
     {
-        poco_error_f4(Poco::Logger::get("Pothos.Block.inputBuffer"), "%s[%s] dropped '%s', expected '%s'",
+        POTHOS_LOG_ERROR("Pothos.Block.inputBuffer", "{}[{}] dropped '{}', expected '{}'",
             _actor->block->getName(), this->alias(), buffer.dtype.toString(), this->dtype().toString());
     }
 }
@@ -168,7 +167,7 @@ void Pothos::InputPort::bufferAccumulatorPop(const size_t numBytes)
 
     if (numBytes > _bufferAccumulator.getTotalBytesAvailable())
     {
-        poco_error_f4(Poco::Logger::get("Pothos.Block.consume"), "%s[%s] overconsumed %z bytes, %z available",
+        POTHOS_LOG_ERROR("Pothos.Block.consume", "{}[{}] overconsumed {} bytes, {} available",
             _actor->block->getName(), this->alias(), numBytes, _bufferAccumulator.getTotalBytesAvailable());
         return;
     }

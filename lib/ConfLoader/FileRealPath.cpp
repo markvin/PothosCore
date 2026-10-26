@@ -1,25 +1,19 @@
 // Copyright (c) 2016-2016 Josh Blum
+//               2026 Pothos contributors
 // SPDX-License-Identifier: BSL-1.0
 
 #include <Pothos/Config.hpp>
-#include <cstdio> //FILENAME_MAX
-#include <cstdlib> //realpath/_fullpath
+#include <filesystem>
 #include <string>
+#include <system_error>
 
 /*!
- * Resolve the symbolic link.
- * This functionality should be in Poco::File
+ * Resolve symbolic links into an absolute path.
+ * The path is returned unchanged when it cannot be resolved.
  */
 std::string Pothos_FileRealPath(const std::string &path)
 {
-    char buff[FILENAME_MAX];
-    char *result(nullptr);
-
-    #ifdef _MSC_VER
-    result = _fullpath(buff, path.c_str(), sizeof(buff));
-    #else
-    result = realpath(path.c_str(), buff);
-    #endif
-
-    return (result != nullptr)?result:path;
+    std::error_code ec;
+    const auto real = std::filesystem::canonical(path, ec);
+    return ec? path : real.string();
 }

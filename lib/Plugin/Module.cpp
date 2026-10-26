@@ -6,16 +6,15 @@
 #include <Pothos/Plugin/Registry.hpp>
 #include <Pothos/Plugin/Exception.hpp>
 #include <Pothos/Object.hpp> //pulls in full Object implementation
-#include <Poco/SharedLibrary.h>
-#include <Poco/Platform.h>
-#include <Poco/Logger.h>
-#include <Poco/Format.h>
+#include "Platform/DynamicLibrary.hpp"
+#include <optional>
+#include <Pothos/System/Logger.hpp>
 #include <mutex>
 
 /***********************************************************************
  * Disabler for windows error messages
  **********************************************************************/
-#if POCO_OS == POCO_OS_WINDOWS_NT
+#ifdef _WIN32
 
 #include <windows.h>
 
@@ -63,7 +62,7 @@ static thread_local std::string *currentModuleVersion(nullptr);
  **********************************************************************/
 struct Pothos::PluginModule::Impl
 {
-    Poco::SharedLibrary sharedLibrary;
+    std::optional<Pothos::Platform::DynamicLibrary> sharedLibrary;
     std::string path;
     std::vector<std::string> pluginPaths;
     std::string version;
@@ -87,20 +86,22 @@ Pothos::PluginModule::PluginModule(const std::string &path):
     _impl(new Impl())
 {
     _impl->path = path;
-    poco_debug(Poco::Logger::get("Pothos.PluginModule.load"), path);
+    POTHOS_LOG_DEBUG("Pothos.PluginModule.load", "{}", path);
     try
     {
         std::lock_guard<std::mutex> lock(getModuleMutex());
         registrySetActiveModuleLoading(*this);
         currentModuleVersion = &(_impl->version);
         ErrorMessageDisableGuard emdg;
-        _impl->sharedLibrary.load(path);
+        _impl->sharedLibrary.emplace(path);
         currentModuleVersion = nullptr;
         registrySetActiveModuleLoading(PluginModule());
         _impl->pluginPaths = ::getPluginPaths(*this);
     }
-    catch(const Poco::LibraryLoadException &ex)
+    catch(const Pothos::LibraryLoadException &ex)
     {
+        currentModuleVersion = nullptr;
+        registrySetActiveModuleLoading(PluginModule());
         throw PluginModuleError("Pothos::PluginModule("+path+")", ex.displayText());
     }
 }
@@ -109,14 +110,14 @@ Pothos::PluginModule::~PluginModule(void)
 {
     if (not _impl) return; //no private data
     if (_impl.use_count() != 1) return; //this is not the last copy
-    if (not _impl->sharedLibrary.isLoaded()) return; //module not loaded
+    if (not _impl->sharedLibrary) return; //module not loaded
 
-    poco_debug(Poco::Logger::get("Pothos.PluginModule.unload"), _impl->sharedLibrary.getPath());
+    POTHOS_LOG_DEBUG("Pothos.PluginModule.unload", "{}", _impl->sharedLibrary->path().string());
     for (const auto &pluginPath : this->getPluginPaths())
     {
         PluginRegistry::remove(pluginPath);
     }
-    _impl->sharedLibrary.unload();
+    _impl->sharedLibrary.reset();
 }
 
 std::string Pothos::PluginModule::getFilePath(void) const

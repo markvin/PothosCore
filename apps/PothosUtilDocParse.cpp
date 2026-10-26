@@ -4,8 +4,8 @@
 #include "PothosUtil.hpp"
 #include <Pothos/Util/BlockDescription.hpp>
 #include <Pothos/Plugin.hpp>
-#include <Poco/Format.h>
-#include <Poco/NumberFormatter.h>
+#include <format>
+#include <filesystem>
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -18,7 +18,7 @@ static void jsonArrayToCppStaticBlock(const Pothos::Util::BlockDescriptionParser
 {
     os << "#include <Pothos/Framework.hpp>\n";
     os << "#include <Pothos/Plugin.hpp>\n";
-    os << Poco::format("pothos_static_block(registerPothosBlockDocs%s)\n", target);
+    os << std::format("pothos_static_block(registerPothosBlockDocs{})\n", target);
     os << "{\n";
     for (const auto &factory : parser.listFactories())
     {
@@ -26,12 +26,12 @@ static void jsonArrayToCppStaticBlock(const Pothos::Util::BlockDescriptionParser
         std::string escaped;
         for (const auto &ch : parser.getJSONObject(factory))
         {
-            escaped += "\\x" + Poco::NumberFormatter::formatHex(int(ch), 2/*width*/, false/*no 0x*/);
+            escaped += std::format("\\x{:02X}", int(ch));
         }
 
         //register the block description at the specified path
         const auto pluginPath = Pothos::PluginPath("/blocks/docs", factory);
-        os << Poco::format("    Pothos::PluginRegistry::add(\"%s\", std::string(\"%s\"));\n", pluginPath.toString(), escaped);
+        os << std::format("    Pothos::PluginRegistry::add(\"{}\", std::string(\"{}\"));\n", pluginPath.toString(), escaped);
     }
     os << "}\n";
 }
@@ -57,8 +57,9 @@ void PothosUtilBase::docParse(const std::vector<std::string> &inputFilePaths)
     }
     else
     {
-        const auto outputFileName = Poco::Path(outputFilePath).getBaseName();
-        const auto outputFileExt = Poco::Path(outputFilePath).getExtension();
+        const auto outputFileName = std::filesystem::path(outputFilePath).stem().string();
+        auto outputFileExt = std::filesystem::path(outputFilePath).extension().string();
+        if (not outputFileExt.empty()) outputFileExt.erase(0, 1); //no dot, as before
 
         std::ofstream outputFile(outputFilePath.c_str());
         if (outputFileExt == "json") outputFile << parser.getJSONArray(indentSpaces);

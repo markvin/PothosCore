@@ -6,8 +6,7 @@
 #include <Pothos/Framework.hpp>
 #include <Pothos/Util/Templates.hpp>
 #include <Pothos/Util/TypeInfo.hpp>
-#include <Poco/Format.h>
-#include <Poco/Random.h>
+#include <random>
 #include <random>
 #include <cstdint>
 #include <complex>
@@ -17,7 +16,9 @@
 namespace
 {
 
-static Poco::Random rng;
+static std::mt19937 rng{std::random_device{}()};
+static unsigned rngNext(const unsigned n) {return std::uniform_int_distribution<unsigned>(0, n-1)(rng);} //[0, n)
+static float rngNextFloat(void) {return std::uniform_real_distribution<float>(0.0f, 1.0f)(rng);} //[0, 1)
 
 /***********************************************************************
  * templated equality check
@@ -59,7 +60,7 @@ typename std::enable_if<
     (std::is_integral<InType>::value || std::is_integral<OutType>::value), void>::type
 randType(InType &val)
 {
-    val = InType(rng.next(100));
+    val = InType(rngNext(100));
 }
 
 template <typename InType, typename OutType>
@@ -68,7 +69,7 @@ typename std::enable_if<
     std::is_floating_point<OutType>::value, void>::type
 randType(InType &val)
 {
-    val = InType(rng.nextFloat());
+    val = InType(rngNextFloat());
 }
 
 template <typename InType, typename OutType>
@@ -118,7 +119,7 @@ randType(InType &val)
 template <typename InType, typename OutType>
 void testBufferConvert(const size_t inVlen, const size_t outVlen)
 {
-    const size_t numElems = rng.next(1024);
+    const size_t numElems = rngNext(1024);
     Pothos::BufferChunk b0(Pothos::DType(typeid(InType), inVlen), numElems);
     const auto primElems = b0.length/b0.dtype.elemSize();
 
@@ -146,7 +147,7 @@ void testBufferConvert(const size_t inVlen, const size_t outVlen)
 template <typename InType, typename OutType>
 void testBufferConvertComplexComponents(const size_t inVlen, const size_t outVlen)
 {
-    const size_t numElems = rng.next(1024);
+    const size_t numElems = rngNext(1024);
     Pothos::BufferChunk b0(Pothos::DType(typeid(InType), inVlen), numElems);
     const auto primElems = b0.length/b0.dtype.elemSize();
 

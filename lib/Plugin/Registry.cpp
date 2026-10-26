@@ -5,7 +5,7 @@
 #include <Pothos/Plugin/Exception.hpp>
 #include <Pothos/Util/SpinLockRW.hpp>
 #include <Pothos/Callable.hpp> //gets call implementation
-#include <Poco/Logger.h>
+#include <Pothos/System/Logger.hpp>
 #include <cassert>
 #include <mutex>
 #include <map>
@@ -72,8 +72,7 @@ static void callPluginEventHandler(const Pothos::Object &handler, const Pothos::
     }
     POTHOS_EXCEPTION_CATCH(const Pothos::Exception &ex)
     {
-        poco_error_f3(Poco::Logger::get("Pothos.PluginRegistry.handlePluginEvent"),
-        "exception %s, plugin %s, event %s", ex.displayText(), plugin.toString(), event);
+        POTHOS_LOG_ERROR("Pothos.PluginRegistry.handlePluginEvent", "exception {}, plugin {}, event {}", ex.displayText(), plugin.toString(), event);
     }
 }
 
@@ -149,7 +148,7 @@ void Pothos::PluginRegistry::add(const Plugin &plugin_)
     Plugin plugin = plugin_;
     const PluginPath &path = plugin.getPath();
 
-    poco_debug(Poco::Logger::get("Pothos.PluginRegistry.add"), plugin.toString());
+    POTHOS_LOG_DEBUG("Pothos.PluginRegistry.add", "{}", plugin.toString());
 
     {
         std::lock_guard<Pothos::Util::SpinLockRW> lock(getRegistryMutex());
@@ -170,8 +169,8 @@ void Pothos::PluginRegistry::add(const Plugin &plugin_)
         {
             const auto newModulePath = getActiveModuleLoading().getFilePath();
             const auto currentModulePath = root->plugin.getModule().getFilePath();
-            throw Pothos::PluginRegistryError("Pothos::PluginRegistry::add("+path.toString()+")", Poco::format(
-                "plugin already registered\n\tLoading: %s, Conflicts: %s", newModulePath, currentModulePath));
+            throw Pothos::PluginRegistryError("Pothos::PluginRegistry::add("+path.toString()+")", std::format(
+                "plugin already registered\n\tLoading: {}, Conflicts: {}", newModulePath, currentModulePath));
         }
 
         //store the plugin and attach the module
@@ -208,7 +207,7 @@ Pothos::Plugin Pothos::PluginRegistry::get(const PluginPath &path)
 
 Pothos::Plugin Pothos::PluginRegistry::remove(const PluginPath &path)
 {
-    poco_debug(Poco::Logger::get("Pothos.PluginRegistry.remove"), path.toString());
+    POTHOS_LOG_DEBUG("Pothos.PluginRegistry.remove", "{}", path.toString());
 
     Plugin plugin;
     {

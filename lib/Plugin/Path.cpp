@@ -3,13 +3,13 @@
 
 #include <Pothos/Plugin/Path.hpp>
 #include <Pothos/Plugin/Exception.hpp>
-#include <Poco/StringTokenizer.h>
+#include "Util/StringUtils.hpp"
 
 static void validatePathString(const std::string &path)
 {
     if (path == "/") return; //root path is ok, but may be funny for tokenizer since it ends in /
     bool first = true;
-    for (const auto &name : Poco::StringTokenizer(path, "/"))
+    for (const auto &name : Pothos::Util::Detail::split(path, "/", false, false))
     {
         if (first and not name.empty())
         {
@@ -81,8 +81,8 @@ Pothos::PluginPath Pothos::PluginPath::join(const std::string &subPath) const
 std::vector<std::string> Pothos::PluginPath::listNodes(void) const
 {
     std::vector<std::string> pathNames;
-    Poco::StringTokenizer tok(_path, "/", Poco::StringTokenizer::TOK_IGNORE_EMPTY);
-    for (Poco::StringTokenizer::Iterator it = tok.begin(); it != tok.end(); it++)
+    const auto tok = Pothos::Util::Detail::split(_path, "/", false, true);
+    for (auto it = tok.begin(); it != tok.end(); it++)
     {
         pathNames.push_back(*it);
     }

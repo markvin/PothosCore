@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include "Framework/ThreadEnvironment.hpp"
-#include <Poco/Logger.h>
+#include <Pothos/System/Logger.hpp>
 #include <iostream>
 #include <cassert>
 #include <chrono>
@@ -229,7 +229,7 @@ void ThreadEnvironment::applyThreadConfig(void)
         if (not errorMsg.empty() and showErrorMsg)
         {
             showErrorMsg = false;
-            poco_error_f1(Poco::Logger::get("Pothos.ThreadPool"), "Failed to set thread priority %s", errorMsg);
+            POTHOS_LOG_ERROR("Pothos.ThreadPool", "Failed to set thread priority {}", errorMsg);
         }
     }
 
@@ -241,7 +241,7 @@ void ThreadEnvironment::applyThreadConfig(void)
         if (not errorMsg.empty() and showErrorMsg)
         {
             showErrorMsg = false;
-            poco_error_f1(Poco::Logger::get("Pothos.ThreadPool"), "Failed to set CPU affinity %s", errorMsg);
+            POTHOS_LOG_ERROR("Pothos.ThreadPool", "Failed to set CPU affinity {}", errorMsg);
         }
     }
 
@@ -253,7 +253,7 @@ void ThreadEnvironment::applyThreadConfig(void)
         if (not errorMsg.empty() and showErrorMsg)
         {
             showErrorMsg = false;
-            poco_error_f1(Poco::Logger::get("Pothos.ThreadPool"), "Failed to set NUMA affinity %s", errorMsg);
+            POTHOS_LOG_ERROR("Pothos.ThreadPool", "Failed to set NUMA affinity {}", errorMsg);
         }
     }
 }

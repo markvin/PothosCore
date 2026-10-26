@@ -6,8 +6,8 @@
 #include <Pothos/Object.hpp>
 #include <Pothos/Plugin.hpp>
 
-#include <Poco/Format.h>
-#include <Poco/NumberFormatter.h>
+#include <format>
+#include <string>
 
 #include <cstring> //memcpy
 
@@ -99,7 +99,7 @@ static auto managedBufferChunk = Pothos::ManagedClass()
     .commit("Pothos/BufferChunk");
 
 #include <Pothos/Object/Serialize.hpp>
-#include <Poco/Types.h>
+#include <cstdint>
 
 namespace Pothos { namespace serialization {
 template <class Archive>
@@ -108,7 +108,7 @@ void save(Archive & ar, const Pothos::BufferChunk &t, const unsigned int)
     const bool is_null = not t;
     ar << is_null;
     if (is_null) return;
-    const Poco::UInt32 length = Poco::UInt32(t.length);
+    const uint32_t length = uint32_t(t.length);
     ar << length;
     Pothos::serialization::BinaryObject bo(t.as<void *>(), t.length);
     ar << bo;
@@ -122,7 +122,7 @@ void load(Archive & ar, Pothos::BufferChunk &t, const unsigned int)
     bool is_null = false;
     ar >> is_null;
     if (is_null) return;
-    Poco::UInt32 length = 0;
+    uint32_t length = 0;
     ar >> length;
     t = Pothos::BufferChunk(size_t(length));
     Pothos::serialization::BinaryObject bo(t.as<void *>(), t.length);
@@ -144,10 +144,10 @@ POTHOS_OBJECT_SERIALIZE(Pothos::BufferChunk)
 
 static std::string bufferChunkToString(const Pothos::BufferChunk& bufferChunk)
 {
-    return Poco::format(
-               "Pothos::BufferChunk (dtype: %s, elements: %s)",
+    return std::format(
+               "Pothos::BufferChunk (dtype: {}, elements: {})",
                bufferChunk.dtype.toString(),
-               Poco::NumberFormatter::format(bufferChunk.elements()));
+               std::to_string(bufferChunk.elements()));
 }
 
 pothos_static_block(pothosRegisterBufferChunkToString)

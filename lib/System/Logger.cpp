@@ -1,35 +1,268 @@
 // Copyright (c) 2013-2016 Josh Blum
+//                    2026 Pothos contributors
 // SPDX-License-Identifier: BSL-1.0
 
 #include <Pothos/System/Logger.hpp>
 #include <Pothos/Util/Network.hpp>
 #include <Pothos/Plugin/Static.hpp> //static block
-#include <Poco/Logger.h>
-#include <Poco/Format.h>
-#include <Poco/Environment.h>
-#include <Poco/ConsoleChannel.h>
-#include <Poco/Platform.h>
-#if POCO_OS == POCO_OS_WINDOWS_NT
-#include <Poco/WindowsConsoleChannel.h>
-#endif
-#include <Poco/NullChannel.h>
-#include <Poco/SimpleFileChannel.h>
-#include <Poco/FormattingChannel.h>
-#include <Poco/PatternFormatter.h>
-#include <Poco/SplitterChannel.h>
+#include "System/LoggerSinks.hpp"
+#include "Platform/Environment.hpp"
+#include "Util/StringUtils.hpp"
 #include <Poco/Net/RemoteSyslogChannel.h>
 #include <Poco/Net/RemoteSyslogListener.h>
 #include <Poco/Net/DatagramSocket.h>
-#include <Poco/String.h>
 #include <Poco/AutoPtr.h>
+#include <Poco/Message.h>
+#include <Poco/Channel.h>
 #include <Poco/URI.h>
-#include <iostream>
+#include <atomic>
+#include <charconv>
 #include <chrono>
+#include <condition_variable>
+#include <deque>
+#include <functional>
+#include <iostream>
+#include <map>
 #include <memory>
 #include <mutex>
+#include <thread>
+
+using namespace Pothos::System;
 
 /***********************************************************************
- * mutex for protecting logger methods
+ * Logger state: never destroyed, so that logging from the destructors
+ * of static objects (plugins, registries) stays safe during shutdown
+ **********************************************************************/
+namespace {
+struct LoggerState
+{
+    //level thresholds
+    std::mutex levelMutex;
+    LogLevel rootLevel = LogLevel::Information;
+    std::map<std::string, LogLevel, std::less<>> levels;
+
+    //the active sink: one writer at a time
+    std::mutex sinkMutex;
+    Detail::LogSink sink;
+
+    //asynchronous writer
+    std::mutex queueMutex;
+    std::condition_variable queueCond, idleCond;
+    std::deque<Detail::LogRecord> queue;
+    unsigned long long enqueued = 0; //records ever queued
+    unsigned long long written = 0; //records taken off the queue and written
+    bool stopWorker = false;
+    std::thread worker;
+    std::atomic<bool> async{true};
+    std::atomic<bool> shutdown{false};
+};
+}
+
+static LoggerState &state(void)
+{
+    static auto *s = new LoggerState();
+    return *s;
+}
+
+static void writeToSink(const Detail::LogRecord &record, const bool tryOnly = false)
+{
+    auto &s = state();
+    std::unique_lock<std::mutex> lock(s.sinkMutex, std::defer_lock);
+    if (tryOnly)
+    {
+        if (not lock.try_lock()) return; //give up rather than hang
+    }
+    else lock.lock();
+    if (not s.sink) return;
+    try {s.sink(record);}
+    catch (...) {} //a failing sink must never break the caller
+}
+
+static void workerLoop(void)
+{
+    auto &s = state();
+    std::unique_lock<std::mutex> lock(s.queueMutex);
+    while (true)
+    {
+        s.queueCond.wait(lock, [&s]{return s.stopWorker or not s.queue.empty();});
+        if (s.queue.empty()) break; //stop requested and nothing left
+        auto record = std::move(s.queue.front());
+        s.queue.pop_front();
+        lock.unlock();
+        writeToSink(record);
+        lock.lock();
+        s.written++;
+        s.idleCond.notify_all();
+    }
+}
+
+//write a record: synchronously or through the asynchronous writer
+static void dispatch(Detail::LogRecord &&record)
+{
+    auto &s = state();
+    const bool urgent = record.level <= LogLevel::Critical;
+    if (urgent or not s.async or s.shutdown)
+    {
+        Logger::flush(); //keep the order of earlier messages
+        writeToSink(record);
+        return;
+    }
+    std::lock_guard<std::mutex> lock(s.queueMutex);
+    if (not s.worker.joinable()) s.worker = std::thread(&workerLoop); //started on first use
+    s.queue.push_back(std::move(record));
+    s.enqueued++;
+    s.queueCond.notify_one();
+}
+
+static Detail::LogRecord makeRecord(const LogLevel level, const std::string &source, const std::string &message)
+{
+    Detail::LogRecord r;
+    r.level = level;
+    r.source = source;
+    r.text = message;
+    r.time = std::chrono::system_clock::now();
+    r.threadId = static_cast<unsigned long>(std::hash<std::thread::id>()(std::this_thread::get_id()));
+    static const int pid = Pothos::Platform::currentProcessId();
+    r.pid = pid;
+    return r;
+}
+
+/***********************************************************************
+ * Public logging API
+ **********************************************************************/
+void Logger::log(const LogLevel level, const std::string &source, const std::string &message)
+{
+    if (not isEnabled(level, source)) return;
+    dispatch(makeRecord(level, source, message));
+}
+
+bool Logger::isEnabled(const LogLevel level, const std::string &source)
+{
+    return level <= getLevel(source);
+}
+
+void Logger::setLevel(const LogLevel level, const std::string &source)
+{
+    auto &s = state();
+    std::lock_guard<std::mutex> lock(s.levelMutex);
+    if (source.empty()) s.rootLevel = level;
+    else s.levels[source] = level;
+}
+
+LogLevel Logger::getLevel(const std::string &source)
+{
+    auto &s = state();
+    std::lock_guard<std::mutex> lock(s.levelMutex);
+    if (not source.empty())
+    {
+        const auto it = s.levels.find(source);
+        if (it != s.levels.end()) return it->second;
+    }
+    return s.rootLevel;
+}
+
+std::optional<LogLevel> Logger::parseLevel(std::string_view name)
+{
+    const auto lower = Pothos::Util::Detail::toLower(Pothos::Util::Detail::trim(name));
+    for (int i = int(LogLevel::Fatal); i <= int(LogLevel::Trace); i++)
+    {
+        if (lower == Pothos::Util::Detail::toLower(Detail::levelName(LogLevel(i)))) return LogLevel(i);
+    }
+    int number = 0;
+    const auto parsed = std::from_chars(lower.data(), lower.data()+lower.size(), number);
+    if (not lower.empty() and parsed.ec == std::errc() and parsed.ptr == lower.data()+lower.size() and
+        number >= int(LogLevel::Fatal) and number <= int(LogLevel::Trace)) return LogLevel(number);
+    return std::nullopt;
+}
+
+void Logger::flush(void)
+{
+    auto &s = state();
+    std::unique_lock<std::mutex> lock(s.queueMutex);
+    if (not s.worker.joinable()) return;
+    //only the records logged before this call: other threads may keep logging
+    const auto target = s.enqueued;
+    s.idleCond.wait(lock, [&s, target]{return s.written >= target;});
+}
+
+/***********************************************************************
+ * Internal API
+ **********************************************************************/
+void Detail::setLogSink(LogSink sink)
+{
+    Logger::flush();
+    auto &s = state();
+    std::lock_guard<std::mutex> lock(s.sinkMutex);
+    s.sink = std::move(sink);
+}
+
+Detail::LogSink Detail::getLogSink(void)
+{
+    Logger::flush();
+    auto &s = state();
+    std::lock_guard<std::mutex> lock(s.sinkMutex);
+    return s.sink;
+}
+
+void Detail::deliver(const LogRecord &record)
+{
+    auto copy = record;
+    dispatch(std::move(copy));
+}
+
+void Detail::shutdownLogging(void)
+{
+    auto &s = state();
+    std::deque<LogRecord> remaining;
+    {
+        std::lock_guard<std::mutex> lock(s.queueMutex);
+        s.shutdown = true; //from now on every message is written synchronously
+        remaining.swap(s.queue);
+        s.stopWorker = true;
+        s.queueCond.notify_all();
+    }
+    //write what the writer did not get to here: at process exit on Windows
+    //the writer thread may already be gone (killed while holding the sink
+    //lock), so it is never waited on and the lock is only tried
+    #ifdef _WIN32
+    constexpr bool tryOnly = true;
+    #else
+    constexpr bool tryOnly = false;
+    #endif
+    for (const auto &record : remaining) writeToSink(record, tryOnly);
+    {
+        std::lock_guard<std::mutex> lock(s.queueMutex);
+        s.written += remaining.size();
+    }
+    if (s.worker.joinable())
+    {
+        #ifdef _WIN32
+        s.worker.detach();
+        #else
+        s.worker.join();
+        #endif
+    }
+    std::lock_guard<std::mutex> lock(s.queueMutex);
+    s.stopWorker = false;
+    s.idleCond.notify_all();
+}
+
+void Detail::restartLogging(void)
+{
+    state().shutdown = false;
+}
+
+//stop the writer when the library is unloaded or the process exits
+static struct LoggingShutdownGuard
+{
+    ~LoggingShutdownGuard(void)
+    {
+        Detail::shutdownLogging();
+    }
+} loggingShutdownGuard;
+
+/***********************************************************************
+ * Syslog forwarding and listening (Poco Net until it is replaced)
  **********************************************************************/
 static std::mutex &getSetupLoggerMutex(void)
 {
@@ -37,99 +270,27 @@ static std::mutex &getSetupLoggerMutex(void)
     return mutex;
 }
 
-/***********************************************************************
- * InterceptStream custom streambuf to redirect to logger
- **********************************************************************/
-class InterceptStream : public std::streambuf
+//! A channel for the syslog listener that writes received messages to the active sink
+class LoggerChannel : public Poco::Channel
 {
 public:
-    InterceptStream(std::ostream& stream, const std::string &source):
-      _logger(Poco::Logger::get(source)),
-      _orgstream(stream),
-      _newstream(nullptr),
-      _lastPut(std::chrono::high_resolution_clock::now()),
-      _flush(false)
+    void log(const Poco::Message &msg) override
     {
-        //Swap the the old buffer in ostream with this buffer.
-        _orgbuf=_orgstream.rdbuf(this);
-        //Create a new ostream that we set the old buffer in
-        std::unique_ptr<std::ostream> os(new std::ostream(_orgbuf));
-        _newstream.swap(os);
-        //disable automatic flushing on this stream
-        stream << std::nounitbuf;
+        Detail::LogRecord r;
+        const int prio = int(msg.getPriority());
+        r.level = (prio >= int(LogLevel::Fatal) and prio <= int(LogLevel::Trace))? LogLevel(prio) : LogLevel::Information;
+        r.source = msg.getSource();
+        r.text = msg.getText();
+        r.time = std::chrono::system_clock::time_point(std::chrono::microseconds(msg.getTime().epochMicroseconds()));
+        r.threadId = static_cast<unsigned long>(msg.getTid());
+        r.pid = static_cast<int>(msg.getPid());
+        Detail::deliver(r);
     }
-
-    ~InterceptStream(void)
-    {
-        _orgstream.rdbuf(_orgbuf);//Restore old buffer
-    }
-protected:
-    virtual std::streamsize xsputn(const char *msg, std::streamsize count)
-    {
-        //has old data? force flush on sync regardless of newline
-        if ((std::chrono::high_resolution_clock::now() - _lastPut) > std::chrono::nanoseconds(long(0.5*1e9))) _flush = true;
-        _lastPut = std::chrono::high_resolution_clock::now();
-
-        //Output to new stream with old buffer (to e.g. screen [std::cout])
-        //_newstream->write(msg, count);
-        //Output to logger
-        _outbuf.append(msg, count);
-        return count;
-    }
-
-    int_type overflow(int_type c)
-    {
-        if(not traits_type::eq_int_type(c, traits_type::eof()))
-        {
-            char_type const t = traits_type::to_char_type(c);
-            this->xsputn(&t, 1);
-        }
-        return not traits_type::eof();
-    }
-
-    int sync(void)
-    {
-        if (not _outbuf.empty() and (_outbuf.back() == '\n' or _flush))
-        {
-            if (_outbuf.back() == '\n') _outbuf = _outbuf.substr(0, _outbuf.size()-1);
-            if (not _outbuf.empty()) _logger.log(Poco::Message("", _outbuf, this->guessPrio(_outbuf)));
-            _outbuf.clear();
-            _flush = false;
-        }
-        return 0;
-    }
-
-    /*!
-     * Guess the priority using keywords in the front of the message.
-     */
-    Poco::Message::Priority guessPrio(const std::string &msg)
-    {
-        const auto searchStr = Poco::toLower(msg.substr(0, 25));
-        if (searchStr.find("fatal") != std::string::npos) return Poco::Message::PRIO_FATAL;
-        if (searchStr.find("critical") != std::string::npos) return Poco::Message::PRIO_CRITICAL;
-        if (searchStr.find("error") != std::string::npos) return Poco::Message::PRIO_ERROR;
-        if (searchStr.find("warning") != std::string::npos) return Poco::Message::PRIO_WARNING;
-        if (searchStr.find("debug") != std::string::npos) return Poco::Message::PRIO_DEBUG;
-        if (searchStr.find("trace") != std::string::npos) return Poco::Message::PRIO_TRACE;
-        return Poco::Message::PRIO_INFORMATION;
-    }
-
-private:
-    Poco::Logger &_logger;
-    std::string _outbuf;
-    std::streambuf*    _orgbuf;
-    std::ostream&      _orgstream;
-    std::unique_ptr<std::ostream>  _newstream;
-    std::chrono::high_resolution_clock::time_point _lastPut;
-    bool _flush;
 };
 
-/***********************************************************************
- * Public System Logger API implementation
- **********************************************************************/
 static Poco::AutoPtr<Poco::Net::RemoteSyslogListener> listener;
 
-std::string Pothos::System::Logger::startSyslogListener(void)
+std::string Logger::startSyslogListener(void)
 {
     std::lock_guard<std::mutex> lock(getSetupLoggerMutex());
 
@@ -141,10 +302,10 @@ std::string Pothos::System::Logger::startSyslogListener(void)
         const auto port = sock.address().port();
         sock.close();
 
-        //create a new listener and feed it the root channel
+        //create a new listener that feeds the logger
         //FIXME syslog listener always binds to IPv4...
         listener = new Poco::Net::RemoteSyslogListener(port);
-        listener->addChannel(Poco::Logger::get("").getChannel());
+        listener->addChannel(Poco::AutoPtr<Poco::Channel>(new LoggerChannel()));
         listener->open();
     }
 
@@ -152,7 +313,7 @@ std::string Pothos::System::Logger::startSyslogListener(void)
     return listener->getProperty(Poco::Net::RemoteSyslogListener::PROP_PORT);
 }
 
-void Pothos::System::Logger::stopSyslogListener(void)
+void Logger::stopSyslogListener(void)
 {
     std::lock_guard<std::mutex> lock(getSetupLoggerMutex());
     if (not listener) return;
@@ -165,28 +326,96 @@ static Poco::AutoPtr<Poco::Net::RemoteSyslogChannel> forwarder;
 static void __startSyslogForwarding(const std::string &addr)
 {
     forwarder = new Poco::Net::RemoteSyslogChannel(addr, ""/*empty name*/);
-    Poco::Logger::get("").setChannel(forwarder);
-    Poco::Logger::get("").setLevel(Poco::Environment::get("POTHOS_LOG_LEVEL", "information"));
+    auto channel = forwarder;
+    Detail::setLogSink([channel](const Detail::LogRecord &r) mutable
+    {
+        Poco::Message msg(r.source, r.text, Poco::Message::Priority(int(r.level)));
+        channel->log(msg);
+    });
 
     //subprocesses will automatically forward to this address
-    Poco::Environment::set("POTHOS_SYSLOG_ADDR", addr);
+    Pothos::Platform::setEnv("POTHOS_SYSLOG_ADDR", addr);
 }
 
-void Pothos::System::Logger::startSyslogForwarding(const std::string &addr)
+void Logger::startSyslogForwarding(const std::string &addr)
 {
     std::lock_guard<std::mutex> lock(getSetupLoggerMutex());
     __startSyslogForwarding(addr);
 }
 
-void Pothos::System::Logger::stopSyslogForwarding(void)
+void Logger::stopSyslogForwarding(void)
 {
     std::lock_guard<std::mutex> lock(getSetupLoggerMutex());
     if (not forwarder) return;
+    Detail::setLogSink(Detail::LogSink()); //messages are dropped, as before
     forwarder->close();
     forwarder = nullptr;
 }
 
-void Pothos::System::Logger::forwardStdIoToLogging(const std::string &source)
+/***********************************************************************
+ * InterceptStream custom streambuf to redirect to logger
+ **********************************************************************/
+class InterceptStream : public std::streambuf
+{
+public:
+    InterceptStream(std::ostream& stream, const std::string &source):
+      _source(source),
+      _orgstream(stream),
+      _lastPut(std::chrono::high_resolution_clock::now()),
+      _flush(false)
+    {
+        //Swap the the old buffer in ostream with this buffer.
+        _orgbuf=_orgstream.rdbuf(this);
+        //disable automatic flushing on this stream
+        stream << std::nounitbuf;
+    }
+
+    ~InterceptStream(void)
+    {
+        _orgstream.rdbuf(_orgbuf);//Restore old buffer
+    }
+protected:
+    std::streamsize xsputn(const char *msg, std::streamsize count) override
+    {
+        //has old data? force flush on sync regardless of newline
+        if ((std::chrono::high_resolution_clock::now() - _lastPut) > std::chrono::nanoseconds(long(0.5*1e9))) _flush = true;
+        _lastPut = std::chrono::high_resolution_clock::now();
+        _outbuf.append(msg, count);
+        return count;
+    }
+
+    int_type overflow(int_type c) override
+    {
+        if(not traits_type::eq_int_type(c, traits_type::eof()))
+        {
+            char_type const t = traits_type::to_char_type(c);
+            this->xsputn(&t, 1);
+        }
+        return not traits_type::eof();
+    }
+
+    int sync(void) override
+    {
+        if (not _outbuf.empty() and (_outbuf.back() == '\n' or _flush))
+        {
+            if (_outbuf.back() == '\n') _outbuf = _outbuf.substr(0, _outbuf.size()-1);
+            if (not _outbuf.empty()) Logger::log(Detail::guessLevel(_outbuf), _source, _outbuf);
+            _outbuf.clear();
+            _flush = false;
+        }
+        return 0;
+    }
+
+private:
+    const std::string _source;
+    std::string _outbuf;
+    std::streambuf* _orgbuf;
+    std::ostream& _orgstream;
+    std::chrono::high_resolution_clock::time_point _lastPut;
+    bool _flush;
+};
+
+void Logger::forwardStdIoToLogging(const std::string &source)
 {
     std::lock_guard<std::mutex> lock(getSetupLoggerMutex());
     static std::shared_ptr<InterceptStream> clogRedirected;
@@ -197,57 +426,52 @@ void Pothos::System::Logger::forwardStdIoToLogging(const std::string &source)
     cerrRedirected.reset(new InterceptStream(std::cerr, source));
 }
 
-static void __setupDefaultLogging(void)
+/***********************************************************************
+ * Configuration from the environment
+ **********************************************************************/
+void Detail::configureFromEnvironment(LogSink sinkOverride)
 {
-    const std::string logLevel = Poco::Environment::get("POTHOS_LOG_LEVEL", "information");
-    const std::string logChannel = Poco::Environment::get("POTHOS_LOG_CHANNEL", "color");
-    const std::string logFile = Poco::Environment::get("POTHOS_LOG_FILE", "pothos.log");
-    const std::string logFomat = Poco::Environment::get("POTHOS_LOG_FORMAT", "%Y-%m-%d %H:%M:%S %s: %t");
-    const std::string logTimeZone = Poco::Environment::get("POTHOS_LOG_TIMEZONE", "local"); //local or UTC
+    using Pothos::Platform::getEnv;
+    const auto levelStr = getEnv("POTHOS_LOG_LEVEL").value_or("information");
+    const auto channel = getEnv("POTHOS_LOG_CHANNEL").value_or("color");
+    const auto file = getEnv("POTHOS_LOG_FILE").value_or("pothos.log");
+    const auto pattern = getEnv("POTHOS_LOG_FORMAT").value_or("%Y-%m-%d %H:%M:%S %s: %t");
+    const auto timeZone = getEnv("POTHOS_LOG_TIMEZONE").value_or("local"); //local or UTC
+    const auto syslogAddr = getEnv("POTHOS_SYSLOG_ADDR").value_or("");
+    state().async = (getEnv("POTHOS_LOG_ASYNC").value_or("1") != "0");
 
-    //set the logging level at the chosen root of logging inheritance
-    Poco::Logger::get("").setLevel(logLevel);
+    const auto level = Logger::parseLevel(levelStr);
+    Logger::setLevel(level.value_or(LogLevel::Information));
 
-    //create and set the channel with the type string specified
-    Poco::AutoPtr<Poco::Channel> channel;
-    if (logChannel == "null") channel = new Poco::NullChannel();
-    #if POCO_OS == POCO_OS_WINDOWS_NT
-    else if (logChannel == "console") channel = new Poco::WindowsConsoleChannel();
-    else if (logChannel == "color") channel = new Poco::WindowsColorConsoleChannel();
-    #else
-    else if (logChannel == "console") channel = new Poco::ConsoleChannel();
-    else if (logChannel == "color") channel = new Poco::ColorConsoleChannel();
-    #endif
-    else if (logChannel == "file" and not logFile.empty())
+    if (sinkOverride) setLogSink(std::move(sinkOverride));
+    else
     {
-        channel = new Poco::SimpleFileChannel();
-        channel->setProperty("path", logFile);
+        setLogSink(makeChannelSink(channel, file, pattern, Pothos::Util::Detail::iequals(timeZone, "UTC")));
+        //syslog forwarding when the address is specified
+        if (not syslogAddr.empty()) __startSyslogForwarding(syslogAddr);
     }
-    if (channel.isNull()) return;
 
-    //setup formatting
-    Poco::AutoPtr<Poco::Formatter> formatter(new Poco::PatternFormatter());
-    formatter->setProperty("pattern", logFomat);
-    formatter->setProperty("times", logTimeZone);
-    Poco::AutoPtr<Poco::Channel> formattingChannel(new Poco::FormattingChannel(formatter, channel));
-    Poco::AutoPtr<Poco::SplitterChannel> splitterChannel(new Poco::SplitterChannel());
-    splitterChannel->addChannel(formattingChannel);
-    Poco::Logger::get("").setChannel(splitterChannel);
-
-    //syslog forwarding when the address is specified
-    const auto syslogAddr = Poco::Environment::get("POTHOS_SYSLOG_ADDR", "");
-    if (not syslogAddr.empty()) __startSyslogForwarding(syslogAddr);
+    //warn once per invalid value: configuration runs at load and again from setupDefaultLogging()
+    static std::mutex warnMutex;
+    static std::string warnedLevel;
+    std::lock_guard<std::mutex> lock(warnMutex);
+    if (level) warnedLevel.clear();
+    else if (warnedLevel != levelStr)
+    {
+        warnedLevel = levelStr;
+        POTHOS_LOG_WARNING("Pothos.Logger", "invalid POTHOS_LOG_LEVEL \"{}\", using information", levelStr);
+    }
 }
 
-void Pothos::System::Logger::setupDefaultLogging(void)
+void Logger::setupDefaultLogging(void)
 {
     std::lock_guard<std::mutex> lock(getSetupLoggerMutex());
-    __setupDefaultLogging();
+    Detail::configureFromEnvironment();
 }
 
 pothos_static_block(pothosLoggingInit)
 {
-    __setupDefaultLogging();
+    Detail::configureFromEnvironment();
 }
 
 #include <Pothos/Managed.hpp>
@@ -260,4 +484,5 @@ static auto managedSystemLogger = Pothos::ManagedClass()
     .registerStaticMethod(POTHOS_FCN_TUPLE(Pothos::System::Logger, stopSyslogForwarding))
     .registerStaticMethod(POTHOS_FCN_TUPLE(Pothos::System::Logger, forwardStdIoToLogging))
     .registerStaticMethod(POTHOS_FCN_TUPLE(Pothos::System::Logger, setupDefaultLogging))
+    .registerStaticMethod(POTHOS_FCN_TUPLE(Pothos::System::Logger, flush))
     .commit("Pothos/System/Logger");

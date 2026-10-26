@@ -7,7 +7,7 @@
 #include <Pothos/Util/TypeInfo.hpp>
 #include <Pothos/Callable.hpp>
 #include <Pothos/Plugin.hpp>
-#include <Poco/Logger.h>
+#include <Pothos/System/Logger.hpp>
 #include <mutex>
 #include <map>
 
@@ -33,7 +33,7 @@ static ClassMapType &getClassMap(void)
  **********************************************************************/
 static void handlePluginEvent(const Pothos::Plugin &plugin, const std::string &event)
 {
-    poco_debug_f2(Poco::Logger::get("Pothos.ManagedClass.handlePluginEvent"), "plugin %s, event %s", plugin.toString(), event);
+    POTHOS_LOG_DEBUG("Pothos.ManagedClass.handlePluginEvent", "plugin {}, event {}", plugin.toString(), event);
     POTHOS_EXCEPTION_TRY
     {
         //validate the plugin -- if we want to handle it -- check the signature:
@@ -56,8 +56,7 @@ static void handlePluginEvent(const Pothos::Plugin &plugin, const std::string &e
     }
     POTHOS_EXCEPTION_CATCH(const Pothos::Exception &ex)
     {
-        poco_error_f3(Poco::Logger::get("Pothos.ManagedClass.handlePluginEvent"),
-            "exception %s, plugin %s, event %s", ex.displayText(), plugin.toString(), event);
+        POTHOS_LOG_ERROR("Pothos.ManagedClass.handlePluginEvent", "exception {}, plugin {}, event {}", ex.displayText(), plugin.toString(), event);
     }
 }
 

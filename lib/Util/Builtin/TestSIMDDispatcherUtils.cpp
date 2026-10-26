@@ -9,7 +9,7 @@
 
 #include <nlohmann/json.hpp>
 
-#include <Poco/Format.h>
+#include <format>
 
 #include <fstream>
 #include <iostream>
@@ -88,7 +88,7 @@ POTHOS_TEST_BLOCK("/util/tests", test_simd_dispatcher_utils_dump_header)
     // Create stubs for the non-templated function to avoid a linker error.
     for (const auto& arch : testFeatureSet)
     {
-        generatedHeaderString += Poco::format("\nvoid TestNamespace::%s::clamp(const float*, float*, float, float, size_t){};", arch);
+        generatedHeaderString += std::format("\nvoid TestNamespace::{}::clamp(const float*, float*, float, float, size_t){{}};", arch);
     }
     generatedHeaderString += "\nvoid TestNamespace::fallback::clamp(const float*, float*, float, float, size_t){};";
 

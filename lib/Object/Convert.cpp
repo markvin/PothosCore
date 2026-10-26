@@ -8,8 +8,8 @@
 #include <Pothos/Util/TypeInfo.hpp>
 #include <Pothos/Callable.hpp>
 #include <Pothos/Plugin.hpp>
-#include <Poco/Logger.h>
-#include <Poco/Format.h>
+#include <Pothos/System/Logger.hpp>
+#include <format>
 #include <mutex>
 #include <set>
 #include <map>
@@ -43,7 +43,7 @@ static std::map<size_t, std::set<size_t>> &getConvertIoMap(void)
  **********************************************************************/
 static void handleConvertPluginEvent(const Pothos::Plugin &plugin, const std::string &event)
 {
-    poco_debug_f2(Poco::Logger::get("Pothos.Object.handleConvertPluginEvent"), "plugin %s, event %s", plugin.toString(), event);
+    POTHOS_LOG_DEBUG("Pothos.Object.handleConvertPluginEvent", "plugin {}, event {}", plugin.toString(), event);
     POTHOS_EXCEPTION_TRY
     {
         //validate the plugin -- if we want to handle it -- check the signature:
@@ -70,8 +70,7 @@ static void handleConvertPluginEvent(const Pothos::Plugin &plugin, const std::st
     }
     POTHOS_EXCEPTION_CATCH(const Pothos::Exception &ex)
     {
-        poco_error_f3(Poco::Logger::get("Pothos.Object.handleConvertPluginEvent"),
-            "exception %s, plugin %s, event %s", ex.displayText(), plugin.toString(), event);
+        POTHOS_LOG_ERROR("Pothos.Object.handleConvertPluginEvent", "exception {}, plugin {}, event {}", ex.displayText(), plugin.toString(), event);
     }
 }
 
@@ -113,7 +112,7 @@ static Pothos::Object convertObject(const Pothos::Object &inputObj, const std::t
     //thow an error when the conversion is not supported
     if (it == getConvertMap().end()) throw Pothos::ObjectConvertError(
         "Pothos::Object::convert()",
-        Poco::format("doesnt support %s to %s",
+        std::format("doesnt support {} to {}",
         inputObj.getTypeString(),
         Pothos::Util::typeInfoToString(outputType)));
 

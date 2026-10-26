@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include "Framework/ThreadEnvironment.hpp"
-#include <Poco/Logger.h>
-#include <Poco/Environment.h>
+#include <Pothos/System/Logger.hpp>
+#include "Platform/Environment.hpp"
 #include <sched.h>
 #ifdef HAVE_LIBNUMA
 #include <numa.h>
@@ -66,9 +66,9 @@ std::string ThreadEnvironment::setCPUAffinity(const std::vector<size_t> &affinit
     return errorMsg;
     #else
     //create cpu bit set
-    cpu_set_t *cpusetp = CPU_ALLOC(Poco::Environment::processorCount());
+    cpu_set_t *cpusetp = CPU_ALLOC(Pothos::Platform::processorCount());
     if (cpusetp == nullptr) return "CPU_ALLOC";
-    const auto size = CPU_ALLOC_SIZE(Poco::Environment::processorCount());
+    const auto size = CPU_ALLOC_SIZE(Pothos::Platform::processorCount());
     CPU_ZERO_S(size, cpusetp);
     for (const auto &cpu : affinity)
     {

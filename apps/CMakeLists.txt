@@ -27,6 +27,10 @@ add_executable(PothosUtil
     PothosUtilGenerateSIMDDispatchers.cpp
     PothosUtilListTypeConversions.cpp
 )
+#internal helpers shared with the library (lib/Util, lib/Platform)
+target_include_directories(PothosUtil PRIVATE ${PROJECT_SOURCE_DIR}/lib)
+target_sources(PothosUtil PRIVATE ${POTHOS_PLATFORM_SOURCES})
+target_link_libraries(PothosUtil PRIVATE ${POTHOS_PLATFORM_LIBRARIES})
 target_link_libraries(PothosUtil PRIVATE
     Pothos
     PocoFoundation PocoUtil PocoNet #transitional

@@ -18,7 +18,8 @@ the entire Pothos software suite in one build.
 The framework is being made self-contained: every dependency it needs
 is built from the source tree and kept private to the library.
 
-* poco C++ utility library (transitional submodule, being removed)
+* poco C++ utility library (transitional submodule, being removed;
+  only its Net and Util libraries are still used)
 * muparserx expression parser (transitional submodule, being replaced)
 * libsimdpp SIMD library (submodule, header only)
 * nlohmann/json (vendored in third_party/)

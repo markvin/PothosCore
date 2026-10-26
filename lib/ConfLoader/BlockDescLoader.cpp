@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include <Pothos/Plugin.hpp>
-#include <Poco/Path.h>
-#include <Poco/File.h>
+#include "Util/FileSystem.hpp"
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <cassert>
@@ -60,13 +60,14 @@ static std::vector<Pothos::PluginPath> blockDescLoader(const std::map<std::strin
     const auto jsonIt = config.find("json");
     if (jsonIt == config.end() or jsonIt->second.empty())
         throw Pothos::Exception("JSON file not specified");
-    Poco::Path jsonPath(jsonIt->second);
-    jsonPath.makeAbsolute(Poco::Path(confFilePathIt->second).makeParent());
-    if (not Poco::File(jsonPath).exists())
-        throw Pothos::Exception(jsonPath.toString() + " does not exist");
+    const auto jsonPath = Pothos::Util::Detail::makeAbsolute(
+        Pothos::Util::Detail::expandPath(jsonIt->second),
+        std::filesystem::path(confFilePathIt->second).parent_path());
+    if (not std::filesystem::exists(jsonPath))
+        throw Pothos::Exception(jsonPath.string() + " does not exist");
 
     //open an input file stream
-    std::ifstream ifs(Poco::Path::expand(jsonPath.toString()));
+    std::ifstream ifs(jsonPath);
 
     std::vector<Pothos::PluginPath> blockPaths;
     return blockDescParser(ifs, blockPaths);

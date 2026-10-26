@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include "RemoteProxy.hpp"
-#include <Poco/Format.h>
-#include <Poco/Logger.h>
+#include <format>
+#include <Pothos/System/Logger.hpp>
 #include <iostream>
 
 RemoteProxyHandle::RemoteProxyHandle(std::shared_ptr<RemoteProxyEnvironment> env, const size_t remoteID):
@@ -26,7 +26,7 @@ RemoteProxyHandle::~RemoteProxyHandle(void)
     catch(const Pothos::Exception &ex)
     {
         if (not env->connectionActive) return;
-        poco_error(Poco::Logger::get("Pothos.RemoteProxyHandle"), "destructor threw: "+ex.displayText());
+        POTHOS_LOG_ERROR("Pothos.RemoteProxyHandle", "{}", "destructor threw: "+ex.displayText());
     }
 }
 
@@ -47,7 +47,7 @@ Pothos::Proxy RemoteProxyHandle::call(const std::string &name, const Pothos::Pro
         catch(const std::exception &ex)
         {
             throw Pothos::ProxyHandleCallError("RemoteProxyHandle::call("+name+")",
-                Poco::format("convert arg %z - %s", i, std::string(ex.what())));
+                std::format("convert arg {} - {}", i, std::string(ex.what())));
         }
         req[std::to_string(i)] = Pothos::Object(handle->remoteID);
     }
@@ -76,8 +76,8 @@ int RemoteProxyHandle::compareTo(const Pothos::Proxy &proxy) const
     }
     catch(const std::exception &ex)
     {
-        throw Pothos::ProxyCompareError("RemoteProxyHandle::compareTo()", Poco::format(
-            "convert %s to remote - %s", proxy.toString(), std::string(ex.what())));
+        throw Pothos::ProxyCompareError("RemoteProxyHandle::compareTo()", std::format(
+            "convert {} to remote - {}", proxy.toString(), std::string(ex.what())));
     }
 
     //create request

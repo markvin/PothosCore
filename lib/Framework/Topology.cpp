@@ -8,8 +8,8 @@
 #include <Pothos/Object.hpp>
 #include <Pothos/Plugin.hpp>
 #include <Pothos/Proxy.hpp>
-#include <Poco/Logger.h>
-#include <Poco/Format.h>
+#include <Pothos/System/Logger.hpp>
+#include <format>
 #include <algorithm>
 #include <cassert>
 #include <set>
@@ -43,7 +43,7 @@ Pothos::Topology::~Topology(void)
     }
     catch (const Pothos::Exception &ex)
     {
-        poco_error_f1(Poco::Logger::get("Pothos.Topology"), "Topology destructor threw: %s", ex.displayText());
+        POTHOS_LOG_ERROR("Pothos.Topology", "Topology destructor threw: {}", ex.displayText());
     }
 }
 
@@ -189,7 +189,7 @@ void Pothos::Topology::_connect(
 
     const auto it = std::find(_impl->flows.begin(), _impl->flows.end(), flow);
     if (it != _impl->flows.end()) throw Pothos::TopologyConnectError("Pothos::Topology::connect()",
-        Poco::format("this flow already exists in the topology(%s)", flow.toString()));
+        std::format("this flow already exists in the topology({})", flow.toString()));
 
     _impl->flows.push_back(flow);
 }
@@ -222,7 +222,7 @@ void Pothos::Topology::_disconnect(
 
     const auto it = std::find(_impl->flows.begin(), _impl->flows.end(), flow);
     if (it == _impl->flows.end()) throw Pothos::TopologyConnectError("Pothos::Topology::disconnect()",
-        Poco::format("this flow does not exist in the topology(%s)", flow.toString()));
+        std::format("this flow does not exist in the topology({})", flow.toString()));
 
     //perform auto-deletion, on a block this may or may not delete, on a topology this throws
     try{getConnectable(src).get("_actor").call("autoDeleteOutput", srcName);}catch(const Exception &){}

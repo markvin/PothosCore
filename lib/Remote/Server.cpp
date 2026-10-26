@@ -3,13 +3,12 @@
 
 #include <Pothos/Remote.hpp>
 #include <Pothos/System/Paths.hpp>
-#include <Poco/Pipe.h>
-#include <Poco/PipeStream.h>
-#include <Poco/Process.h>
-#include <Poco/StringTokenizer.h>
+#include "Platform/Process.hpp"
+#include "System/LoggerSinks.hpp"
+#include <optional>
+#include "Util/StringUtils.hpp"
 #include <Poco/URI.h>
 #include <Poco/Net/SocketAddress.h>
-#include <Poco/String.h>
 #include <Poco/Message.h>
 #include <Poco/Net/RemoteSyslogChannel.h>
 #include <functional>
@@ -23,7 +22,7 @@ std::string Pothos::RemoteServer::getLocatorPort(void)
 
 struct Pothos::RemoteServer::Impl
 {
-    Impl(const Poco::ProcessHandle &ph):
+    Impl(const Pothos::Platform::Process &ph):
         ph(ph)
     {
         return;
@@ -32,21 +31,22 @@ struct Pothos::RemoteServer::Impl
     ~Impl(void)
     {
         client = RemoteClient(); //reset
-        Poco::Process::requestTermination(ph.id());
-        outPipe.close();
-        errPipe.close();
+        ph.requestTermination();
+        //the forwarding threads see end of stream once the server exits
         if (outThread.joinable()) outThread.join();
         if (errThread.joinable()) errThread.join();
+        outPipe.close();
+        errPipe.close();
         ph.wait();
     }
 
-    Poco::ProcessHandle ph;
+    Pothos::Platform::Process ph;
     std::string actualPort;
     RemoteClient client;
     std::string uriStr;
 
     //members used for syslog forwarding
-    Poco::Pipe outPipe, errPipe;
+    Pothos::Platform::Pipe outPipe, errPipe;
     std::thread outThread, errThread;
 };
 
@@ -69,27 +69,44 @@ Pothos::RemoteServer::RemoteServer(const std::string &uriStr, const bool closePi
     }
 
     //create args
-    Poco::Process::Args args;
+    std::vector<std::string> args;
     args.push_back("--require-active");
     args.push_back("--proxy-server="+uriStr);
 
     //launch
-    Poco::Pipe outPipe, errPipe;
-    Poco::Process::Env env;
-    Poco::ProcessHandle ph(Poco::Process::launch(
-        System::getPothosUtilExecutablePath(),
-        args, nullptr, &outPipe, &errPipe, env));
-    _impl.reset(new Impl(ph));
+    Pothos::Platform::Pipe outPipe, errPipe;
+    Pothos::Platform::ProcessOptions opts;
+    opts.args = args;
+    opts.out = &outPipe;
+    opts.err = &errPipe;
+    std::optional<Pothos::Platform::Process> ph;
+    std::string launchError;
+    try
+    {
+        ph = Pothos::Platform::Process::launch(System::getPothosUtilExecutablePath(), opts);
+    }
+    catch (const Pothos::SystemException &ex)
+    {
+        launchError = ex.displayText();
+    }
+    if (not ph)
+    {
+        std::string errMsg = "Failed to launch server process: ";
+        errMsg += System::getPothosUtilExecutablePath();
+        for (const auto &arg : args) errMsg += " " + arg;
+        throw Pothos::RemoteServerError("Pothos::RemoteServer("+uriStr+")", errMsg + ": " + launchError);
+    }
+    _impl.reset(new Impl(*ph));
     _impl->uriStr = uriStr;
 
     //read back the port from the server
-    Poco::PipeInputStream is(outPipe);
+    Pothos::Platform::PipeInputStream is(outPipe);
     while (is.good() and not is.eof())
     {
         std::string line; std::getline(is, line);
         if (line.empty()) continue;
-        const Poco::StringTokenizer tok(line, " ", Poco::StringTokenizer::TOK_TRIM);
-        if (tok.count() >= 2 and tok[0] == "Port:")
+        const auto tok = Pothos::Util::Detail::split(line, " ", true, false);
+        if (tok.size() >= 2 and tok[0] == "Port:")
         {
             _impl->actualPort = tok[1];
             break;
@@ -120,19 +137,14 @@ Pothos::RemoteServer::RemoteServer(const std::string &uriStr, const bool closePi
         //collect error message
         try
         {
-            Poco::PipeInputStream ies(errPipe);
+            Pothos::Platform::PipeInputStream ies(errPipe);
             errMsg = std::string(
                 std::istreambuf_iterator<char>(ies),
                 std::istreambuf_iterator<char>());
         }
-        //If the process failed to launch,
-        //poco throws an assertion exception.
-        //Produce a more useful error message:
         catch (...)
         {
-            errMsg = "Failed to launch server process: ";
-            errMsg += System::getPothosUtilExecutablePath();
-            for (const auto &arg : args) errMsg += " " + arg;
+            errMsg = "Failed to read the server process error output";
         }
 
         throw Pothos::RemoteServerError("Pothos::RemoteServer("+uriStr+")", errMsg);
@@ -181,20 +193,14 @@ std::string Pothos::RemoteServer::getActualPort(void) const
 //! Guess the priority using keywords in the front of the message.
 static Poco::Message::Priority guessPrio(const std::string &msg)
 {
-    const auto searchStr = Poco::toLower(msg.substr(0, 25));
-    if (searchStr.find("fatal") != std::string::npos) return Poco::Message::PRIO_FATAL;
-    if (searchStr.find("critical") != std::string::npos) return Poco::Message::PRIO_CRITICAL;
-    if (searchStr.find("error") != std::string::npos) return Poco::Message::PRIO_ERROR;
-    if (searchStr.find("warning") != std::string::npos) return Poco::Message::PRIO_WARNING;
-    if (searchStr.find("debug") != std::string::npos) return Poco::Message::PRIO_DEBUG;
-    if (searchStr.find("trace") != std::string::npos) return Poco::Message::PRIO_TRACE;
-    return Poco::Message::PRIO_INFORMATION;
+    //the level numbers are the syslog priorities
+    return Poco::Message::Priority(int(Pothos::System::Detail::guessLevel(msg)));
 }
 
 //! Worker thread operation to read the pipe and forward to the syslog channel
-static void pipeToSyslogWorker(Poco::AutoPtr<Poco::Channel> channel, const Poco::Pipe &pipe, const std::string &source)
+static void pipeToSyslogWorker(Poco::AutoPtr<Poco::Channel> channel, Pothos::Platform::Pipe pipe, const std::string &source)
 {
-    Poco::PipeInputStream is(pipe);
+    Pothos::Platform::PipeInputStream is(pipe);
     try
     {
         std::string line;

@@ -6,7 +6,7 @@
 #include <Pothos/Managed/Class.hpp>
 #include <Pothos/Managed/ClassImpl.hpp>
 #include <Pothos/Util/TypeInfo.hpp>
-#include <Poco/Format.h>
+#include <format>
 #include <string>
 #include <map>
 #include <vector>
@@ -210,7 +210,7 @@ Pothos::ManagedClass &Pothos::ManagedClass::commit(const std::string &classPath)
     {
         if (constructor.getNumArgs() != 1) continue;
         Pothos::PluginRegistry::add(
-            Poco::format("/object/convert/constructors/%s_to_%s",
+            std::format("/object/convert/constructors/{}_to_{}",
             typeToPluginPath(constructor.type(0)),
             typeToPluginPath(constructor.type(-1))),
             constructor
@@ -234,7 +234,7 @@ void Pothos::ManagedClass::unload(const std::string &classPath)
     {
         if (constructor.getNumArgs() != 1) continue;
         Pothos::PluginRegistry::remove(
-            Poco::format("/object/convert/constructors/%s_to_%s",
+            std::format("/object/convert/constructors/{}_to_{}",
             typeToPluginPath(constructor.type(0)),
             typeToPluginPath(constructor.type(-1)))
         );

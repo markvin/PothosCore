@@ -7,10 +7,9 @@
 #include <Pothos/Object.hpp>
 #include <Pothos/Plugin.hpp>
 #include <Pothos/Util/TypeInfo.hpp>
-#include <Poco/StringTokenizer.h>
-#include <Poco/RegularExpression.h>
-#include <Poco/HashMap.h>
-#include <Poco/String.h>
+#include "Util/StringUtils.hpp"
+#include <climits>
+#include <unordered_map>
 #include <complex>
 #include <array>
 #include <map>
@@ -74,7 +73,7 @@ public:
         loadIntegerType(char, Int8, "int8");
         loadIntegerType(short, Int16, "int16");
         loadIntegerType(int, Int32, "int32");
-        #ifndef POCO_LONG_IS_64_BIT
+        #if LONG_MAX == INT_MAX
         loadIntegerType(long, Int32, "int32");
         #else
         loadIntegerType(long, Int64, "int64");
@@ -105,7 +104,7 @@ public:
         declareNativeAlias(Int8, "char");
         declareNativeAlias(Int16, "short");
         declareNativeAlias(Int32, "int");
-        #ifndef POCO_LONG_IS_64_BIT
+        #if LONG_MAX == INT_MAX
         declareNativeAlias(Int32, "long");
         #else
         declareNativeAlias(Int64, "long");
@@ -117,7 +116,7 @@ public:
 
     ElementTypes lookupAlias(const std::string &alias) const
     {
-        auto it = _aliasToElementType.find(Poco::toLower(alias));
+        auto it = _aliasToElementType.find(Pothos::Util::Detail::toLower(alias));
         if (it == _aliasToElementType.end())
         {
             throw Pothos::DTypeUnknownError("Pothos::DType("+alias+")", "unknown type alias");
@@ -159,7 +158,7 @@ private:
         _elemTypeToElemName[elemType] = name;
     }
 
-    Poco::HashMap<std::string, ElementTypes> _aliasToElementType;
+    std::unordered_map<std::string, ElementTypes> _aliasToElementType;
     std::map<size_t, ElementTypes> _typeHashToElemType;
     std::array<unsigned char, Length> _elemTypeToElemSize;
     std::array<std::string, Length> _elemTypeToElemName;
@@ -179,8 +178,8 @@ static ElementTypes parseMarkupName(const std::string &markup, size_t &dimension
     const auto commaPos = markup.find(",");
     if (commaPos == std::string::npos) return getElementTypeSuperMap().lookupAlias(markup);
 
-    const auto alias = Poco::trim(markup.substr(0, commaPos));
-    const auto dimStr = Poco::trim(markup.substr(commaPos+1));
+    const auto alias = std::string(Pothos::Util::Detail::trim(markup.substr(0, commaPos)));
+    const auto dimStr = std::string(Pothos::Util::Detail::trim(markup.substr(commaPos+1)));
 
     try
     {

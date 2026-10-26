@@ -17,6 +17,9 @@ set(POTHOS_LIBVER "${CMAKE_MATCH_1}")
 project(Pothos VERSION ${POTHOS_LIBVER} LANGUAGES C CXX)
 enable_testing()
 
+#compile_commands.json in the build directory for code navigation (clangd)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 #C++23 is a required language feature for this project
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -137,6 +140,7 @@ if (APPLE)
     target_compile_definitions(Foundation PRIVATE "fdopen=fdopen")
 endif ()
 
+#XML is not used by Pothos, but PocoUtil needs it at runtime
 install(TARGETS Foundation Util XML Net
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} NAMELINK_SKIP COMPONENT pothos_runtime
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT pothos_runtime)
@@ -194,6 +198,12 @@ add_test(NAME pothos.consumer
         -DLIBDIR=${CMAKE_INSTALL_LIBDIR}
         -P ${PROJECT_SOURCE_DIR}/cmake/PothosConsumerTest.cmake)
 set_tests_properties(pothos.consumer PROPERTIES FIXTURES_REQUIRED pothos_stage)
+
+add_test(NAME pothos.poco_allowlist
+    COMMAND ${CMAKE_COMMAND}
+        -DSRC=${PROJECT_SOURCE_DIR}
+        -DALLOWLIST=${PROJECT_SOURCE_DIR}/cmake/poco-allowlist.txt
+        -P ${PROJECT_SOURCE_DIR}/cmake/PothosCheckPoco.cmake)
 
 add_test(NAME pothos.test_env_guard
     COMMAND ${CMAKE_COMMAND}

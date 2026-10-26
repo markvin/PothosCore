@@ -6,9 +6,9 @@
 #include <Pothos/Framework/BufferChunk.hpp>
 #include <Pothos/Framework/SharedBuffer.hpp>
 #include <Pothos/Framework/Exception.hpp>
-#include <Poco/File.h>
-#include <Poco/RandomStream.h>
-#include <Poco/TemporaryFile.h>
+#include "Util/TempFile.hpp"
+#include <filesystem>
+#include <random>
 #include <cstdlib> //rand
 #include <fstream>
 
@@ -72,25 +72,24 @@ POTHOS_TEST_BLOCK("/framework/tests", test_mmap_shared_buffer)
     static constexpr size_t numElems = 1024;
     Pothos::BufferChunk input("int", numElems);
 
-    Poco::RandomBuf randomBuf;
-    randomBuf.readFromDevice(
-        reinterpret_cast<char*>(input.address),
-        input.length);
+    std::independent_bits_engine<std::mt19937, 8, unsigned> randomBytes{std::random_device{}()};
+    auto *inputBytes = reinterpret_cast<unsigned char*>(input.address);
+    for (size_t i = 0; i < input.length; i++) inputBytes[i] = static_cast<unsigned char>(randomBytes());
 
-    auto tempFile = Poco::TemporaryFile();
-    POTHOS_TEST_TRUE(tempFile.createFile());
+    const Pothos::Util::Detail::TempFile tempFile;
+    POTHOS_TEST_TRUE(std::filesystem::exists(tempFile.path()));
 
     std::ofstream ofile(tempFile.path(), std::ios::binary);
     ofile.write(reinterpret_cast<const char*>(input.address), input.length);
     ofile.close(); //flush the stream buffer to the file before checking its size
     POTHOS_TEST_TRUE(ofile.good());
-    POTHOS_TEST_EQUAL(input.length, tempFile.getSize());
+    POTHOS_TEST_EQUAL(input.length, std::filesystem::file_size(tempFile.path()));
 
     int newValue = 0;
 
     {
         auto mmapSharedBuffer = Pothos::SharedBuffer::makeFromFileMMap(
-            tempFile.path(),
+            tempFile.path().string(),
             true,
             true);
         POTHOS_TEST_NOT_EQUAL(0, mmapSharedBuffer.getAddress());

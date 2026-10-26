@@ -4,7 +4,7 @@
 #include <Pothos/Config.hpp>
 #include <Windows.h>
 #include <Pothos/Plugin.hpp>
-#include <Poco/NumberFormatter.h>
+#include <format>
 #include <cassert>
 #include <iostream>
 #include <nlohmann/json.hpp>
@@ -96,7 +96,7 @@ static std::string enumerateGetLogicalProcessorInformationEx(void)
             json infoObj;
             assert(pinfo->Relationship == RelationCache);
             infoObj["Level"] = "L"+std::to_string(pinfo->Cache.Level);
-            infoObj["Associativity"] = "0x"+Poco::NumberFormatter::formatHex(pinfo->Cache.Associativity);
+            infoObj["Associativity"] = std::format("0x{:X}", pinfo->Cache.Associativity);
             infoObj["LineSize"] = std::to_string(pinfo->Cache.LineSize)+" bytes";
             infoObj["CacheSize"] = std::to_string(pinfo->Cache.CacheSize)+" bytes";
             switch(pinfo->Cache.Type)

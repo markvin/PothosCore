@@ -10,7 +10,7 @@
 #include <Pothos/Util/TypeInfo.hpp>
 #include <Pothos/Plugin.hpp>
 #include <Pothos/Callable.hpp>
-#include <Poco/Format.h>
+#include <format>
 #include <limits>
 #include <complex>
 #include <string>
@@ -49,7 +49,7 @@ void convertNumCheck(const InType &in)
     if (double(in) > double(std::numeric_limits<OutType>::max()) or //too large
         double(in) < double(std::numeric_limits<OutType>::lowest())) //too small
     {
-        throw Pothos::RangeException(Poco::format("value %s out of range for output type %s",
+        throw Pothos::RangeException(std::format("value {} out of range for output type {}",
             std::to_string(in), Pothos::Util::typeInfoToString(typeid(OutType))));
     }
 }
@@ -60,7 +60,7 @@ void convertNumCheck(const std::complex<InType> &in)
 {
     if (in.imag() != 0)
     {
-        throw Pothos::RangeException(Poco::format("cannot convert value (%s + I*%s) with imaginary component into real type %s",
+        throw Pothos::RangeException(std::format("cannot convert value ({} + I*{}) with imaginary component into real type {}",
             std::to_string(in.real()), std::to_string(in.imag()), Pothos::Util::typeInfoToString(typeid(OutType))));
     }
     convertNumCheck<OutType>(in.real());

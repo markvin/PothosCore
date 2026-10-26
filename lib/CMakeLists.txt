@@ -17,6 +17,8 @@ add_library(Pothos SHARED
     Testing/Testing.cpp
 
     System/Logger.cpp
+    System/LoggerSinks.cpp
+    System/Builtin/TestLogger.cpp
     System/HostInfo.cpp
     System/NumaInfo.cpp
     System/Exception.cpp
@@ -100,6 +102,7 @@ add_library(Pothos SHARED
     Framework/Builtin/TestLabel.cpp
     Framework/Builtin/TestThreadPool.cpp
     Framework/Builtin/TestTopology.cpp
+    Framework/Builtin/TestDotMarkup.cpp
 
     Plugin/Path.cpp
     Plugin/Plugin.cpp
@@ -157,6 +160,13 @@ add_library(Pothos SHARED
     Util/Builtin/TestErrorCodeHandling.cpp
     Util/Builtin/TestEvalExpression.cpp
     Util/Builtin/TestRingDeque.cpp
+    Util/Builtin/TestStringUtils.cpp
+    Util/Builtin/TestTempFile.cpp
+    Util/Builtin/TestFileSystem.cpp
+
+    Platform/Builtin/TestEnvironment.cpp
+    Platform/Builtin/TestDynamicLibrary.cpp
+    Platform/Builtin/TestProcess.cpp
     Util/Builtin/TestSIMDDispatcherUtils.cpp
 
     Archive/ArchiveEntry.cpp
@@ -167,6 +177,27 @@ add_library(Pothos SHARED
     Archive/Exception.cpp
 )
 add_library(Pothos::Pothos ALIAS Pothos)
+
+########################################################################
+# Internal platform layer (lib/Platform). The sources are also compiled
+# into PothosUtil: the library exports no internal symbols.
+########################################################################
+set(platform_sources ${CMAKE_CURRENT_SOURCE_DIR}/Platform/CommandLine.cpp)
+if(WIN32)
+    foreach(name Environment DynamicLibrary Process)
+        list(APPEND platform_sources ${CMAKE_CURRENT_SOURCE_DIR}/Platform/${name}Windows.cpp)
+    endforeach()
+    set(platform_libraries iphlpapi) #GetAdaptersAddresses
+else()
+    foreach(name Environment DynamicLibrary Process)
+        list(APPEND platform_sources ${CMAKE_CURRENT_SOURCE_DIR}/Platform/${name}Unix.cpp)
+    endforeach()
+    set(platform_libraries ${CMAKE_DL_LIBS}) #dlopen
+endif()
+set(POTHOS_PLATFORM_SOURCES ${platform_sources} CACHE INTERNAL "")
+set(POTHOS_PLATFORM_LIBRARIES ${platform_libraries} CACHE INTERNAL "")
+target_sources(Pothos PRIVATE ${POTHOS_PLATFORM_SOURCES})
+target_link_libraries(Pothos PRIVATE ${POTHOS_PLATFORM_LIBRARIES})
 
 if(WIN32)
     target_sources(Pothos PRIVATE WindowsDelayLoadedSymbols.cpp)
@@ -202,7 +233,7 @@ endif(MSVC)
 ########################################################################
 #Poco and muparserx are transitional private dependencies
 target_link_libraries(Pothos PRIVATE
-    PocoFoundation PocoUtil PocoXML PocoNet
+    PocoFoundation PocoUtil PocoNet
     pothos_muparserx
     pothos_json)
 

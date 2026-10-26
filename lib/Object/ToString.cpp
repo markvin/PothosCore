@@ -9,8 +9,8 @@
 #include <Pothos/Plugin.hpp>
 #include <Pothos/Util/SpinLockRW.hpp>
 
-#include <Poco/Logger.h>
-#include <Poco/Format.h>
+#include <Pothos/System/Logger.hpp>
+#include <format>
 
 #include <complex>
 #include <cassert>
@@ -40,7 +40,7 @@ static ToStringMapType &getToStringMap(void)
  **********************************************************************/
 static void handleToStringPluginEvent(const Pothos::Plugin &plugin, const std::string &event)
 {
-    poco_debug_f2(Poco::Logger::get("Pothos.Object.handleToStringPluginEvent"), "plugin %s, event %s", plugin.toString(), event);
+    POTHOS_LOG_DEBUG("Pothos.Object.handleToStringPluginEvent", "plugin {}, event {}", plugin.toString(), event);
     POTHOS_EXCEPTION_TRY
     {
         //validate the plugin -- if we want to handle it -- check the signature:
@@ -64,8 +64,7 @@ static void handleToStringPluginEvent(const Pothos::Plugin &plugin, const std::s
     }
     POTHOS_EXCEPTION_CATCH(const Pothos::Exception &ex)
     {
-        poco_error_f3(Poco::Logger::get("Pothos.Object.handleToStringPluginEvent"),
-            "exception %s, plugin %s, event %s", ex.displayText(), plugin.toString(), event);
+        POTHOS_LOG_ERROR("Pothos.Object.handleToStringPluginEvent", "exception {}, plugin {}, event {}", ex.displayText(), plugin.toString(), event);
     }
 }
 
@@ -87,7 +86,7 @@ std::string Pothos::Object::toString(void) const
     if (this->type() == typeid(bool)) return this->extract<bool>()?"true":"false";
 
     //string
-    if (this->type() == typeid(std::string)) return Poco::format("\"%s\"", this->extract<std::string>());
+    if (this->type() == typeid(std::string)) return std::format("\"{}\"", this->extract<std::string>());
 
     //try numeric types
     try
@@ -98,16 +97,16 @@ std::string Pothos::Object::toString(void) const
             const std::complex<double> c = *this;
             if (c.imag() == 0.0) return std::to_string(c.real());
             if (c.real() == 0.0) return std::to_string(c.imag())+"j";
-            if (c.imag() < 0.0) return Poco::format("%f-%fj", c.real(), -c.imag());
-            return Poco::format("%f+%fj", c.real(), c.imag());
+            if (c.imag() < 0.0) return std::format("{:f}-{:f}j", c.real(), -c.imag());
+            return std::format("{:f}+{:f}j", c.real(), c.imag());
         }
         if (dtype.isComplex())
         {
             const std::complex<long long> c = *this;
             if (c.imag() == 0) return std::to_string(c.real());
             if (c.real() == 0) return std::to_string(c.imag())+"j";
-            if (c.imag() < 0) return Poco::format("%s-%sj", std::to_string(c.real()), std::to_string(-c.imag()));
-            return Poco::format("%s+%sj", std::to_string(c.real()), std::to_string(c.imag()));
+            if (c.imag() < 0) return std::format("{}-{}j", std::to_string(c.real()), std::to_string(-c.imag()));
+            return std::format("{}+{}j", std::to_string(c.real()), std::to_string(c.imag()));
         }
         if (dtype.isFloat()) return std::to_string(double(*this));
         if (dtype.isSigned()) return std::to_string((long long)(*this));
@@ -135,7 +134,7 @@ std::string Pothos::Object::toString(void) const
         for (const auto &pair : this->convert<Pothos::ObjectMap>())
         {
             if (out.size() > 1) out += ", ";
-            out += Poco::format("%s: %s", pair.first.toString(), pair.second.toString());
+            out += std::format("{}: {}", pair.first.toString(), pair.second.toString());
         }
         return out + "}";
     }
@@ -166,5 +165,5 @@ std::string Pothos::Object::toString(void) const
     }
 
     //fall-back data type
-    return Poco::format("<%s>", this->getTypeString());
+    return std::format("<{}>", this->getTypeString());
 }

@@ -1,7 +1,9 @@
 // Copyright (c) 2020 Nicholas Corgan
 // SPDX-License-Identifier: BSL-1.0
 
-#include <Poco/Platform.h>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 #include <Pothos/Testing.hpp>
 #include <Pothos/Util/ExceptionForErrorCode.hpp>
@@ -53,7 +55,7 @@ POTHOS_TEST_BLOCK("/util/tests", test_errno)
     }
 }
 
-#ifdef POCO_OS_FAMILY_WINDOWS
+#ifdef _WIN32
 
 POTHOS_TEST_BLOCK("/util/tests", test_winerror_return_code)
 {

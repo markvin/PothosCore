@@ -4,7 +4,8 @@
 #include "PothosUtil.hpp"
 #include <Pothos/Framework.hpp>
 #include <Pothos/Exception.hpp>
-#include <Poco/Path.h>
+#include "Util/FileSystem.hpp"
+#include <filesystem>
 #include <fstream>
 #include <thread>
 #include <iostream>
@@ -19,13 +20,13 @@ void PothosUtilBase::runTopology(void)
 
     //sanity check the file
     const auto path = this->config().getString("inputFile");
-    if (Poco::Path(path).getExtension() == "pothos" or
-        Poco::Path(path).getExtension() == "pth")
+    if (std::filesystem::path(path).extension() == ".pothos" or
+        std::filesystem::path(path).extension() == ".pth")
     {
         throw Pothos::DataFormatException("Cannot load "+path+"!\n"
             "Please export the design to the JSON topology format.");
     }
-    std::ifstream ifs(Poco::Path::expand(path));
+    std::ifstream ifs(Pothos::Util::Detail::expandPath(path));
     if (not ifs) throw Pothos::FileException("Can't open "+path+" for reading!");
 
     //parse the json formatted string into a JSON object
@@ -107,7 +108,7 @@ void PothosUtilBase::runTopology(void)
     {
         const auto statsFile = this->config().getString("outputFile");
         std::cout << ">>> Dumping stats: " << statsFile << std::endl;
-        std::ofstream ofs(Poco::Path::expand(statsFile));
+        std::ofstream ofs(Pothos::Util::Detail::expandPath(statsFile));
         ofs << topology->queryJSONStats() << std::endl;
     }
 }

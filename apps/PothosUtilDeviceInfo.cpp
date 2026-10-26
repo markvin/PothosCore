@@ -4,7 +4,7 @@
 #include "PothosUtil.hpp"
 #include <Pothos/Plugin.hpp>
 #include <Pothos/Proxy.hpp>
-#include <Poco/Path.h>
+#include "Util/FileSystem.hpp"
 #include <sstream>
 #include <fstream>
 #include <iostream>
@@ -42,7 +42,7 @@ void PothosUtilBase::printDeviceInfo(void)
     {
         const auto infoFile = this->config().getString("outputFile");
         std::cout << ">>> Dumping info: " << infoFile << std::endl;
-        std::ofstream ofs(Poco::Path::expand(infoFile));
+        std::ofstream ofs(Pothos::Util::Detail::expandPath(infoFile));
         ofs << info.dump(4);
     }
     //or otherwise to stdout

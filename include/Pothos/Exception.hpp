@@ -55,7 +55,6 @@
  */
 #define POTHOS_EXCEPTION_CATCH(catchExpr) \
 	catch(const Pothos::Exception &){throw;}\
-	catch(const Poco::Exception &ex){throw Pothos::Exception(ex.displayText());}\
 	catch(const std::exception &ex){throw Pothos::Exception(ex.what());}\
 	catch(...){throw Pothos::Exception("unknown exception");}\
 	}catch(catchExpr)

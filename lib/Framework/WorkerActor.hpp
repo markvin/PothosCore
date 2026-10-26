@@ -5,8 +5,7 @@
 #include "Framework/ActorInterface.hpp"
 #include <Pothos/Framework/BlockImpl.hpp>
 #include <Pothos/Framework/Exception.hpp>
-#include <Poco/Format.h>
-#include <Poco/Logger.h>
+#include <Pothos/System/Logger.hpp>
 #include <atomic>
 #include <set>
 #include <iostream>

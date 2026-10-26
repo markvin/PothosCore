@@ -8,8 +8,8 @@
 #include <Pothos/Util/TypeInfo.hpp>
 #include <Pothos/Callable.hpp>
 #include <Pothos/Plugin.hpp>
-#include <Poco/Logger.h>
-#include <Poco/Hash.h>
+#include <Pothos/System/Logger.hpp>
+#include <functional>
 #include <iostream>
 #include <cassert>
 #include <mutex>
@@ -49,12 +49,12 @@ static ConvertMapType &getConvertToProxyMap(void)
  **********************************************************************/
 static size_t hashIt(const std::string &name, const std::type_info &type)
 {
-    return type.hash_code() ^ Poco::hash(name);
+    return type.hash_code() ^ std::hash<std::string>{}(name);
 }
 
 static size_t hashIt(const std::string &name, const std::string &type)
 {
-    return Poco::hash(type) ^ Poco::hash(name);
+    return std::hash<std::string>{}(type) ^ std::hash<std::string>{}(name);
 }
 
 /***********************************************************************
@@ -85,7 +85,7 @@ static bool isConvertToProxy(const Pothos::Plugin &plugin)
  **********************************************************************/
 static void handlePluginEvent(const Pothos::Plugin &plugin, const std::string &event)
 {
-    poco_debug_f2(Poco::Logger::get("Pothos.Proxy.handlePluginEvent"), "plugin %s, event %s", plugin.toString(), event);
+    POTHOS_LOG_DEBUG("Pothos.Proxy.handlePluginEvent", "plugin {}, event {}", plugin.toString(), event);
 
     const auto &nodes = plugin.getPath().listNodes();
     assert(nodes.size() > 2);
@@ -128,8 +128,7 @@ static void handlePluginEvent(const Pothos::Plugin &plugin, const std::string &e
     }
     POTHOS_EXCEPTION_CATCH(const Pothos::Exception &ex)
     {
-        poco_error_f3(Poco::Logger::get("Pothos.Proxy.handlePluginEvent"),
-            "exception %s, plugin %s, event %s", ex.displayText(), plugin.toString(), event);
+        POTHOS_LOG_ERROR("Pothos.Proxy.handlePluginEvent", "exception {}, plugin {}, event {}", ex.displayText(), plugin.toString(), event);
     }
 }
 
@@ -154,7 +153,7 @@ Pothos::Proxy Pothos::ProxyEnvironment::convertObjectToProxy(const Pothos::Objec
     //thow an error when the conversion is not supported
     if (it == getConvertToProxyMap().end()) throw Pothos::ProxyEnvironmentConvertError(
         "Pothos::ProxyEnvironment::convertObjectToProxy()",
-        Poco::format("doesnt support Object of type %s to %s environment",
+        std::format("doesnt support Object of type {} to {} environment",
         local.getTypeString(), this->getName()));
 
     const auto &callable = it->second.getObject().extract<Pothos::Callable>();
@@ -181,7 +180,7 @@ Pothos::Object Pothos::ProxyEnvironment::convertProxyToObject(const Pothos::Prox
     //thow an error when the conversion is not supported
     if (it == getConvertToLocalMap().end()) throw Pothos::ProxyEnvironmentConvertError(
         "Pothos::ProxyEnvironment::convertProxyToObject()",
-        Poco::format("doesnt support environment %s type %s to Object",
+        std::format("doesnt support environment {} type {} to Object",
         this->getName(), std::string(proxy.getHandle()->getClassName())));
 
     const auto &callable = it->second.getObject().extract<Pothos::ProxyConvertPair>().second;

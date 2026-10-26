@@ -7,8 +7,6 @@
 #include <Pothos/Proxy.hpp>
 #include <Pothos/Remote/Handler.hpp>
 #include <Pothos/System/HostInfo.hpp>
-#include <Poco/Exception.h>
-#include <Poco/Bugcheck.h>
 #include <iostream>
 #include <mutex>
 #include <map>
@@ -162,7 +160,7 @@ bool Pothos::RemoteHandler::runHandlerOnce(std::istream &is, std::ostream &os)
         }
         else
         {
-            poco_bugcheck_msg(action.c_str());
+            throw Pothos::AssertionViolationException("ServerHandler", "unknown action " + action);
         }
     }
     POTHOS_EXCEPTION_CATCH(const Pothos::Exception &ex)

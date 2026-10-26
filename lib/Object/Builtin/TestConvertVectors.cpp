@@ -6,7 +6,7 @@
 #include <Pothos/Util/Templates.hpp>
 #include <Pothos/Util/TypeInfo.hpp>
 
-#include <Poco/Random.h>
+#include <random>
 
 #include <random>
 #include <cstdint>
@@ -17,7 +17,9 @@
 namespace
 {
 
-static Poco::Random rng;
+static std::mt19937 rng{std::random_device{}()};
+static unsigned rngNext(const unsigned n) {return std::uniform_int_distribution<unsigned>(0, n-1)(rng);} //[0, n)
+static float rngNextFloat(void) {return std::uniform_real_distribution<float>(0.0f, 1.0f)(rng);} //[0, 1)
 
 /***********************************************************************
  * templated equality check
@@ -58,7 +60,7 @@ typename std::enable_if<
     !Pothos::Util::is_complex<OutType>::value &&
     (std::is_integral<InType>::value || std::is_integral<OutType>::value), InType>::type randType()
 {
-    return InType(rng.next(100));
+    return InType(rngNext(100));
 }
 
 template <typename InType, typename OutType>
@@ -66,7 +68,7 @@ typename std::enable_if<
     std::is_floating_point<InType>::value &&
     std::is_floating_point<OutType>::value, InType>::type randType()
 {
-    return InType(rng.nextFloat());
+    return InType(rngNextFloat());
 }
 
 template <typename InType, typename OutType>
@@ -118,7 +120,7 @@ std::vector<InType> getInputVector(size_t numElems)
 template <typename InType, typename OutType>
 void testVectorConvert()
 {
-    const size_t numElems = rng.next(1024);
+    const size_t numElems = rngNext(1024);
 
     std::cout << "testVectorConvert: " << Pothos::Util::typeInfoToString(typeid(InType))
               << " to " << Pothos::Util::typeInfoToString(typeid(OutType))
