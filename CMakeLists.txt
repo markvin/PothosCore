@@ -105,6 +105,13 @@ block()
     #poco's cmake predates CMake 3.5 policies
     set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
+    #poco installs libraries into lib${LIB_SUFFIX}: keep them next to Pothos
+    if (CMAKE_INSTALL_LIBDIR MATCHES "^lib(.*)$")
+        set(LIB_SUFFIX "${CMAKE_MATCH_1}")
+    else ()
+        message(FATAL_ERROR "CMAKE_INSTALL_LIBDIR must be relative and start with lib: ${CMAKE_INSTALL_LIBDIR}")
+    endif ()
+
     #minimum build: only Foundation, Util, XML and Net are used
     set(ENABLE_MONGODB OFF CACHE INTERNAL "")
     set(ENABLE_PDF OFF CACHE INTERNAL "")
