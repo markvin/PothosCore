@@ -99,7 +99,7 @@ void ThreadEnvironment::unregisterTask(void *handle)
     }
 
     //wait for all threads to relinquish the old configuration
-    while (not data.unique()) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    while (data.use_count() != 1) std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
     //restore wait mode
     std::swap(waitModeEnabled, _waitModeEnabled);

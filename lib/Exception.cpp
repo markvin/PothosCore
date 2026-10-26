@@ -73,7 +73,7 @@ Exception::Exception(const Exception& exc):
 }
 
 
-Exception::~Exception() throw()
+Exception::~Exception() noexcept
 {
 	delete _pNested;
 }
@@ -92,20 +92,20 @@ Exception& Exception::operator = (const Exception& exc)
 }
 
 
-const char* Exception::name() const throw()
+const char* Exception::name() const noexcept
 {
 	return "Exception";
 }
 
 
-const char* Exception::className() const throw()
+const char* Exception::className() const noexcept
 {
 	const static auto name = Pothos::Util::typeInfoToString(typeid(*this));
 	return name.c_str();
 }
 
 
-const char* Exception::what() const throw()
+const char* Exception::what() const noexcept
 {
 	return name();
 }

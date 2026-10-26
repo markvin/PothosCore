@@ -108,7 +108,7 @@ Pothos::PluginModule::PluginModule(const std::string &path):
 Pothos::PluginModule::~PluginModule(void)
 {
     if (not _impl) return; //no private data
-    if (not _impl.unique()) return; //this is not the last copy
+    if (_impl.use_count() != 1) return; //this is not the last copy
     if (not _impl->sharedLibrary.isLoaded()) return; //module not loaded
 
     poco_debug(Poco::Logger::get("Pothos.PluginModule.unload"), _impl->sharedLibrary.getPath());

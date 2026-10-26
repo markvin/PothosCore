@@ -190,7 +190,7 @@ inline size_t Pothos::SharedBuffer::getEnd(void) const
 
 inline bool Pothos::SharedBuffer::unique(void) const
 {
-    return _container.unique();
+    return _container.use_count() == 1;
 }
 
 inline size_t Pothos::SharedBuffer::useCount(void) const
