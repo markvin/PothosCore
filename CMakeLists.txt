@@ -125,8 +125,14 @@ block()
     set(ENABLE_PAGECOMPILER OFF CACHE INTERNAL "")
     set(ENABLE_PAGECOMPILER_FILE2PAGE OFF CACHE INTERNAL "")
 
-    add_subdirectory(poco)
+    #EXCLUDE_FROM_ALL also drops poco's own install rules (headers, cmake
+    #package, namelinks): only the runtime libraries are installed below
+    add_subdirectory(poco EXCLUDE_FROM_ALL)
 endblock()
+
+install(TARGETS Foundation Util XML Net
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} NAMELINK_SKIP COMPONENT pothos_runtime
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT pothos_runtime)
 
 ########################################################################
 # Third party libraries in the source tree

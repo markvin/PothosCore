@@ -28,8 +28,8 @@ run_step(configure ${CMAKE_COMMAND} -S "${SRC}" -B "${WORK}/build" -G "${GENERAT
     "-DCMAKE_PREFIX_PATH=${PREFIX}" "-DCMAKE_BUILD_TYPE=${CONFIG}")
 run_step(build ${CMAKE_COMMAND} --build "${WORK}/build" --config "${CONFIG}")
 
-set(exe "${WORK}/build/consumer")
+set(exe "${WORK}/build/bin/consumer")
 if (WIN32)
-    set(exe "${WORK}/build/consumer.exe")
+    set(exe "${WORK}/build/bin/consumer.exe")
 endif ()
 run_step(run "${exe}")
