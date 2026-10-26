@@ -4,7 +4,7 @@
 #include <Pothos/Framework/ThreadPool.hpp>
 #include <Pothos/Framework/Exception.hpp>
 #include "Framework/ThreadEnvironment.hpp"
-#include <json.hpp>
+#include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
 

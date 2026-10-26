@@ -9,7 +9,7 @@
 #include <Poco/Logger.h>
 #include <cassert>
 #include <algorithm> //min/max
-#include <json.hpp>
+#include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
 

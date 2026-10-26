@@ -9,7 +9,7 @@
 #include <Pothos/Proxy/Environment.hpp>
 #include <Pothos/Exception.hpp>
 #include <iostream>
-#include <json.hpp>
+#include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
 

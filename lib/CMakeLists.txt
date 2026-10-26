@@ -1,49 +1,7 @@
 ########################################################################
-## locate the Poco development libraries
-########################################################################
-enable_language(C) #newer Poco config scrips require c to be enabled
-include(SetupPoco)
-
-if (Poco_FOUND)
-
-    message(STATUS "Poco_VERSION: ${Poco_VERSION}")
-    message(STATUS "Poco_INCLUDE_DIRS: ${Poco_INCLUDE_DIRS}")
-    message(STATUS "Poco_LIBRARIES: ${Poco_LIBRARIES}")
-
-else (Poco_FOUND)
-    message(WARNING "Pothos library requires Poco libraries...")
-endif (Poco_FOUND)
-
-########################################################################
-# muparserx library
-########################################################################
-if(NOT MUPARSERX_IN_TREE)
-    find_package(muparserx CONFIG)
-endif(NOT MUPARSERX_IN_TREE)
-
-if (muparserx_FOUND)
-
-    message(STATUS "muparserx_VERSION: ${muparserx_VERSION}")
-    message(STATUS "muparserx_INCLUDE_DIRS: ${muparserx_INCLUDE_DIRS}")
-    message(STATUS "muparserx_LIBRARIES: ${muparserx_LIBRARIES}")
-
-else (muparserx_FOUND)
-    message(WARNING "Pothos library requires dependency muparserx...")
-endif (muparserx_FOUND)
-
-########################################################################
-# json.hpp header
-########################################################################
-find_path(JSON_HPP_INCLUDE_DIR NAMES json.hpp PATH_SUFFIXES nlohmann)
-
-if (NOT JSON_HPP_INCLUDE_DIR)
-    message(WARNING "Pothos library requires dependency json.hpp...")
-endif (NOT JSON_HPP_INCLUDE_DIR)
-
-########################################################################
 ## Feature registration
 ########################################################################
-cmake_dependent_option(ENABLE_LIBRARY_LIB "Enable Pothos Library.Lib component" ON "ENABLE_LIBRARY;Poco_FOUND;muparserx_FOUND;JSON_HPP_INCLUDE_DIR" OFF)
+cmake_dependent_option(ENABLE_LIBRARY_LIB "Enable Pothos Library.Lib component" ON "ENABLE_LIBRARY" OFF)
 add_feature_info("  Lib" ENABLE_LIBRARY_LIB "Pothos development and runtime libraries")
 if (NOT ENABLE_LIBRARY_LIB)
     return()
@@ -241,16 +199,14 @@ endif(MSVC)
 ########################################################################
 # Link feature dependencies
 ########################################################################
-if (Poco_INCLUDE_DIRS)
-    target_include_directories(Pothos PUBLIC ${Poco_INCLUDE_DIRS})
-endif (Poco_INCLUDE_DIRS)
-target_link_libraries(Pothos PUBLIC ${Poco_LIBRARIES})
+#Poco and muparserx are transitional private dependencies
+target_link_libraries(Pothos PRIVATE
+    PocoFoundation PocoUtil PocoXML PocoNet
+    pothos_muparserx
+    pothos_json)
 
-target_include_directories(Pothos PRIVATE ${muparserx_INCLUDE_DIRS})
-target_link_libraries(Pothos PRIVATE ${muparserx_LIBRARIES})
-list(APPEND PC_LIBS_PRIVATE "-lmuparserx")
-
-target_include_directories(Pothos PRIVATE ${JSON_HPP_INCLUDE_DIR})
+#C++23 is required by the public headers
+target_compile_features(Pothos PUBLIC cxx_std_23)
 
 ########################################################################
 # Compiler flags that are generally always a good idea to set
@@ -331,11 +287,15 @@ target_sources(Pothos PRIVATE
 ########################################################################
 # NUMA info support
 ########################################################################
-find_library(
-    NUMA_LIBRARIES
-    NAMES numa
-    PATHS /usr/lib /usr/lib64
-)
+#libnuma is a system library: off by default to keep the build self-contained
+option(POTHOS_ENABLE_LIBNUMA "Use the system libnuma for NUMA info on Linux" OFF)
+if(POTHOS_ENABLE_LIBNUMA)
+    find_library(
+        NUMA_LIBRARIES
+        NAMES numa
+        PATHS /usr/lib /usr/lib64
+    )
+endif()
 
 if(NUMA_LIBRARIES)
     target_compile_definitions(Pothos PRIVATE -DHAVE_LIBNUMA)

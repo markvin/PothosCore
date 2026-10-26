@@ -10,7 +10,7 @@
 #include <Poco/AutoPtr.h>
 #include <Poco/NumberParser.h>
 #include <sstream>
-#include <json.hpp>
+#include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
 

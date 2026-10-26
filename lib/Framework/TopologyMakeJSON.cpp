@@ -6,7 +6,7 @@
 #include <Pothos/Proxy.hpp>
 #include <Poco/Format.h>
 #include <map>
-#include <json.hpp>
+#include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
 

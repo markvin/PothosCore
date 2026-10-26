@@ -5,7 +5,7 @@
 #include <Pothos/Testing.hpp>
 #include <Pothos/Framework.hpp>
 #include <iostream>
-#include <json.hpp>
+#include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
 

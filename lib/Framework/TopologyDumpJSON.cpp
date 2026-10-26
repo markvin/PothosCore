@@ -5,7 +5,7 @@
 #include <Pothos/Framework/TopologyImpl.hpp>
 #include "Framework/TopologyImpl.hpp"
 #include <Pothos/Proxy.hpp>
-#include <json.hpp>
+#include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
 

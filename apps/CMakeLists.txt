@@ -27,8 +27,10 @@ add_executable(PothosUtil
     PothosUtilGenerateSIMDDispatchers.cpp
     PothosUtilListTypeConversions.cpp
 )
-target_include_directories(PothosUtil PRIVATE ${JSON_HPP_INCLUDE_DIR})
-target_link_libraries(PothosUtil PRIVATE Pothos)
+target_link_libraries(PothosUtil PRIVATE
+    Pothos
+    PocoFoundation PocoUtil PocoNet #transitional
+    pothos_json)
 install(TARGETS PothosUtil
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT pothos_runtime
 )

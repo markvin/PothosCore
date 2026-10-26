@@ -5,7 +5,7 @@
 #include <Pothos/Managed.hpp>
 #include <Pothos/Plugin.hpp>
 
-#include "json.hpp"
+#include <nlohmann/json.hpp>
 
 #include <Poco/Format.h>
 

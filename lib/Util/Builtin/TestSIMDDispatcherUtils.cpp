@@ -7,7 +7,7 @@
 #include <Pothos/Testing.hpp>
 #include <Pothos/Util/Compiler.hpp>
 
-#include "json.hpp"
+#include <nlohmann/json.hpp>
 
 #include <Poco/Format.h>
 

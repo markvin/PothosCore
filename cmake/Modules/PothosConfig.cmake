@@ -67,10 +67,7 @@ if (POTHOS_IN_TREE_SOURCE_DIR)
     #a list of in-tree built libraries to generate a library path script
     set(IN_TREE_LIBRARIES Pothos)
     if (POCO_IN_TREE)
-        list(APPEND IN_TREE_LIBRARIES ${Poco_LIBRARIES})
-    endif()
-    if (MUPARSERX_IN_TREE)
-        list(APPEND IN_TREE_LIBRARIES ${muparserx_LIBRARIES})
+        list(APPEND IN_TREE_LIBRARIES PocoFoundation PocoUtil PocoXML PocoNet)
     endif()
 
     if(MSVC)

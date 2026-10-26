@@ -1,21 +1,26 @@
 ########################################################################
-# Project setup
-########################################################################
-cmake_minimum_required(VERSION 3.1.0)
-project(Pothos)
-enable_language(CXX)
-enable_testing()
-
-########################################################################
 # gather version information
 # packagers may specify -DPOTHOS_EXTVER="foo" to replace the git hash
 ########################################################################
-file(READ "${PROJECT_SOURCE_DIR}/Changelog.txt" changelog_txt)
+cmake_minimum_required(VERSION 3.25)
+
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/Changelog.txt" changelog_txt)
 string(REGEX MATCH "Release ([0-9]+\\.[0-9]+\\.[0-9]+) \\(" CHANGELOG_MATCH "${changelog_txt}")
 if(NOT CHANGELOG_MATCH)
     message(FATAL_ERROR "Failed to extract version number from Changelog.txt")
-endif(NOT CHANGELOG_MATCH)
+endif()
 set(POTHOS_LIBVER "${CMAKE_MATCH_1}")
+
+########################################################################
+# Project setup
+########################################################################
+project(Pothos VERSION ${POTHOS_LIBVER} LANGUAGES C CXX)
+enable_testing()
+
+#C++23 is a required language feature for this project
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 if (NOT POTHOS_EXTVER)
     include(${PROJECT_SOURCE_DIR}/cmake/Modules/GetGitRevisionDescription.cmake)
@@ -57,6 +62,7 @@ set(APPDATA_ENV "APPDATA" CACHE STRING
 
 include(FeatureSummary)
 include(CMakeDependentOption)
+include(GNUInstallDirs)
 
 ########################################################################
 # rpath setup - http://www.cmake.org/Wiki/CMake_RPATH_handling
@@ -71,11 +77,11 @@ option(CMAKE_BUILD_WITH_INSTALL_RPATH "build with install rpath" FALSE)
 # the RPATH to be used when installing, but only if it's not a system directory
 option(CMAKE_AUTOSET_INSTALL_RPATH TRUE)
 if(CMAKE_AUTOSET_INSTALL_RPATH)
-LIST(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}" isSystemDir)
-IF("${isSystemDir}" STREQUAL "-1")
-    SET(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
-ENDIF("${isSystemDir}" STREQUAL "-1")
-endif(CMAKE_AUTOSET_INSTALL_RPATH)
+    list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}" isSystemDir)
+    if("${isSystemDir}" STREQUAL "-1")
+        set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
+    endif()
+endif()
 
 # add the automatically determined parts of the RPATH
 # which point to directories outside the build tree to the install RPATH
@@ -86,143 +92,46 @@ if(APPLE)
 endif()
 
 ########################################################################
-# POCO C++ utility libraries
+# POCO C++ utility libraries (transitional, private, in-tree)
 ########################################################################
-if(NOT ENABLE_INTERNAL_POCO)
-include(${PROJECT_SOURCE_DIR}/cmake/Modules/SetupPoco.cmake)
-endif()
-cmake_dependent_option(ENABLE_INTERNAL_POCO "Enable Poco C++ utility libraries" ON "NOT Poco_FOUND" OFF)
-add_feature_info(Poco ENABLE_INTERNAL_POCO "Build internal Poco C++ utility libraries")
-
-set(POCO_DIR poco)
-if (ENABLE_INTERNAL_POCO)
-
-    message(STATUS "Poco >= 1.5.4 not found - using built-in Poco")
-
-    if (NOT EXISTS ${PROJECT_SOURCE_DIR}/${POCO_DIR}/CMakeLists.txt)
-        message(FATAL_ERROR "poco submodule not configured (git submodule update --init --recursive)")
-    endif ()
-
-    #mark that the in-tree poco build is used
-    #used by uninstall target and PothosConfig
-    set(POCO_IN_TREE TRUE)
-
-    #disable SetupPoco in PothosConfig module
-    set(INCLUDED_SETUP_POCO_CMAKE TRUE)
-
-    #when in-tree poco is selected, default to a minimum build
-    #users can specify -DPOCO_MIN_BUILD=TRUE to enable full poco
-    option(POCO_MIN_BUILD "Minimum build for in-tree Poco" TRUE)
-    if(POCO_MIN_BUILD)
-        set(ENABLE_MONGODB OFF CACHE INTERNAL "")
-        set(ENABLE_PDF OFF CACHE INTERNAL "")
-        set(ENABLE_NETSSL OFF CACHE INTERNAL "")
-        set(ENABLE_CRYPTO OFF CACHE INTERNAL "")
-        set(ENABLE_DATA OFF CACHE INTERNAL "")
-        set(ENABLE_SEVENZIP OFF CACHE INTERNAL "")
-        set(ENABLE_ZIP OFF CACHE INTERNAL "")
-        set(ENABLE_APACHECONNECTOR OFF CACHE INTERNAL "")
-    endif()
-
-    add_subdirectory(${POCO_DIR})
-    set(Poco_FOUND 1)
-
-    set(Poco_INCLUDE_DIRS
-        ${PROJECT_SOURCE_DIR}/${POCO_DIR}/Foundation/include
-        ${PROJECT_SOURCE_DIR}/${POCO_DIR}/Util/include
-        ${PROJECT_SOURCE_DIR}/${POCO_DIR}/XML/include
-        ${PROJECT_SOURCE_DIR}/${POCO_DIR}/Net/include
-    )
-
-    set(Poco_LIBRARIES
-        PocoFoundation
-        PocoUtil
-        PocoXML
-        PocoNet
-    )
-
-    #ensure that local headers get precedent over installed headers
-    include_directories(${Poco_INCLUDE_DIRS})
-
-endif(ENABLE_INTERNAL_POCO)
-
-########################################################################
-# Spuce filter design library
-########################################################################
-if(NOT ENABLE_INTERNAL_SPUCE)
-find_package(Spuce CONFIG)
-endif()
-cmake_dependent_option(ENABLE_INTERNAL_SPUCE "Enable Spuce filter design library" ON "NOT Spuce_FOUND" OFF)
-add_feature_info(Spuce ENABLE_INTERNAL_SPUCE "Build internal Spuce filter design library")
-
-if (ENABLE_INTERNAL_SPUCE)
-    message(STATUS "Spuce not found - using built-in Spuce")
-
-    if (EXISTS ${PROJECT_SOURCE_DIR}/spuce/CMakeLists.txt)
-        add_subdirectory(spuce)
-        set(SPUCE_IN_TREE TRUE)
-        set(Spuce_FOUND TRUE)
-        set(Spuce_VERSION "[submodule]")
-        set(Spuce_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/spuce)
-        set(Spuce_LIBRARIES spuce)
-    else ()
-        message(WARNING "spuce submodule not configured (git submodule update --init --recursive)")
-    endif ()
-
-endif(ENABLE_INTERNAL_SPUCE)
-
-########################################################################
-# muparserx expression parser
-########################################################################
-if(NOT ENABLE_INTERNAL_MUPARSERX)
-find_package(muparserx CONFIG)
-endif()
-cmake_dependent_option(ENABLE_INTERNAL_MUPARSERX "Enable MuparserX expression parser" ON "NOT muparserx_FOUND" OFF)
-add_feature_info(MuparserX ENABLE_INTERNAL_MUPARSERX "Build internal MuparserX expression parser")
-
-if (ENABLE_INTERNAL_MUPARSERX)
-    message(STATUS "muparserx not found - using built-in muparserx")
-
-    if (NOT EXISTS ${PROJECT_SOURCE_DIR}/muparserx/CMakeLists.txt)
-        message(FATAL_ERROR "muparserx submodule not configured (git submodule update --init --recursive)")
-    endif ()
-
-    add_subdirectory(muparserx)
-    set(MUPARSERX_IN_TREE TRUE)
-    set(muparserx_FOUND TRUE)
-    set(muparserx_VERSION "[submodule]")
-    set(muparserx_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/muparserx/parser)
-    set(muparserx_LIBRARIES muparserx)
-endif(ENABLE_INTERNAL_MUPARSERX)
-
-########################################################################
-# json.hpp header
-########################################################################
-find_path(JSON_HPP_INCLUDE_DIR NAMES json.hpp PATH_SUFFIXES nlohmann)
-
-#some of the libraries use this header for development
-#its a header only and its extremely easy to just download
-#but don't do this for package builds (/usr) the package
-#maintainer should do this manually to avoid downloading
-if (NOT JSON_HPP_INCLUDE_DIR AND NOT "${CMAKE_INSTALL_PREFIX}" STREQUAL "/usr")
-    if (NOT EXISTS "${PROJECT_BINARY_DIR}/json.hpp")
-        file(DOWNLOAD "https://raw.githubusercontent.com/nlohmann/json/v2.1.1/src/json.hpp" "${PROJECT_BINARY_DIR}/json.hpp")
-    endif()
-    set(JSON_HPP_INCLUDE_DIR "${PROJECT_BINARY_DIR}")
+if (NOT EXISTS ${PROJECT_SOURCE_DIR}/poco/CMakeLists.txt)
+    message(FATAL_ERROR "poco submodule not configured (git submodule update --init poco)")
 endif ()
 
-if ("${JSON_HPP_INCLUDE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}")
-    install(FILES "${PROJECT_BINARY_DIR}/json.hpp" DESTINATION include/nlohmann)
-endif()
+#mark that the in-tree poco build is used by PothosConfig
+set(POCO_IN_TREE TRUE)
+
+block()
+    #poco's cmake predates CMake 3.5 policies
+    set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+
+    #minimum build: only Foundation, Util, XML and Net are used
+    set(ENABLE_MONGODB OFF CACHE INTERNAL "")
+    set(ENABLE_PDF OFF CACHE INTERNAL "")
+    set(ENABLE_NETSSL OFF CACHE INTERNAL "")
+    set(ENABLE_CRYPTO OFF CACHE INTERNAL "")
+    set(ENABLE_DATA OFF CACHE INTERNAL "")
+    set(ENABLE_SEVENZIP OFF CACHE INTERNAL "")
+    set(ENABLE_ZIP OFF CACHE INTERNAL "")
+    set(ENABLE_APACHECONNECTOR OFF CACHE INTERNAL "")
+    set(ENABLE_JSON OFF CACHE INTERNAL "")
+    set(ENABLE_REDIS OFF CACHE INTERNAL "")
+    set(ENABLE_PAGECOMPILER OFF CACHE INTERNAL "")
+    set(ENABLE_PAGECOMPILER_FILE2PAGE OFF CACHE INTERNAL "")
+
+    add_subdirectory(poco)
+endblock()
+
+########################################################################
+# Third party libraries in the source tree
+########################################################################
+add_subdirectory(third_party)
 
 ########################################################################
 # Build the framework library
 ########################################################################
 cmake_dependent_option(ENABLE_LIBRARY "Enable Pothos Library component" ON "TRUE" OFF)
 add_feature_info(Library ENABLE_LIBRARY "The main library for all Pothos projects")
-
-#C++11 is a required language feature for this project
-set(CMAKE_CXX_STANDARD 11)
 
 if(ENABLE_LIBRARY)
     find_package(Pothos CONFIG REQUIRED)
@@ -234,40 +143,22 @@ if(ENABLE_LIBRARY)
 endif(ENABLE_LIBRARY)
 
 ########################################################################
-## Build submodule toolkits
-########################################################################
-cmake_dependent_option(ENABLE_TOOLKITS "Enable Pothos Toolkits components" ON "ENABLE_LIBRARY" OFF)
-add_feature_info(Toolkits ENABLE_TOOLKITS "Pothos data-flow software suite toolkits")
-
-if(ENABLE_TOOLKITS)
-    foreach(subdir blocks comms python soapy audio flow widgets plotters)
-        if (EXISTS ${PROJECT_SOURCE_DIR}/${subdir}/CMakeLists.txt)
-            add_subdirectory(${subdir})
-        else()
-            message(WARNING "ENABLE_TOOLKITS: submodule ${subdir} not configured, skipping...")
-        endif()
-    endforeach(subdir)
-endif(ENABLE_TOOLKITS)
-
-########################################################################
 # uninstall target
 ########################################################################
-if (POCO_IN_TREE)
-    # use poco's uninstall target, but overwrite the script
+if (TARGET uninstall)
+    # in-tree poco already defines uninstall: overwrite its script
     configure_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake_uninstall.cmake.in"
-        "${CMAKE_CURRENT_BINARY_DIR}/${POCO_DIR}/cmake_uninstall.cmake"
-        IMMEDIATE @ONLY)
-
-else (POCO_IN_TREE)
+        "${CMAKE_CURRENT_BINARY_DIR}/poco/cmake_uninstall.cmake"
+        @ONLY)
+else ()
     add_custom_target(uninstall
         "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake")
     configure_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake_uninstall.cmake.in"
         "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
-        IMMEDIATE @ONLY)
-
-endif (POCO_IN_TREE)
+        @ONLY)
+endif ()
 
 ########################################################################
 # print features summary
