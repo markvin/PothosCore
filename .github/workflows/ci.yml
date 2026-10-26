@@ -25,9 +25,10 @@ jobs:
             config: Release
             extra: "-DCMAKE_INSTALL_LIBDIR=lib64"
           - name: macos
-            # temporary explicit label: macos-latest jobs were repeatedly not
-            # acquired by a hosted arm64 runner (capacity); revert when stable
-            os: macos-15
+            # temporary Intel (x86_64) runner: macos-latest/macos-15 arm64 jobs
+            # were repeatedly not acquired by a hosted runner (capacity);
+            # switch back to arm64 (macos-latest) when it is available again
+            os: macos-15-intel
             cc: clang
             cxx: clang++
             config: Debug
