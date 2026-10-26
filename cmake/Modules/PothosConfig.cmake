@@ -110,7 +110,7 @@ if (POTHOS_IN_TREE_SOURCE_DIR)
 
     #set old-style variables
     unset(Pothos_INCLUDE_DIRS)
-    set(Pothos_LIBRARIES Pothos)
+    set(Pothos_LIBRARIES Pothos::Pothos)
     return()
 endif ()
 
@@ -169,13 +169,10 @@ endif()
 ########################################################################
 ## create import library target
 ########################################################################
-enable_language(C) #newer Poco config scrips require c to be enabled
-include(SetupPoco) #Poco is a Pothos library public dependency
-
-include(PothosExport)
+include(${CMAKE_CURRENT_LIST_DIR}/PothosTargets.cmake)
 
 #set old-style variables
-get_target_property(POTHOS_INCLUDE_DIR Pothos INTERFACE_INCLUDE_DIRECTORIES)
+get_target_property(POTHOS_INCLUDE_DIR Pothos::Pothos INTERFACE_INCLUDE_DIRECTORIES)
 set(Pothos_INCLUDE_DIRS ${POTHOS_INCLUDE_DIR})
-set(Pothos_LIBRARIES Pothos)
+set(Pothos_LIBRARIES Pothos::Pothos)
 _POTHOS_GET_ABI_VERSION(POTHOS_ABI_VERSION ${POTHOS_INCLUDE_DIR})

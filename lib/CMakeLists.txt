@@ -166,6 +166,7 @@ add_library(Pothos SHARED
     Archive/TestPolymorphicType.cpp
     Archive/Exception.cpp
 )
+add_library(Pothos::Pothos ALIAS Pothos)
 
 if(WIN32)
     target_sources(Pothos PRIVATE WindowsDelayLoadedSymbols.cpp)
@@ -403,8 +404,12 @@ install(TARGETS Pothos
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT pothos_runtime # .dll file
 )
 
-#export target to Pothos project config
-install(EXPORT PothosExport DESTINATION ${POTHOS_CMAKE_DIRECTORY})
+#export target to Pothos project config as Pothos::Pothos
+install(EXPORT PothosExport
+    NAMESPACE Pothos::
+    FILE PothosTargets.cmake
+    DESTINATION ${POTHOS_CMAKE_DIRECTORY}
+    COMPONENT pothos_devel)
 
 ########################################################################
 # Build pkg config file

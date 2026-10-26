@@ -21,10 +21,6 @@ install(FILES
     ${PROJECT_SOURCE_DIR}/cmake/Modules/PothosConfig.cmake
     ${PROJECT_SOURCE_DIR}/cmake/Modules/PothosUtil.cmake
     ${PROJECT_BINARY_DIR}/PothosConfigVersion.cmake
-    #poco support
-    ${PROJECT_SOURCE_DIR}/cmake/Modules/FindPkgMacros.cmake
-    ${PROJECT_SOURCE_DIR}/cmake/Modules/FindPoco.cmake
-    ${PROJECT_SOURCE_DIR}/cmake/Modules/SetupPoco.cmake
     #SIMD
     ${PROJECT_SOURCE_DIR}/cmake/Modules/PothosConfigSIMD.cmake
 

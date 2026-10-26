@@ -164,6 +164,18 @@ set_tests_properties(pothos.selftests PROPERTIES
     FIXTURES_REQUIRED pothos_stage
     TIMEOUT ${POTHOS_SELFTEST_TIMEOUT})
 
+add_test(NAME pothos.consumer
+    COMMAND ${CMAKE_COMMAND}
+        -DPREFIX=${POTHOS_STAGE_DIR}
+        -DSRC=${PROJECT_SOURCE_DIR}/tests/consumer
+        -DWORK=${CMAKE_BINARY_DIR}/consumer
+        -DGENERATOR=${CMAKE_GENERATOR}
+        -DCONFIG=$<CONFIG>
+        -DBINDIR=${CMAKE_INSTALL_BINDIR}
+        -DLIBDIR=${CMAKE_INSTALL_LIBDIR}
+        -P ${PROJECT_SOURCE_DIR}/cmake/PothosConsumerTest.cmake)
+set_tests_properties(pothos.consumer PROPERTIES FIXTURES_REQUIRED pothos_stage)
+
 ########################################################################
 # uninstall target
 ########################################################################

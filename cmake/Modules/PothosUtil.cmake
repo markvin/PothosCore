@@ -23,7 +23,7 @@ set(INCLUDED_POTHOS_UTIL_CMAKE TRUE)
 ## See ENABLE_DOCS which is required to enable SOURCES for scanning.
 ##
 ## LIBRARIES - a list of libraries to link the module to
-## The module will automatically link to Pothos and Poco libraries.
+## The module will automatically link to the Pothos library.
 ## This argument should be used to specify additional libraries.
 ##
 ## DESTINATION - relative destination path
@@ -99,7 +99,7 @@ function(POTHOS_MODULE_UTIL)
 
     #setup module build and install rules
     add_library(${POTHOS_MODULE_UTIL_TARGET} MODULE ${POTHOS_MODULE_UTIL_SOURCES})
-    target_link_libraries(${POTHOS_MODULE_UTIL_TARGET} PRIVATE Pothos ${POTHOS_MODULE_UTIL_LIBRARIES})
+    target_link_libraries(${POTHOS_MODULE_UTIL_TARGET} PRIVATE Pothos::Pothos ${POTHOS_MODULE_UTIL_LIBRARIES})
     set_target_properties(${POTHOS_MODULE_UTIL_TARGET} PROPERTIES DEBUG_POSTFIX "") #same name in debug mode
 
     #symbols are only exported from the module explicitly
