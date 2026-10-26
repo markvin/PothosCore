@@ -6,7 +6,8 @@
 #include <Pothos/Plugin/Registry.hpp>
 #include <Pothos/Plugin/Exception.hpp>
 #include <Pothos/Object.hpp> //pulls in full Object implementation
-#include <Poco/SharedLibrary.h>
+#include "Platform/DynamicLibrary.hpp"
+#include <optional>
 #include <Poco/Logger.h>
 #include <mutex>
 
@@ -61,7 +62,7 @@ static thread_local std::string *currentModuleVersion(nullptr);
  **********************************************************************/
 struct Pothos::PluginModule::Impl
 {
-    Poco::SharedLibrary sharedLibrary;
+    std::optional<Pothos::Platform::DynamicLibrary> sharedLibrary;
     std::string path;
     std::vector<std::string> pluginPaths;
     std::string version;
@@ -92,13 +93,15 @@ Pothos::PluginModule::PluginModule(const std::string &path):
         registrySetActiveModuleLoading(*this);
         currentModuleVersion = &(_impl->version);
         ErrorMessageDisableGuard emdg;
-        _impl->sharedLibrary.load(path);
+        _impl->sharedLibrary.emplace(path);
         currentModuleVersion = nullptr;
         registrySetActiveModuleLoading(PluginModule());
         _impl->pluginPaths = ::getPluginPaths(*this);
     }
-    catch(const Poco::LibraryLoadException &ex)
+    catch(const Pothos::LibraryLoadException &ex)
     {
+        currentModuleVersion = nullptr;
+        registrySetActiveModuleLoading(PluginModule());
         throw PluginModuleError("Pothos::PluginModule("+path+")", ex.displayText());
     }
 }
@@ -107,14 +110,14 @@ Pothos::PluginModule::~PluginModule(void)
 {
     if (not _impl) return; //no private data
     if (_impl.use_count() != 1) return; //this is not the last copy
-    if (not _impl->sharedLibrary.isLoaded()) return; //module not loaded
+    if (not _impl->sharedLibrary) return; //module not loaded
 
-    poco_debug(Poco::Logger::get("Pothos.PluginModule.unload"), _impl->sharedLibrary.getPath());
+    poco_debug(Poco::Logger::get("Pothos.PluginModule.unload"), _impl->sharedLibrary->path().string());
     for (const auto &pluginPath : this->getPluginPaths())
     {
         PluginRegistry::remove(pluginPath);
     }
-    _impl->sharedLibrary.unload();
+    _impl->sharedLibrary.reset();
 }
 
 std::string Pothos::PluginModule::getFilePath(void) const

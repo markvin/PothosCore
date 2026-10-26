@@ -6,11 +6,9 @@
 
 #include <Pothos/Util/Compiler.hpp>
 #include <Pothos/Plugin.hpp>
-#include <Poco/Pipe.h>
-#include <Poco/PipeStream.h>
-#include <Poco/Process.h>
+#include "Platform/Process.hpp"
+#include "Platform/DynamicLibrary.hpp"
 #include <filesystem>
-#include <Poco/SharedLibrary.h>
 #include <Poco/Logger.h>
 #include <fstream>
 #include <iostream>
@@ -34,13 +32,23 @@ public:
 
     bool test(void)
     {
-        Poco::Process::Args args;
-        args.push_back("--version");
-        Poco::Process::Env env;
-        Poco::Pipe outPipe;
-        Poco::ProcessHandle ph(Poco::Process::launch(
-            compiler_executable(), args, nullptr, &outPipe, &outPipe, env));
-        return ph.wait() == 0;
+        Pothos::Platform::Pipe outPipe;
+        Pothos::Platform::ProcessOptions opts;
+        opts.args = {"--version"};
+        opts.out = &outPipe;
+        opts.err = &outPipe;
+        try
+        {
+            auto proc = Pothos::Platform::Process::launch(compiler_executable(), opts);
+            //drain the output so the compiler never blocks on a full pipe
+            Pothos::Platform::PipeInputStream is(outPipe);
+            for (std::string line; std::getline(is, line);) {}
+            return proc.wait() == 0;
+        }
+        catch (const Pothos::SystemException &)
+        {
+            return false; //compiler not found
+        }
     }
 
     std::string compileCppModule(const Pothos::Util::CompilerArgs &args);
@@ -49,7 +57,7 @@ public:
 std::string GccClangCompilerSupport::compileCppModule(const Pothos::Util::CompilerArgs &compilerArgs)
 {
     //create args
-    Poco::Process::Args args;
+    std::vector<std::string> args;
 
     //add libraries
     for (const auto &library : compilerArgs.libraries)
@@ -94,18 +102,21 @@ std::string GccClangCompilerSupport::compileCppModule(const Pothos::Util::Compil
     }
 
     //create temp out file
-    const auto outPath = this->createTempFile(Poco::SharedLibrary::suffix());
+    const auto outPath = this->createTempFile(Pothos::Platform::DynamicLibrary::suffix());
     args.push_back("-o");
     args.push_back(outPath);
 
     //launch
-    Poco::Pipe inPipe, outPipe;
-    Poco::Process::Env env;
-    Poco::ProcessHandle ph(Poco::Process::launch(
-        compiler_executable(), args, &inPipe, &outPipe, &outPipe, env));
+    Pothos::Platform::Pipe inPipe, outPipe;
+    Pothos::Platform::ProcessOptions opts;
+    opts.args = args;
+    opts.in = &inPipe;
+    opts.out = &outPipe;
+    opts.err = &outPipe;
+    auto ph = Pothos::Platform::Process::launch(compiler_executable(), opts);
 
     //read into output buffer until pipe is closed
-    Poco::PipeInputStream is(outPipe);
+    Pothos::Platform::PipeInputStream is(outPipe);
     std::string outBuff;
     for (std::string line; std::getline(is, line);) outBuff += line+'\n';
 

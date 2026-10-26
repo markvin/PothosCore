@@ -10,7 +10,7 @@
 #include "Util/FileSystem.hpp"
 #include <filesystem>
 #include "Util/StringUtils.hpp"
-#include <Poco/SharedLibrary.h>
+#include "Platform/DynamicLibrary.hpp"
 #include <memory>
 #include <mutex>
 #include <cctype>
@@ -107,7 +107,7 @@ static Pothos::Object opaqueJITCompilerFactory(
     //determine output file
     auto outPath = std::filesystem::path(Pothos::System::getUserDataPath()) / "modules";
     std::filesystem::create_directories(outPath);
-    outPath /= handle->target + Poco::SharedLibrary::suffix();
+    outPath /= handle->target + Pothos::Platform::DynamicLibrary::suffix();
 
     //file lock for compilation atomicity across processes
     Pothos::Util::FileLock outputFileLock(outPath.string());

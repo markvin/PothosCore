@@ -6,10 +6,8 @@
 
 #include <Pothos/Util/Compiler.hpp>
 #include <Pothos/Plugin.hpp>
-#include <Poco/Pipe.h>
-#include <Poco/PipeStream.h>
-#include <Poco/Process.h>
-#include <Poco/SharedLibrary.h>
+#include "Platform/Process.hpp"
+#include "Platform/DynamicLibrary.hpp"
 #include <Poco/Logger.h>
 #include <filesystem>
 #include <fstream>
@@ -77,7 +75,7 @@ std::string MsvcCompilerSupport::compileCppModule(const Pothos::Util::CompilerAr
     clBatFile.close();
 
     //create args
-    Poco::Process::Args args;
+    std::vector<std::string> args;
     args.push_back("/LD"); //Creates a dynamic-link library
     #ifdef _DEBUG
     args.push_back("/MDd"); //Creates a multithreaded DLL
@@ -90,7 +88,7 @@ std::string MsvcCompilerSupport::compileCppModule(const Pothos::Util::CompilerAr
     //add libraries
     for (const auto &library : compilerArgs.libraries)
     {
-        args.push_back("\""+library+"\"");
+        args.push_back(library);
     }
 
     //add compiler flags
@@ -103,14 +101,14 @@ std::string MsvcCompilerSupport::compileCppModule(const Pothos::Util::CompilerAr
     for (const auto &include : compilerArgs.includes)
     {
         args.push_back("/I");
-        args.push_back("\""+include+"\"");
+        args.push_back(include);
     }
 
     //add compiler sources
     for (const auto &source : compilerArgs.sources)
     {
         args.push_back("/Tp"); //Specifies a C++ source file
-        args.push_back("\""+source+"\"");
+        args.push_back(source);
     }
 
     //specify object output
@@ -118,7 +116,7 @@ std::string MsvcCompilerSupport::compileCppModule(const Pothos::Util::CompilerAr
     args.push_back("/Fo"+objPath); //required: no space between option and argument
 
     //create temp out file
-    const auto outPath = this->createTempFile(Poco::SharedLibrary::suffix());
+    const auto outPath = this->createTempFile(Pothos::Platform::DynamicLibrary::suffix());
     args.push_back("/link");
     args.push_back("/out:"+outPath);
 
@@ -128,13 +126,15 @@ std::string MsvcCompilerSupport::compileCppModule(const Pothos::Util::CompilerAr
     //poco_information(Poco::Logger::get("Pothos.MsvcCompilerSupport.compileCppModule"), cmdToLog);
 
     //launch
-    Poco::Pipe outPipe;
-    Poco::Process::Env env;
-    Poco::ProcessHandle ph(Poco::Process::launch(
-        clBatPath, args, nullptr, &outPipe, &outPipe, env));
+    Pothos::Platform::Pipe outPipe;
+    Pothos::Platform::ProcessOptions opts;
+    opts.args = args;
+    opts.out = &outPipe;
+    opts.err = &outPipe;
+    auto ph = Pothos::Platform::Process::launch(clBatPath, opts);
 
     //read into output buffer until pipe is closed
-    Poco::PipeInputStream is(outPipe);
+    Pothos::Platform::PipeInputStream is(outPipe);
     std::string outBuff;
     for (std::string line; std::getline(is, line);) outBuff += line+'\n';
 

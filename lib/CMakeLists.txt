@@ -162,6 +162,8 @@ add_library(Pothos SHARED
     Util/Builtin/TestFileSystem.cpp
 
     Platform/Builtin/TestEnvironment.cpp
+    Platform/Builtin/TestDynamicLibrary.cpp
+    Platform/Builtin/TestProcess.cpp
     Util/Builtin/TestSIMDDispatcherUtils.cpp
 
     Archive/ArchiveEntry.cpp
@@ -173,16 +175,34 @@ add_library(Pothos SHARED
 )
 add_library(Pothos::Pothos ALIAS Pothos)
 
+########################################################################
+# Internal platform layer (lib/Platform). The sources are also compiled
+# into PothosUtil: the library exports no internal symbols.
+########################################################################
+set(platform_sources ${CMAKE_CURRENT_SOURCE_DIR}/Platform/CommandLine.cpp)
+if(WIN32)
+    foreach(name Environment DynamicLibrary Process)
+        list(APPEND platform_sources ${CMAKE_CURRENT_SOURCE_DIR}/Platform/${name}Windows.cpp)
+    endforeach()
+    set(platform_libraries iphlpapi) #GetAdaptersAddresses
+else()
+    foreach(name Environment DynamicLibrary Process)
+        list(APPEND platform_sources ${CMAKE_CURRENT_SOURCE_DIR}/Platform/${name}Unix.cpp)
+    endforeach()
+    set(platform_libraries ${CMAKE_DL_LIBS}) #dlopen
+endif()
+set(POTHOS_PLATFORM_SOURCES ${platform_sources} CACHE INTERNAL "")
+set(POTHOS_PLATFORM_LIBRARIES ${platform_libraries} CACHE INTERNAL "")
+target_sources(Pothos PRIVATE ${POTHOS_PLATFORM_SOURCES})
+target_link_libraries(Pothos PRIVATE ${POTHOS_PLATFORM_LIBRARIES})
+
 if(WIN32)
     target_sources(Pothos PRIVATE WindowsDelayLoadedSymbols.cpp)
     target_sources(Pothos PRIVATE Framework/SharedBufferWindows.cpp)
     target_sources(Pothos PRIVATE Util/FileLockWindows.cpp)
     target_sources(Pothos PRIVATE Util/Builtin/WindowsGetLogicalProcessorInfo.cpp)
-    target_sources(Pothos PRIVATE Platform/EnvironmentWindows.cpp)
-    target_link_libraries(Pothos PRIVATE iphlpapi) #GetAdaptersAddresses
 elseif(UNIX)
     target_sources(Pothos PRIVATE Framework/SharedBufferUnix.cpp)
-    target_sources(Pothos PRIVATE Platform/EnvironmentUnix.cpp)
     target_sources(Pothos PRIVATE Util/FileLockUnix.cpp)
 endif()
 

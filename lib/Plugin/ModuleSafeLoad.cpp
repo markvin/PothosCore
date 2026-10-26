@@ -5,8 +5,7 @@
 #include <Pothos/Plugin/Module.hpp>
 #include <Pothos/Plugin/Exception.hpp>
 #include <Pothos/Util/FileLock.hpp>
-#include <Poco/Process.h>
-#include <Poco/Pipe.h>
+#include "Platform/Process.hpp"
 #include <filesystem>
 #include <chrono>
 #include <Poco/AutoPtr.h>
@@ -109,20 +108,15 @@ Pothos::PluginModule Pothos::PluginModule::safeLoad(const std::string &path)
     const int success = 200;
 
     //create args
-    Poco::Process::Args args;
-    args.push_back("--load-module");
-    args.push_back("\""+path+"\""); //add quotes for paths with spaces
-    args.push_back("--success-code");
-    args.push_back(std::to_string(success));
+    //the process layer quotes arguments (paths with spaces) as needed
+    Pothos::Platform::ProcessOptions opts;
+    opts.args = {"--load-module", path, "--success-code", std::to_string(success)};
 
-    //launch
-    Poco::Pipe outPipe, errPipe;
-    Poco::Process::Env env;
-    Poco::ProcessHandle ph(Poco::Process::launch(
-        Pothos::System::getPothosUtilExecutablePath(),
-        args, nullptr, &outPipe, &errPipe, env));
-
-    //close pipes to not overfill and backup
+    //launch: output is discarded (pipes closed so the child never blocks)
+    Pothos::Platform::Pipe outPipe, errPipe;
+    opts.out = &outPipe;
+    opts.err = &errPipe;
+    auto ph = Pothos::Platform::Process::launch(Pothos::System::getPothosUtilExecutablePath(), opts);
     outPipe.close();
     errPipe.close();
 

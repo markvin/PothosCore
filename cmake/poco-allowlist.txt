@@ -4,7 +4,6 @@
 apps/PothosUtil.cpp
 apps/PothosUtil.hpp
 apps/PothosUtilProxyServer.cpp
-apps/PothosUtilSelfTests.cpp
 lib/ConfLoader/ConfLoader.cpp
 lib/ConfLoader/JITCompilerLoader.cpp
 lib/Framework/BlockRegistry.cpp

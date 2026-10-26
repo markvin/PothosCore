@@ -6,9 +6,7 @@
 #include <Pothos/Testing.hpp>
 #include <Pothos/Plugin/Loader.hpp>
 #include <Pothos/System/Paths.hpp>
-#include <Poco/Process.h>
-#include <Poco/Pipe.h>
-#include <Poco/PipeStream.h>
+#include "Platform/Process.hpp"
 #include "Util/StringUtils.hpp"
 #include <iostream>
 #include <sstream>
@@ -23,10 +21,10 @@ struct SelfTestResults
     std::vector<std::string> testsFailed;
 };
 
-static std::string collectVerbose(const Poco::Pipe &pipe)
+static std::string collectVerbose(Pothos::Platform::Pipe pipe)
 {
     size_t maxLen = 0;
-    Poco::PipeInputStream is(pipe);
+    Pothos::Platform::PipeInputStream is(pipe);
     std::vector<std::string> lines;
     try
     {
@@ -65,7 +63,7 @@ static bool spawnSelfTestOneProcess(const std::string &path, size_t numTrials)
     else std::cout << std::flush;
 
     //create args
-    Poco::Process::Args args;
+    std::vector<std::string> args;
     args.push_back("--self-test1");
     args.push_back(path);
     args.push_back("--success-code");
@@ -78,11 +76,12 @@ static bool spawnSelfTestOneProcess(const std::string &path, size_t numTrials)
     for(size_t trialNum = 0; trialNum < numTrials; ++trialNum)
     {
         //launch
-        Poco::Process::Env env;
-        Poco::Pipe outPipe; //no fwd stdio
-        Poco::ProcessHandle ph(Poco::Process::launch(
-            Pothos::System::getPothosUtilExecutablePath(),
-            args, nullptr, &outPipe, &outPipe, env));
+        Pothos::Platform::Pipe outPipe; //no fwd stdio
+        Pothos::Platform::ProcessOptions opts;
+        opts.args = args;
+        opts.out = &outPipe;
+        opts.err = &outPipe;
+        auto ph = Pothos::Platform::Process::launch(Pothos::System::getPothosUtilExecutablePath(), opts);
 
         std::future<std::string> verboseFuture(std::async(std::launch::async, &collectVerbose, outPipe));
         const bool ok = (ph.wait() == success);
@@ -92,8 +91,9 @@ static bool spawnSelfTestOneProcess(const std::string &path, size_t numTrials)
         }
         std::cout << ((ok)? "success!" : "FAIL!") << std::endl;
 
-        outPipe.close();
+        //the reader sees end of stream once the child has exited
         verboseFuture.wait();
+        outPipe.close();
         if (not ok) std::cout << verboseFuture.get();
         else numOk++;
     }
