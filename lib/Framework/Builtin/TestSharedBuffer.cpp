@@ -89,7 +89,7 @@ POTHOS_TEST_BLOCK("/framework/tests", test_mmap_shared_buffer)
 
     {
         auto mmapSharedBuffer = Pothos::SharedBuffer::makeFromFileMMap(
-            tempFile.path(),
+            tempFile.path().string(),
             true,
             true);
         POTHOS_TEST_NOT_EQUAL(0, mmapSharedBuffer.getAddress());

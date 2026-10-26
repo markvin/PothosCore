@@ -9,6 +9,7 @@
 # A file "uses Poco" when it includes <Poco/...> or mentions Poco::,
 # POCO_ or poco_. Public headers under include/ may never use Poco.
 ########################################################################
+cmake_minimum_required(VERSION 3.25) #policies for cmake -P scripts
 foreach(var SRC ALLOWLIST)
     if (NOT DEFINED ${var})
         message(FATAL_ERROR "PothosCheckPoco: ${var} is not set")

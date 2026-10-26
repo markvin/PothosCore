@@ -13,7 +13,7 @@ POTHOS_TEST_BLOCK("/util/tests", test_unique_temp_path)
     POTHOS_TEST_TRUE(p0 != p1);
     POTHOS_TEST_TRUE(not std::filesystem::exists(p0));
     POTHOS_TEST_EQUAL(p0.extension().string(), ".cpp");
-    POTHOS_TEST_TRUE(p0.parent_path() == std::filesystem::temp_directory_path());
+    POTHOS_TEST_TRUE(std::filesystem::equivalent(p0.parent_path(), std::filesystem::temp_directory_path()));
 }
 
 POTHOS_TEST_BLOCK("/util/tests", test_temp_file)
@@ -26,7 +26,7 @@ POTHOS_TEST_BLOCK("/util/tests", test_temp_file)
         POTHOS_TEST_TRUE(std::filesystem::exists(p0));
         POTHOS_TEST_TRUE(std::filesystem::exists(p1));
         POTHOS_TEST_TRUE(p0 != p1);
-        POTHOS_TEST_TRUE(p0.parent_path() == std::filesystem::temp_directory_path());
+        POTHOS_TEST_TRUE(std::filesystem::equivalent(p0.parent_path(), std::filesystem::temp_directory_path()));
     }
     POTHOS_TEST_TRUE(not std::filesystem::exists(p0));
     POTHOS_TEST_TRUE(not std::filesystem::exists(p1));

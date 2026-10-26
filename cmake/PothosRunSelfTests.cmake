@@ -5,6 +5,7 @@
 #           -DBINDIR=<relative bin dir> -DLIBDIR=<relative lib dir>
 # Optional: -DTEST_PATH=<plugin path> to run a single self test
 ########################################################################
+cmake_minimum_required(VERSION 3.25) #policies for cmake -P scripts
 foreach(var PREFIX TEST_HOME_DIR BINDIR LIBDIR)
     if (NOT DEFINED ${var})
         message(FATAL_ERROR "PothosRunSelfTests: ${var} is not set")
