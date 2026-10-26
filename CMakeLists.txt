@@ -74,13 +74,12 @@ option(CMAKE_SKIP_BUILD_RPATH "skip rpath build" FALSE)
 # (but later on when installing)
 option(CMAKE_BUILD_WITH_INSTALL_RPATH "build with install rpath" FALSE)
 
-# the RPATH to be used when installing, but only if it's not a system directory
-option(CMAKE_AUTOSET_INSTALL_RPATH TRUE)
-if(CMAKE_AUTOSET_INSTALL_RPATH)
-    list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}" isSystemDir)
-    if("${isSystemDir}" STREQUAL "-1")
-        set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
-    endif()
+# the RPATH to be used when installing: relative to the installed binary,
+# so that an installation can be relocated (bin/ and lib/ are siblings)
+if(APPLE)
+    set(CMAKE_INSTALL_RPATH "@loader_path/../${CMAKE_INSTALL_LIBDIR}")
+elseif(UNIX)
+    set(CMAKE_INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
 endif()
 
 # add the automatically determined parts of the RPATH
@@ -163,7 +162,7 @@ set_tests_properties(pothos.stage PROPERTIES FIXTURES_SETUP pothos_stage)
 add_test(NAME pothos.selftests
     COMMAND ${CMAKE_COMMAND}
         -DPREFIX=${POTHOS_STAGE_DIR}
-        -DHOME_DIR=${CMAKE_BINARY_DIR}/test-home
+        -DTEST_HOME_DIR=${CMAKE_BINARY_DIR}/test-home
         -DBINDIR=${CMAKE_INSTALL_BINDIR}
         -DLIBDIR=${CMAKE_INSTALL_LIBDIR}
         -P ${PROJECT_SOURCE_DIR}/cmake/PothosRunSelfTests.cmake)
@@ -182,6 +181,11 @@ add_test(NAME pothos.consumer
         -DLIBDIR=${CMAKE_INSTALL_LIBDIR}
         -P ${PROJECT_SOURCE_DIR}/cmake/PothosConsumerTest.cmake)
 set_tests_properties(pothos.consumer PROPERTIES FIXTURES_REQUIRED pothos_stage)
+
+add_test(NAME pothos.test_env_guard
+    COMMAND ${CMAKE_COMMAND}
+        -DWORK=${CMAKE_BINARY_DIR}/test-env-guard
+        -P ${PROJECT_SOURCE_DIR}/tests/test_env_guard.cmake)
 
 ########################################################################
 # uninstall target
