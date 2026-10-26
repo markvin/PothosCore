@@ -7,8 +7,8 @@
 #include <Pothos/Util/FileLock.hpp>
 #include <Pothos/Util/BlockDescription.hpp>
 #include <Poco/Logger.h>
-#include <Poco/Path.h>
-#include <Poco/File.h>
+#include "Util/FileSystem.hpp"
+#include <filesystem>
 #include "Util/StringUtils.hpp"
 #include <Poco/SharedLibrary.h>
 #include <memory>
@@ -60,18 +60,18 @@ struct RegistryJITResult
  **********************************************************************/
 static void compilationHelper(
     RegistryJITResult *handle,
-    const Poco::File &outFile)
+    const std::filesystem::path &outFile)
 {
     //check if we need to recompile
     bool recompile = false;
-    if (outFile.exists() and outFile.getSize() != 0)
+    if (std::filesystem::exists(outFile) and std::filesystem::file_size(outFile) != 0)
     {
-        const auto lastTimeCompiled = outFile.getLastModified();
+        const auto lastTimeCompiled = std::filesystem::last_write_time(outFile);
         const auto devLib = Pothos::System::getPothosDevLibraryPath();
-        if (Poco::File(devLib).getLastModified() > lastTimeCompiled) recompile = true;
+        if (std::filesystem::last_write_time(devLib) > lastTimeCompiled) recompile = true;
         for (const auto &source : handle->compilerArgs.sources)
         {
-            if (Poco::File(source).getLastModified() > lastTimeCompiled) recompile = true;
+            if (std::filesystem::last_write_time(source) > lastTimeCompiled) recompile = true;
         }
     }
     else recompile = true;
@@ -83,8 +83,8 @@ static void compilationHelper(
     //compile
     sourceLoaderLogger().information("Compile sources for %s...", handle->target);
     const auto tmpOutput = compiler->compileCppModule(handle->compilerArgs);
-    Poco::File(tmpOutput).moveTo(outFile.path());
-    sourceLoaderLogger().information("Wrote %s", outFile.path());
+    Pothos::Util::Detail::moveFile(tmpOutput, outFile);
+    sourceLoaderLogger().information("Wrote %s", outFile.string());
 }
 
 /***********************************************************************
@@ -104,13 +104,12 @@ static Pothos::Object opaqueJITCompilerFactory(
     if (handle->exception) std::rethrow_exception(handle->exception);
 
     //determine output file
-    Poco::Path outPath(Pothos::System::getUserDataPath());
-    outPath.append("modules");
-    Poco::File(outPath).createDirectories();
-    outPath.append(handle->target + Poco::SharedLibrary::suffix());
+    auto outPath = std::filesystem::path(Pothos::System::getUserDataPath()) / "modules";
+    std::filesystem::create_directories(outPath);
+    outPath /= handle->target + Poco::SharedLibrary::suffix();
 
     //file lock for compilation atomicity across processes
-    Pothos::Util::FileLock outputFileLock(outPath.toString());
+    Pothos::Util::FileLock outputFileLock(outPath.string());
     std::lock_guard<Pothos::Util::FileLock> fileLock(outputFileLock);
 
     //compile if changed
@@ -133,7 +132,7 @@ static Pothos::Object opaqueJITCompilerFactory(
 
         //load the newly compiled library with plugin module
         //the plugin module now owns the factory path entries
-        handle->pluginModule = Pothos::PluginModule(outPath.toString());
+        handle->pluginModule = Pothos::PluginModule(outPath.string());
     }
 
     //the actual function from the compiled module
@@ -157,12 +156,12 @@ static std::vector<Pothos::PluginPath> JITCompilerLoader(const std::map<std::str
     const auto confFilePathIt = config.find("confFilePath");
     if (confFilePathIt == config.end() or confFilePathIt->second.empty())
         throw Pothos::Exception("missing confFilePath");
-    const auto rootDir = Poco::Path(confFilePathIt->second).makeParent();
+    const auto rootDir = std::filesystem::path(confFilePathIt->second).parent_path();
 
     //get the target (config basename unless specified)
     const auto targetIt = config.find("target");
     if (targetIt != config.end()) handle->target = targetIt->second;
-    else handle->target = Poco::Path(confFilePathIt->second).getBaseName();
+    else handle->target = std::filesystem::path(confFilePathIt->second).stem().string();
     if (handle->target.empty()) throw Pothos::Exception("target empty");
 
     //load the compiler args
@@ -173,8 +172,8 @@ static std::vector<Pothos::PluginPath> JITCompilerLoader(const std::map<std::str
     if (includesIt != config.end()) for (const auto &include :
         Pothos::Util::Detail::split(includesIt->second, tokSep))
     {
-        const auto absPath = Poco::Path(include).makeAbsolute(rootDir);
-        handle->compilerArgs.includes.push_back(absPath.toString());
+        const auto absPath = Pothos::Util::Detail::makeAbsolute(include, rootDir);
+        handle->compilerArgs.includes.push_back(absPath.string());
     }
 
     //load the libraries: make absolute to the config dir
@@ -182,8 +181,8 @@ static std::vector<Pothos::PluginPath> JITCompilerLoader(const std::map<std::str
     if (librariesIt != config.end()) for (const auto &library :
         Pothos::Util::Detail::split(librariesIt->second, tokSep))
     {
-        const auto absPath = Poco::Path(library).makeAbsolute(rootDir);
-        handle->compilerArgs.libraries.push_back(absPath.toString());
+        const auto absPath = Pothos::Util::Detail::makeAbsolute(library, rootDir);
+        handle->compilerArgs.libraries.push_back(absPath.string());
     }
 
     //load the sources: make absolute to the config dir
@@ -191,8 +190,8 @@ static std::vector<Pothos::PluginPath> JITCompilerLoader(const std::map<std::str
     if (sourcesIt != config.end()) for (const auto &source :
         Pothos::Util::Detail::split(sourcesIt->second, tokSep))
     {
-        const auto absPath = Poco::Path(source).makeAbsolute(rootDir);
-        handle->compilerArgs.sources.push_back(absPath.toString());
+        const auto absPath = Pothos::Util::Detail::makeAbsolute(source, rootDir);
+        handle->compilerArgs.sources.push_back(absPath.string());
     }
 
     //load the flags:
@@ -209,8 +208,8 @@ static std::vector<Pothos::PluginPath> JITCompilerLoader(const std::map<std::str
     if (docSourcesIt != config.end()) for (const auto &docSource :
         Pothos::Util::Detail::split(docSourcesIt->second, tokSep))
     {
-        const auto absPath = Poco::Path(docSource).makeAbsolute(rootDir);
-        docSources.push_back(absPath.toString());
+        const auto absPath = Pothos::Util::Detail::makeAbsolute(docSource, rootDir);
+        docSources.push_back(absPath.string());
     }
     else docSources = handle->compilerArgs.sources;
 

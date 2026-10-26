@@ -5,7 +5,7 @@
 #include <Pothos/Util/BlockDescription.hpp>
 #include <Pothos/Plugin.hpp>
 #include <format>
-#include <format>
+#include <filesystem>
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -57,8 +57,9 @@ void PothosUtilBase::docParse(const std::vector<std::string> &inputFilePaths)
     }
     else
     {
-        const auto outputFileName = Poco::Path(outputFilePath).getBaseName();
-        const auto outputFileExt = Poco::Path(outputFilePath).getExtension();
+        const auto outputFileName = std::filesystem::path(outputFilePath).stem().string();
+        auto outputFileExt = std::filesystem::path(outputFilePath).extension().string();
+        if (not outputFileExt.empty()) outputFileExt.erase(0, 1); //no dot, as before
 
         std::ofstream outputFile(outputFilePath.c_str());
         if (outputFileExt == "json") outputFile << parser.getJSONArray(indentSpaces);

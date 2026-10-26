@@ -10,7 +10,6 @@
 #include <Pothos/Util/TypeInfo.hpp>
 
 #include <format>
-#include <Poco/Path.h>
 
 #include <iostream>
 #include <vector>

@@ -6,7 +6,8 @@
 #include <Pothos/Exception.hpp>
 #include <Pothos/Util/ExceptionForErrorCode.hpp>
 
-#include <Poco/File.h>
+#include "Util/FileSystem.hpp"
+#include <filesystem>
 #include <Poco/Logger.h>
 #include <Poco/Platform.h>
 
@@ -57,7 +58,7 @@ public:
 
         constexpr int mmapFlags = MAP_SHARED;
 
-        _length = Poco::File(filepath).getSize();
+        _length = std::filesystem::file_size(filepath);
 
         int fd = 0;
         throwErrnoOnFailure<Pothos::OpenFileException>(
@@ -127,7 +128,7 @@ public:
         bool readable,
         bool writable) : _buffer(nullptr), _length(0), _fileHandle(nullptr)
     {
-        _length = Poco::File(filepath).getSize();
+        _length = std::filesystem::file_size(filepath);
 
         //
         // Variables used by multiple functions
@@ -279,12 +280,12 @@ MemoryMappedBufferContainer::MemoryMappedBufferContainer(
     bool readable,
     bool writable): _implUPtr(nullptr)
 {
-    const Poco::File pocoFile(filepath);
-
-    if (!pocoFile.exists()) throw Pothos::FileNotFoundException(filepath);
-    if (pocoFile.getSize() == 0) throw Pothos::InvalidArgumentException("Empty files not supported", filepath);
-    if (readable && !pocoFile.canRead()) throw Pothos::FileAccessDeniedException(filepath);
-    if (writable && !pocoFile.canWrite()) throw Pothos::FileReadOnlyException(filepath);
+    using Pothos::Util::Detail::canAccess;
+    using Pothos::Util::Detail::Access;
+    if (!std::filesystem::exists(filepath)) throw Pothos::FileNotFoundException(filepath);
+    if (std::filesystem::file_size(filepath) == 0) throw Pothos::InvalidArgumentException("Empty files not supported", filepath);
+    if (readable && !canAccess(filepath, Access::Read)) throw Pothos::FileAccessDeniedException(filepath);
+    if (writable && !canAccess(filepath, Access::Write)) throw Pothos::FileReadOnlyException(filepath);
 
     _implUPtr.reset(new Impl(filepath, readable, writable));
 }

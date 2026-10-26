@@ -3,7 +3,7 @@
 
 #include <Pothos/Framework/SharedBuffer.hpp>
 #include <Pothos/Framework/Exception.hpp>
-#include <Poco/TemporaryFile.h>
+#include "Util/TempFile.hpp"
 #include <format>
 #include <cassert>
 #include <fcntl.h> //open
@@ -151,15 +151,15 @@ CircularBufferContainer::CircularBufferContainer(const size_t numBytes):
     /*******************************************************************
      * Step 1) open a temp file for physical memory
      ******************************************************************/
-    Poco::TemporaryFile tmpFile;
+    const Pothos::Util::Detail::TempFile tmpFile(false); //path only, removed at scope exit
     tmpFd = open(
         tmpFile.path().c_str(),
         O_RDWR | O_CREAT | O_EXCL,
         S_IRUSR | S_IWUSR);
-    if (tmpFd < 0) this->errorOut("open("+ tmpFile.path() +")");
+    if (tmpFd < 0) this->errorOut("open("+ tmpFile.path().string() +")");
 
     ret = ftruncate(tmpFd, numBytes*2);
-    if (ret != 0) this->errorOut("ftruncate("+ tmpFile.path() +")");
+    if (ret != 0) this->errorOut("ftruncate("+ tmpFile.path().string() +")");
 
     /*******************************************************************
      * Step 2) find a 2X chunk of virtual memory

@@ -6,7 +6,7 @@
 #include <Pothos/Plugin.hpp>
 #include <Pothos/Proxy.hpp>
 
-#include <Poco/File.h>
+#include <filesystem>
 #include "Util/StringUtils.hpp"
 
 #include <fstream>
@@ -28,7 +28,7 @@ void PothosUtilBase::generateSIMDDispatchers(const std::string&, const std::stri
     const auto simdArchesTokenizer = Pothos::Util::Detail::split(simdArchesStr, ",", true, false);
     std::vector<std::string> simdArches(simdArchesTokenizer.begin(), simdArchesTokenizer.end());
 
-    const auto fileSize = Poco::File(jsonPath).getSize();
+    const auto fileSize = std::filesystem::file_size(jsonPath);
 
     std::ifstream ifile(jsonPath.c_str(), std::ios::in);
     std::string jsonInput;

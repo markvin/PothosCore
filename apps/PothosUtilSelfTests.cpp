@@ -9,7 +9,7 @@
 #include <Poco/Process.h>
 #include <Poco/Pipe.h>
 #include <Poco/PipeStream.h>
-#include <Poco/Glob.h>
+#include "Util/StringUtils.hpp"
 #include <iostream>
 #include <sstream>
 #include <vector>
@@ -101,10 +101,10 @@ static bool spawnSelfTestOneProcess(const std::string &path, size_t numTrials)
     return numOk != 0;
 }
 
-static void runPluginSelfTestsR(const Pothos::PluginPath &path, SelfTestResults &results, Poco::Glob &glob, size_t numTrials)
+static void runPluginSelfTestsR(const Pothos::PluginPath &path, SelfTestResults &results, const std::string &glob, size_t numTrials)
 {
     //run the test found at path
-    if (not Pothos::PluginRegistry::empty(path) and glob.match(path.toString()))
+    if (not Pothos::PluginRegistry::empty(path) and Pothos::Util::Detail::globMatch(glob, path.toString()))
     {
         auto plugin = Pothos::PluginRegistry::get(path);
         if (plugin.getObject().type() == typeid(std::shared_ptr<Pothos::TestingBase>))
@@ -172,12 +172,12 @@ void PothosUtilBase::selfTests(const std::string &, const std::string &path)
     SelfTestResults results;
     if (path.find('*') == std::string::npos)
     {
-        Poco::Glob glob("*"); //not globing, match all
+        const std::string glob("*"); //not globing, match all
         runPluginSelfTestsR(path.empty()? "/" : path, results, glob, numTrials);
     }
     else
     {
-        Poco::Glob glob(path); //path is a glob rule
+        const std::string &glob(path); //path is a glob rule
         runPluginSelfTestsR("/", results, glob, numTrials);
     }
     std::cout << std::endl;

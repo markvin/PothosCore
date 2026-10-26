@@ -6,9 +6,9 @@
 #include <Pothos/Callable.hpp>
 #include <Pothos/Plugin.hpp>
 #include <Pothos/System/Paths.hpp>
-#include <Poco/Path.h>
-#include <Poco/File.h>
-#include <Poco/TemporaryFile.h>
+#include "Util/TempFile.hpp"
+#include <filesystem>
+#include <system_error>
 
 Pothos::Util::CompilerArgs::CompilerArgs(void)
 {
@@ -20,20 +20,20 @@ Pothos::Util::CompilerArgs Pothos::Util::CompilerArgs::defaultDevEnv(void)
     Pothos::Util::CompilerArgs args;
 
     //add devel environment libraries
-    Poco::Path path(Pothos::System::getPothosDevLibraryPath());
-    std::vector<std::string> files; Poco::File(path).list(files);
-    for (size_t i = 0; i < files.size(); i++)
+    std::error_code ec;
+    for (const auto &entry : std::filesystem::directory_iterator(Pothos::System::getPothosDevLibraryPath(), ec))
     {
-        Poco::Path library(path, files[i]);
+        const auto &library = entry.path();
+        const auto file = library.filename().string();
         if ((
-            library.getExtension() == "so" or
-            library.getExtension() == "lib" or
-            library.getExtension() == "dylib"
+            library.extension() == ".so" or
+            library.extension() == ".lib" or
+            library.extension() == ".dylib"
         ) and
         (
-            files[i].find("Poco") != std::string::npos or
-            files[i].find("Pothos") != std::string::npos
-        )) args.libraries.push_back(library.absolute().toString());
+            file.find("Poco") != std::string::npos or
+            file.find("Pothos") != std::string::npos
+        )) args.libraries.push_back(std::filesystem::absolute(library).string());
     }
 
     //add devel environment includes
@@ -46,12 +46,8 @@ Pothos::Util::Compiler::~Compiler(void)
 {
     for (const auto &path : _tempFiles)
     {
-        Poco::File f(path);
-        if (f.exists()) try
-        {
-            f.remove();
-        }
-        catch(...){}
+        std::error_code ec;
+        std::filesystem::remove(path, ec);
     }
 }
 
@@ -85,6 +81,6 @@ Pothos::Util::Compiler::Sptr Pothos::Util::Compiler::make(const std::string &nam
 
 const std::string &Pothos::Util::Compiler::createTempFile(const std::string &ext)
 {
-    _tempFiles.push_back(Poco::TemporaryFile::tempName() + ext);
+    _tempFiles.push_back(Pothos::Util::Detail::uniqueTempPath(ext).string());
     return _tempFiles.back();
 }

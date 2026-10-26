@@ -37,6 +37,20 @@ POTHOS_TEST_BLOCK("/util/tests", test_string_split)
     POTHOS_TEST_TRUE(split("", ",").empty());
 }
 
+POTHOS_TEST_BLOCK("/util/tests", test_glob_match)
+{
+    POTHOS_TEST_TRUE(globMatch("*", "/framework/tests/test_x"));
+    POTHOS_TEST_TRUE(globMatch("/framework/*", "/framework/tests/test_x"));
+    POTHOS_TEST_TRUE(globMatch("*test_?", "/a/test_x"));
+    POTHOS_TEST_TRUE(not globMatch("*test_?", "/a/test_xy"));
+    POTHOS_TEST_TRUE(globMatch("/a/[bc]*", "/a/cat"));
+    POTHOS_TEST_TRUE(not globMatch("/a/[!bc]*", "/a/cat"));
+    POTHOS_TEST_TRUE(globMatch("/a/[a-c]x", "/a/bx"));
+    POTHOS_TEST_TRUE(not globMatch("/util/*", "/framework/tests"));
+    POTHOS_TEST_TRUE(globMatch("", ""));
+    POTHOS_TEST_TRUE(not globMatch("", "a"));
+}
+
 POTHOS_TEST_BLOCK("/util/tests", test_string_replace_all)
 {
     POTHOS_TEST_EQUAL(replaceAll("a.b.c", ".", "::"), "a::b::c");

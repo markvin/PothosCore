@@ -74,6 +74,48 @@ inline std::vector<std::string> split(std::string_view s, std::string_view separ
     return tokens;
 }
 
+/*!
+ * Match a whole string against a glob pattern:
+ * * any sequence (including /), ? any one character,
+ * [abc] [a-z] a character set, [!abc] a negated set.
+ */
+inline bool globMatch(std::string_view pattern, std::string_view text)
+{
+    if (pattern.empty()) return text.empty();
+    const char p = pattern.front();
+    if (p == '*')
+    {
+        for (size_t i = 0; i <= text.size(); i++)
+        {
+            if (globMatch(pattern.substr(1), text.substr(i))) return true;
+        }
+        return false;
+    }
+    if (text.empty()) return false;
+    if (p == '[')
+    {
+        const auto close = pattern.find(']', 2);
+        if (close == std::string_view::npos) return p == text.front() and globMatch(pattern.substr(1), text.substr(1));
+        auto set = pattern.substr(1, close-1);
+        const bool negate = not set.empty() and set.front() == '!';
+        if (negate) set.remove_prefix(1);
+        bool found = false;
+        for (size_t i = 0; i < set.size(); i++)
+        {
+            if (i+2 < set.size() and set[i+1] == '-')
+            {
+                if (set[i] <= text.front() and text.front() <= set[i+2]) found = true;
+                i += 2;
+            }
+            else if (set[i] == text.front()) found = true;
+        }
+        if (found == negate) return false;
+        return globMatch(pattern.substr(close+1), text.substr(1));
+    }
+    if (p != '?' and p != text.front()) return false;
+    return globMatch(pattern.substr(1), text.substr(1));
+}
+
 //! Replace every occurrence of from with to (non-recursive)
 inline std::string replaceAll(std::string s, std::string_view from, std::string_view to)
 {

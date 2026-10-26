@@ -3,24 +3,13 @@
 # stops using Poco. Public headers under include/ may never be listed.
 apps/PothosUtil.cpp
 apps/PothosUtil.hpp
-apps/PothosUtilDeviceInfo.cpp
-apps/PothosUtilDocParse.cpp
-apps/PothosUtilGenerateSIMDDispatchers.cpp
-apps/PothosUtilListTypeConversions.cpp
-apps/PothosUtilProxyEnvironmentInfo.cpp
 apps/PothosUtilProxyServer.cpp
-apps/PothosUtilRunTopology.cpp
 apps/PothosUtilSelfTests.cpp
-lib/ConfLoader/BlockDescLoader.cpp
 lib/ConfLoader/ConfLoader.cpp
-lib/ConfLoader/FileRealPath.cpp
 lib/ConfLoader/JITCompilerLoader.cpp
-lib/ConfLoader/JSONTopologyLoader.cpp
 lib/Framework/BlockRegistry.cpp
-lib/Framework/Builtin/TestSharedBuffer.cpp
 lib/Framework/InputPort.cpp
 lib/Framework/MemoryMappedBufferContainer.cpp
-lib/Framework/SharedBufferUnix.cpp
 lib/Framework/ThreadConfigUnix.cpp
 lib/Framework/ThreadEnvironment.cpp
 lib/Framework/Topology.cpp
@@ -28,7 +17,6 @@ lib/Framework/TopologyDotMarkup.cpp
 lib/Framework/TopologyNetworkFlows.cpp
 lib/Framework/WorkerActor.cpp
 lib/Framework/WorkerActor.hpp
-lib/Init.cpp
 lib/Managed/Registry.cpp
 lib/Object/Compare.cpp
 lib/Object/Convert.cpp
@@ -54,11 +42,9 @@ lib/System/Paths.in.cpp
 lib/Testing/ScopedBlockInRegistry.hpp
 lib/Testing/ScopedPlugin.hpp
 lib/Testing/Testing.cpp
-lib/Util/BlockDescription.cpp
 lib/Util/Builtin/CompilerStdFlags.hpp
 lib/Util/Builtin/GccClangCompilerSupport.in.cpp
 lib/Util/Builtin/MsvcCompilerSupport.in.cpp
 lib/Util/Builtin/TestErrorCodeHandling.cpp
-lib/Util/Compiler.cpp
 lib/Util/Network.cpp
 lib/Util/UID.cpp

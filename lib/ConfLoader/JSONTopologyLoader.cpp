@@ -3,8 +3,8 @@
 
 #include <Pothos/Plugin.hpp>
 #include <Pothos/Framework.hpp>
-#include <Poco/Path.h>
-#include <Poco/File.h>
+#include "Util/FileSystem.hpp"
+#include <filesystem>
 #include <fstream>
 #include <map>
 #include <nlohmann/json.hpp>
@@ -67,10 +67,11 @@ static std::vector<Pothos::PluginPath> JSONTopologyLoader(const std::map<std::st
     const auto jsonIt = config.find("json");
     if (jsonIt == config.end() or jsonIt->second.empty())
         throw Pothos::Exception("JSON file not specified");
-    Poco::Path jsonPath(jsonIt->second);
-    jsonPath.makeAbsolute(Poco::Path(confFilePathIt->second).makeParent());
-    if (not Poco::File(jsonPath).exists())
-        throw Pothos::Exception(jsonPath.toString() + " does not exist");
+    const auto jsonPath = Pothos::Util::Detail::makeAbsolute(
+        Pothos::Util::Detail::expandPath(jsonIt->second),
+        std::filesystem::path(confFilePathIt->second).parent_path());
+    if (not std::filesystem::exists(jsonPath))
+        throw Pothos::Exception(jsonPath.string() + " does not exist");
 
     //get the plugin path
     const auto pathIt = config.find("path");
@@ -79,7 +80,7 @@ static std::vector<Pothos::PluginPath> JSONTopologyLoader(const std::map<std::st
     const auto pluginPath = Pothos::PluginPath("/blocks", pathIt->second);
 
     //parse the file into a string
-    std::ifstream ifs(Poco::Path::expand(jsonPath.toString()));
+    std::ifstream ifs(jsonPath);
     const std::string json((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
 
     //create an entry for the factory

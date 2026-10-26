@@ -7,28 +7,27 @@
 #include <Poco/SharedLibrary.h>
 #include <Poco/Environment.h>
 #include <Poco/Logger.h>
-#include <Poco/Path.h>
-#include <Poco/File.h>
+#include <filesystem>
+#include <system_error>
 #include <future>
 
-static std::vector<Poco::Path> getModulePaths(const Poco::Path &path)
+static std::vector<std::filesystem::path> getModulePaths(const std::filesystem::path &path)
 {
-    poco_debug(Poco::Logger::get("Pothos.PluginLoader.load"), path.toString());
+    poco_debug(Poco::Logger::get("Pothos.PluginLoader.load"), path.string());
 
-    std::vector<Poco::Path> paths;
+    std::vector<std::filesystem::path> paths;
 
-    const Poco::File file(path);
-    if (not file.exists()) return paths;
-    else if (file.isFile() and (path.getExtension() == "@MODULE_EXT@"))
+    std::error_code ec;
+    if (not std::filesystem::exists(path, ec)) return paths;
+    else if (std::filesystem::is_regular_file(path, ec) and (path.extension() == ".@MODULE_EXT@"))
     {
         paths.push_back(path);
     }
-    else if (file.isDirectory())
+    else if (std::filesystem::is_directory(path, ec))
     {
-        std::vector<std::string> files; file.list(files);
-        for (size_t i = 0; i < files.size(); i++)
+        for (const auto &entry : std::filesystem::directory_iterator(path, ec))
         {
-            auto subpaths = getModulePaths(Poco::Path(path, files[i]).absolute());
+            auto subpaths = getModulePaths(std::filesystem::absolute(entry.path()));
             paths.insert(paths.end(), subpaths.begin(), subpaths.end());
         }
     }
@@ -46,7 +45,7 @@ std::vector<Pothos::PluginModule> Pothos::PluginLoader::loadModules(void)
     {
         for (const auto &path : getModulePaths(searchPath))
         {
-            futures.push_back(std::async(std::launch::async, &Pothos::PluginModule::safeLoad, path.toString()));
+            futures.push_back(std::async(std::launch::async, &Pothos::PluginModule::safeLoad, path.string()));
         }
     }
 

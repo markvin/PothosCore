@@ -5,16 +5,33 @@
 #include <Pothos/System/Version.hpp>
 #include <Pothos/System/Exception.hpp>
 #include <Poco/Environment.h>
-#include <Poco/Path.h>
+#include <filesystem>
+#include <cstdlib>
 #include <Poco/Foundation.h>
 #include "Util/StringUtils.hpp"
 #include <algorithm>
 #include <iterator>
 
+static std::string absoluteString(const std::filesystem::path &path)
+{
+    return std::filesystem::absolute(path).string();
+}
+
+//the user's home directory (HOME, or USERPROFILE on Windows)
+static std::filesystem::path homePath(void)
+{
+    #if defined(POCO_OS_FAMILY_WINDOWS)
+    const char *home = std::getenv("USERPROFILE");
+    #else
+    const char *home = std::getenv("HOME");
+    #endif
+    return home == nullptr ? std::filesystem::current_path() : std::filesystem::path(home);
+}
+
 std::string Pothos::System::getRootPath(void)
 {
     if (Poco::Environment::has("@POTHOS_ROOT_ENV@"))
-        return Poco::Path(Poco::Environment::get("@POTHOS_ROOT_ENV@")).absolute().toString();
+        return absoluteString(Poco::Environment::get("@POTHOS_ROOT_ENV@"));
 
     // Get the path to the current dynamic linked library.
     // The path to this library can be used to determine
@@ -30,114 +47,96 @@ std::string Pothos::System::getRootPath(void)
         const DWORD size = GetModuleFileNameA(hm, path, sizeof(path));
         if (size != 0)
         {
-            const Poco::Path libPath(std::string(path, size), Poco::Path::PATH_WINDOWS);
-            return libPath.parent().popDirectory().toString();
+            const std::filesystem::path libPath(std::string(path, size));
+            return libPath.parent_path().parent_path().string();
         }
     }
     #endif
 
     //assume that the root path is always in UNIX style
-    const Poco::Path configPrefix = Poco::Path("@POTHOS_ROOT@", Poco::Path::PATH_UNIX);
-    return configPrefix.absolute().toString();
+    return absoluteString(std::filesystem::path("@POTHOS_ROOT@"));
 }
 
 std::string Pothos::System::getDataPath(void)
 {
-    Poco::Path dataPath(getRootPath());
-    dataPath.append("@CMAKE_INSTALL_DATADIR@");
-    dataPath.append("Pothos");
-    return dataPath.absolute().toString();
+    return absoluteString(std::filesystem::path(getRootPath()) / "@CMAKE_INSTALL_DATADIR@" / "Pothos");
 }
 
 std::string Pothos::System::getUserDataPath(void)
 {
-    Poco::Path dataPath;
+    std::filesystem::path dataPath;
     if (Poco::Environment::has("XDG_DATA_HOME"))
     {
-        dataPath = Poco::Path(Poco::Environment::get("XDG_DATA_HOME"));
+        dataPath = Poco::Environment::get("XDG_DATA_HOME");
     }
     else if (Poco::Environment::has("@APPDATA_ENV@"))
     {
-        dataPath = Poco::Path(Poco::Environment::get("@APPDATA_ENV@"));
+        dataPath = Poco::Environment::get("@APPDATA_ENV@");
     }
     else
     {
-        dataPath = Poco::Path::home();
-        dataPath.append(".local");
-        dataPath.append("@CMAKE_INSTALL_DATADIR@");
+        dataPath = homePath() / ".local" / "@CMAKE_INSTALL_DATADIR@";
     }
-    dataPath.append("Pothos");
-    return dataPath.absolute().toString();
+    return absoluteString(dataPath / "Pothos");
 }
 
 std::string Pothos::System::getUserConfigPath(void)
 {
-    Poco::Path configPath;
+    std::filesystem::path configPath;
     if (Poco::Environment::has("XDG_CONFIG_HOME"))
     {
-        configPath = Poco::Path(Poco::Environment::get("XDG_CONFIG_HOME"));
+        configPath = Poco::Environment::get("XDG_CONFIG_HOME");
     }
     else if (Poco::Environment::has("@APPDATA_ENV@"))
     {
-        configPath = Poco::Path(Poco::Environment::get("@APPDATA_ENV@"));
+        configPath = Poco::Environment::get("@APPDATA_ENV@");
     }
     else
     {
-        configPath = Poco::Path::home();
-        configPath.append(".config");
+        configPath = homePath() / ".config";
     }
-    configPath.append("Pothos");
-    return configPath.absolute().toString();
+    return absoluteString(configPath / "Pothos");
 }
 
 std::string Pothos::System::getPothosUtilExecutablePath(void)
 {
-    Poco::Path utilPath(Pothos::System::getRootPath());
-    utilPath.append("@CMAKE_INSTALL_BINDIR@");
-    utilPath.append("PothosUtil");
+    auto utilPath = std::filesystem::path(Pothos::System::getRootPath()) / "@CMAKE_INSTALL_BINDIR@" / "PothosUtil";
     #if defined(POCO_OS_FAMILY_WINDOWS)
-    utilPath.setExtension("exe");
+    utilPath.replace_extension("exe");
     #endif
 
-    return utilPath.absolute().toString();
+    return absoluteString(utilPath);
 }
 
 std::string Pothos::System::getPothosRuntimeLibraryPath(void)
 {
-    Poco::Path dllPath(Pothos::System::getRootPath());
+    std::filesystem::path dllPath(Pothos::System::getRootPath());
     #if defined(POCO_OS_FAMILY_WINDOWS)
-    dllPath.append("@CMAKE_INSTALL_BINDIR@");
+    dllPath /= "@CMAKE_INSTALL_BINDIR@";
     #elif defined(POCO_OS_FAMILY_UNIX)
-    dllPath.append("@CMAKE_INSTALL_LIBDIR@");
+    dllPath /= "@CMAKE_INSTALL_LIBDIR@";
     #endif
-    dllPath.append(POTHOS_LIBRARY_NAME);
+    dllPath /= POTHOS_LIBRARY_NAME;
 
-    return dllPath.absolute().toString();
+    return absoluteString(dllPath);
 }
 
 std::string Pothos::System::getPothosDevIncludePath(void)
 {
-    Poco::Path incPath(Pothos::System::getRootPath());
-    incPath.append("@CMAKE_INSTALL_INCLUDEDIR@");
-    return incPath.absolute().toString();
+    return absoluteString(std::filesystem::path(Pothos::System::getRootPath()) / "@CMAKE_INSTALL_INCLUDEDIR@");
 }
 
 std::string Pothos::System::getPothosDevLibraryPath(void)
 {
-    Poco::Path libPath(Pothos::System::getRootPath());
-    libPath.append("@CMAKE_INSTALL_LIBDIR@");
-    return libPath.absolute().toString();
+    return absoluteString(std::filesystem::path(Pothos::System::getRootPath()) / "@CMAKE_INSTALL_LIBDIR@");
 }
 
 std::vector<std::string> Pothos::System::getPothosModuleSearchPaths()
 {
-    std::vector<Poco::Path> searchPaths;
+    std::vector<std::filesystem::path> searchPaths;
 
     //the default search path
-    Poco::Path devLibPath(Pothos::System::getPothosDevLibraryPath());
-    devLibPath.append("Pothos");
-    devLibPath.append("modules" + Pothos::System::getAbiVersion());
-    searchPaths.push_back(devLibPath);
+    searchPaths.push_back(std::filesystem::path(Pothos::System::getPothosDevLibraryPath()) / "Pothos" / ("modules" + Pothos::System::getAbiVersion()));
 
     //support /usr/local module installs when the install prefix is /usr
     if (Pothos::System::getRootPath() == "/usr")
@@ -151,14 +150,18 @@ std::vector<std::string> Pothos::System::getPothosModuleSearchPaths()
     }
 
     //separator for search paths
-    const std::string sep(1, Poco::Path::pathSeparator());
+    #if defined(POCO_OS_FAMILY_WINDOWS)
+    const std::string sep(";");
+    #else
+    const std::string sep(":");
+    #endif
 
     //check the environment's search path
     const auto pluginPaths = Poco::Environment::get("POTHOS_PLUGIN_PATH", "");
     for (const auto &pluginPath : Pothos::Util::Detail::split(pluginPaths, sep, false, false))
     {
         if (pluginPath.empty()) continue;
-        searchPaths.push_back(Poco::Path(pluginPath));
+        searchPaths.push_back(pluginPath);
     }
 
     std::vector<std::string> searchPathStrings;
@@ -166,9 +169,9 @@ std::vector<std::string> Pothos::System::getPothosModuleSearchPaths()
         searchPaths.begin(),
         searchPaths.end(),
         std::back_inserter(searchPathStrings),
-        [](const Poco::Path& path)
+        [](const std::filesystem::path &path)
         {
-            return path.absolute().toString();
+            return absoluteString(path);
         });
 
     return searchPathStrings;

@@ -9,7 +9,7 @@
 #include <Poco/Pipe.h>
 #include <Poco/PipeStream.h>
 #include <Poco/Process.h>
-#include <Poco/TemporaryFile.h>
+#include <filesystem>
 #include <Poco/SharedLibrary.h>
 #include <Poco/Logger.h>
 #include <fstream>
@@ -110,7 +110,7 @@ std::string GccClangCompilerSupport::compileCppModule(const Pothos::Util::Compil
     for (std::string line; std::getline(is, line);) outBuff += line+'\n';
 
     //handle error case
-    if (ph.wait() != 0 or not Poco::File(outPath.c_str()).exists())
+    if (ph.wait() != 0 or not std::filesystem::exists(outPath))
     {
         std::string cmdStr(compiler_executable());
         for (const auto &arg : args) cmdStr += " " + arg;

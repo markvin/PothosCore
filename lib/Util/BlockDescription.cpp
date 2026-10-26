@@ -7,9 +7,8 @@
 #include <Pothos/Plugin.hpp>
 #include "Util/StringUtils.hpp"
 #include <format>
-#include <Poco/Path.h>
-#include <Poco/File.h>
-#include <Poco/Path.h>
+#include "Util/FileSystem.hpp"
+#include <filesystem>
 #include <fstream>
 #include <vector>
 #include <string>
@@ -547,10 +546,10 @@ void Pothos::Util::BlockDescriptionParser::feedStream(std::istream &is)
 
 void Pothos::Util::BlockDescriptionParser::feedFilePath(const std::string &filePath)
 {
-    if (not Poco::File(filePath).exists())
+    if (not std::filesystem::exists(filePath))
         throw Pothos::FileExistsException(filePath);
 
-    std::ifstream inputFile(Poco::Path::expand(filePath));
+    std::ifstream inputFile(Pothos::Util::Detail::expandPath(filePath));
 
     if (not inputFile)
         throw Pothos::OpenFileException(filePath);

@@ -7,8 +7,8 @@
 #include <Poco/SharedLibrary.h>
 #include <Poco/Environment.h>
 #include <Poco/Logger.h>
-#include <Poco/Path.h>
-#include <Poco/File.h>
+#include <filesystem>
+#include <system_error>
 #include <format>
 #include <Poco/Util/PropertyFileConfiguration.h>
 #include <future>
@@ -73,24 +73,23 @@ static std::vector<Pothos::PluginPath> loadConfFile(const std::string &path)
 /***********************************************************************
  * Traverse a path for configuration files
  **********************************************************************/
-static std::vector<Poco::Path> getConfFilePaths(const Poco::Path &path)
+static std::vector<std::filesystem::path> getConfFilePaths(const std::filesystem::path &path)
 {
-    poco_debug_f1(confLoaderLogger(), "traversing %s", path.toString());
+    poco_debug_f1(confLoaderLogger(), "traversing %s", path.string());
 
-    std::vector<Poco::Path> paths;
+    std::vector<std::filesystem::path> paths;
 
-    const Poco::File file(path);
-    if (not file.exists()) return paths;
-    else if (file.isFile() and (path.getExtension() == "conf"))
+    std::error_code ec;
+    if (not std::filesystem::exists(path, ec)) return paths;
+    else if (std::filesystem::is_regular_file(path, ec) and (path.extension() == ".conf"))
     {
-        paths.push_back(Pothos_FileRealPath(path.toString()));
+        paths.push_back(Pothos_FileRealPath(path.string()));
     }
-    else if (file.isDirectory())
+    else if (std::filesystem::is_directory(path, ec))
     {
-        std::vector<std::string> files; file.list(files);
-        for (size_t i = 0; i < files.size(); i++)
+        for (const auto &entry : std::filesystem::directory_iterator(path, ec))
         {
-            auto subpaths = getConfFilePaths(Poco::Path(path, files[i]).absolute());
+            auto subpaths = getConfFilePaths(std::filesystem::absolute(entry.path()));
             paths.insert(paths.end(), subpaths.begin(), subpaths.end());
         }
     }
@@ -104,12 +103,8 @@ static std::vector<Poco::Path> getConfFilePaths(const Poco::Path &path)
 std::vector<Pothos::PluginPath> Pothos_ConfLoader_loadConfFiles(void)
 {
     //the default search path
-    std::vector<Poco::Path> searchPaths;
-    Poco::Path confPath = Pothos::System::getRootPath();
-    confPath.append("share");
-    confPath.append("Pothos");
-    confPath.append("modules");
-    searchPaths.push_back(confPath);
+    std::vector<std::filesystem::path> searchPaths;
+    searchPaths.push_back(std::filesystem::path(Pothos::System::getRootPath()) / "share" / "Pothos" / "modules");
 
     //support /usr/local module installs when the install prefix is /usr
     if (Pothos::System::getRootPath() == "/usr")
@@ -118,28 +113,30 @@ std::vector<Pothos::PluginPath> Pothos_ConfLoader_loadConfFiles(void)
     }
 
     //the user's home config path
-    confPath = Pothos::System::getUserConfigPath();
-    confPath.append("modules");
-    searchPaths.push_back(confPath);
+    searchPaths.push_back(std::filesystem::path(Pothos::System::getUserConfigPath()) / "modules");
 
     //separator for search paths
-    const std::string sep(1, Poco::Path::pathSeparator());
+    #ifdef _WIN32
+    const std::string sep(";");
+    #else
+    const std::string sep(":");
+    #endif
 
     //check the environment's search path
     const auto confPaths = Poco::Environment::get("POTHOS_CONF_PATH", "");
     for (const auto &confPath : Pothos::Util::Detail::split(confPaths, sep, false, false))
     {
         if (confPath.empty()) continue;
-        searchPaths.push_back(Poco::Path(confPath));
+        searchPaths.push_back(confPath);
     }
 
     //traverse the search paths and spawn futures
     std::vector<std::future<std::vector<Pothos::PluginPath>>> futures;
     for (const auto &searchPath : searchPaths)
     {
-        for (const auto &path : getConfFilePaths(searchPath.absolute()))
+        for (const auto &path : getConfFilePaths(std::filesystem::absolute(searchPath)))
         {
-            futures.push_back(std::async(std::launch::async, &loadConfFile, path.toString()));
+            futures.push_back(std::async(std::launch::async, &loadConfFile, path.string()));
         }
     }
 

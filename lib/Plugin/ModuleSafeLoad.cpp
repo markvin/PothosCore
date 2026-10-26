@@ -7,8 +7,8 @@
 #include <Pothos/Util/FileLock.hpp>
 #include <Poco/Process.h>
 #include <Poco/Pipe.h>
-#include <Poco/File.h>
-#include <Poco/Path.h>
+#include <filesystem>
+#include <chrono>
 #include <Poco/AutoPtr.h>
 #include <Poco/Util/PropertyFileConfiguration.h>
 #include <mutex>
@@ -17,9 +17,7 @@
 //! The path used to cache the safe loads
 static std::string getModuleLoaderCachePath(void)
 {
-    Poco::Path path(Pothos::System::getUserConfigPath());
-    path.append("ModuleLoader.cache");
-    return path.toString();
+    return (std::filesystem::path(Pothos::System::getUserConfigPath()) / "ModuleLoader.cache").string();
 }
 
 /***********************************************************************
@@ -50,7 +48,8 @@ static std::mutex &getLoaderMutex(void)
 //! Get the string representation of a file's modification time
 static std::string getLastModifiedTimeStr(const std::string &path)
 {
-    return std::to_string(Poco::File(path).getLastModified().epochMicroseconds());
+    const auto modified = std::filesystem::last_write_time(path).time_since_epoch();
+    return std::to_string(std::chrono::duration_cast<std::chrono::microseconds>(modified).count());
 }
 
 //! Escape PropertyFile keys, problem with slashes

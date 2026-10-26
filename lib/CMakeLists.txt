@@ -158,6 +158,8 @@ add_library(Pothos SHARED
     Util/Builtin/TestEvalExpression.cpp
     Util/Builtin/TestRingDeque.cpp
     Util/Builtin/TestStringUtils.cpp
+    Util/Builtin/TestTempFile.cpp
+    Util/Builtin/TestFileSystem.cpp
     Util/Builtin/TestSIMDDispatcherUtils.cpp
 
     Archive/ArchiveEntry.cpp

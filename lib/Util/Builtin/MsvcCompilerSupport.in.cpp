@@ -9,11 +9,9 @@
 #include <Poco/Pipe.h>
 #include <Poco/PipeStream.h>
 #include <Poco/Process.h>
-#include <Poco/TemporaryFile.h>
 #include <Poco/SharedLibrary.h>
 #include <Poco/Logger.h>
-#include <Poco/Path.h>
-#include <Poco/File.h>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 
@@ -26,34 +24,31 @@ public:
 
     MsvcCompilerSupport(void)
     {
-        Poco::Path path("@MSVC_INSTALL_PATH@");
+        std::filesystem::path path("@MSVC_INSTALL_PATH@");
 
         //MSVC 2017 and up:
         //Look several directories up for the vcvarsall.bat script.
         //This script gets invoked with the architecture name,
         //which is assumed to match the name of the linker directory.
         #if _MSC_VER >= 1910 //2017 and up
-        _vcvars_arch = path.getFileName();
+        _vcvars_arch = path.filename().string();
         for (size_t i = 0; i < 8; i++)
         {
-            if (path.getFileName() == "VC") break;
-            path = path.makeParent().makeFile();
+            if (path.filename() == "VC") break;
+            path = path.parent_path();
         }
-        if (path.getFileName() != "VC") return;
-        path = path.append("Auxiliary");
-        path = path.append("Build");
-        path = path.append("vcvarsall.bat");
-        _vcvars_path = path.toString();
+        if (path.filename() != "VC") return;
+        _vcvars_path = (path / "Auxiliary" / "Build" / "vcvarsall.bat").string();
 
         //MSVC 2015 and below:
         //Look for the vcvarsxx.bat in the linker/tools executable directory.
         //This script is invoked without arguments to source the compiler tools.
         #else
-        std::vector<std::string> files; Poco::File(path).list(files);
-        for (const auto &file : files)
+        for (const auto &entry : std::filesystem::directory_iterator(path))
         {
+            const auto file = entry.path().filename().string();
             if (file.find("vcvars") != 0) continue; //expecting vcvarsxx.bat
-            _vcvars_path = Poco::Path(path, file).absolute().toString();
+            _vcvars_path = std::filesystem::absolute(entry.path()).string();
         }
 
         #endif
@@ -144,7 +139,7 @@ std::string MsvcCompilerSupport::compileCppModule(const Pothos::Util::CompilerAr
     for (std::string line; std::getline(is, line);) outBuff += line+'\n';
 
     //handle error case
-    if (ph.wait() != 0 or not Poco::File(outPath.c_str()).exists())
+    if (ph.wait() != 0 or not std::filesystem::exists(outPath))
     {
         throw Pothos::Exception("MsvcCompilerSupport::compileCppModule", outBuff);
     }

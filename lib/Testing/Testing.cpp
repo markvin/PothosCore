@@ -4,7 +4,7 @@
 
 #include <Pothos/Testing.hpp>
 #include <Poco/Logger.h>
-#include <Poco/Path.h>
+#include <filesystem>
 #include <format>
 #include <mutex>
 #include <vector>
@@ -88,7 +88,7 @@ void Pothos::TestingBase::report(
 
     //format an informational message
     std::string testMessage = std::format(
-        "{}:{}\n  {}", Poco::Path(file).getFileName(), line, message);
+        "{}:{}\n  {}", std::filesystem::path(file).filename().string(), line, message);
     if (error.empty())
     {
         poco_debug(Poco::Logger::get("Pothos.Testing"), testMessage);
