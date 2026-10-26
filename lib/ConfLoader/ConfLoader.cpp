@@ -5,7 +5,7 @@
 #include <Pothos/Plugin.hpp>
 #include "Util/StringUtils.hpp"
 #include <Poco/SharedLibrary.h>
-#include <Poco/Environment.h>
+#include "Platform/Environment.hpp"
 #include <Poco/Logger.h>
 #include <filesystem>
 #include <system_error>
@@ -123,7 +123,7 @@ std::vector<Pothos::PluginPath> Pothos_ConfLoader_loadConfFiles(void)
     #endif
 
     //check the environment's search path
-    const auto confPaths = Poco::Environment::get("POTHOS_CONF_PATH", "");
+    const auto confPaths = Pothos::Platform::getEnv("POTHOS_CONF_PATH").value_or("");
     for (const auto &confPath : Pothos::Util::Detail::split(confPaths, sep, false, false))
     {
         if (confPath.empty()) continue;

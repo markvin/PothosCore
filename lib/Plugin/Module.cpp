@@ -7,14 +7,13 @@
 #include <Pothos/Plugin/Exception.hpp>
 #include <Pothos/Object.hpp> //pulls in full Object implementation
 #include <Poco/SharedLibrary.h>
-#include <Poco/Platform.h>
 #include <Poco/Logger.h>
 #include <mutex>
 
 /***********************************************************************
  * Disabler for windows error messages
  **********************************************************************/
-#if POCO_OS == POCO_OS_WINDOWS_NT
+#ifdef _WIN32
 
 #include <windows.h>
 

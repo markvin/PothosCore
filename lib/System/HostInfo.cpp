@@ -1,11 +1,10 @@
 // Copyright (c) 2013-2014 Josh Blum
 // SPDX-License-Identifier: BSL-1.0
 
-#include <Poco/Process.h>
 #include <Pothos/System/HostInfo.hpp>
 #include <Pothos/Managed.hpp>
 #include <Pothos/Object/Serialize.hpp>
-#include <Poco/Environment.h>
+#include "Platform/Environment.hpp"
 
 Pothos::System::HostInfo::HostInfo(void)
 {
@@ -15,13 +14,13 @@ Pothos::System::HostInfo::HostInfo(void)
 Pothos::System::HostInfo Pothos::System::HostInfo::get(void)
 {
     HostInfo info;
-    info.osName = Poco::Environment::osName();
-    info.osVersion = Poco::Environment::osVersion();
-    info.osArchitecture = Poco::Environment::osArchitecture();
-    info.nodeName = Poco::Environment::nodeName();
-    info.nodeId = Poco::Environment::nodeId();
-    info.processorCount = Poco::Environment::processorCount();
-    info.pid = std::to_string(Poco::Process::id());
+    info.osName = Pothos::Platform::osName();
+    info.osVersion = Pothos::Platform::osVersion();
+    info.osArchitecture = Pothos::Platform::osArchitecture();
+    info.nodeName = Pothos::Platform::nodeName();
+    info.nodeId = Pothos::Platform::nodeId();
+    info.processorCount = Pothos::Platform::processorCount();
+    info.pid = std::to_string(Pothos::Platform::currentProcessId());
     return info;
 }
 

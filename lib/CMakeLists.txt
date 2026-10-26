@@ -160,6 +160,8 @@ add_library(Pothos SHARED
     Util/Builtin/TestStringUtils.cpp
     Util/Builtin/TestTempFile.cpp
     Util/Builtin/TestFileSystem.cpp
+
+    Platform/Builtin/TestEnvironment.cpp
     Util/Builtin/TestSIMDDispatcherUtils.cpp
 
     Archive/ArchiveEntry.cpp
@@ -176,8 +178,11 @@ if(WIN32)
     target_sources(Pothos PRIVATE Framework/SharedBufferWindows.cpp)
     target_sources(Pothos PRIVATE Util/FileLockWindows.cpp)
     target_sources(Pothos PRIVATE Util/Builtin/WindowsGetLogicalProcessorInfo.cpp)
+    target_sources(Pothos PRIVATE Platform/EnvironmentWindows.cpp)
+    target_link_libraries(Pothos PRIVATE iphlpapi) #GetAdaptersAddresses
 elseif(UNIX)
     target_sources(Pothos PRIVATE Framework/SharedBufferUnix.cpp)
+    target_sources(Pothos PRIVATE Platform/EnvironmentUnix.cpp)
     target_sources(Pothos PRIVATE Util/FileLockUnix.cpp)
 endif()
 

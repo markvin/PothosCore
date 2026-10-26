@@ -2,21 +2,19 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include <Pothos/Util/UID.hpp>
-#include <Poco/URI.h>
-#include <Poco/Environment.h>
-#include <Poco/Process.h>
+#include "Platform/Environment.hpp"
 #include <format>
 #include <atomic>
 
 static std::atomic<unsigned long long> count;
 
 Pothos::Util::UID::UID(void):
-    _uid(Poco::URI("pothos", Poco::Environment::nodeName(), std::format(
-        "{}/{}/{}",
-        Poco::Environment::nodeId(),
-        std::to_string(Poco::Process::id()),
-        std::to_string(count.fetch_add(1, std::memory_order_relaxed))
-    )).toString())
+    _uid(std::format(
+        "pothos://{}/{}/{}/{}",
+        Pothos::Platform::nodeName(),
+        Pothos::Platform::nodeId(),
+        Pothos::Platform::currentProcessId(),
+        count.fetch_add(1, std::memory_order_relaxed)))
 {
     return;
 }

@@ -9,7 +9,6 @@
 #include "Util/FileSystem.hpp"
 #include <filesystem>
 #include <Poco/Logger.h>
-#include <Poco/Platform.h>
 
 static Poco::Logger& getLogger()
 {
@@ -17,7 +16,7 @@ static Poco::Logger& getLogger()
     return logger;
 }
 
-#if defined(POCO_OS_FAMILY_UNIX)
+#if !defined(_WIN32)
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/mman.h>

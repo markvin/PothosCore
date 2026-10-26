@@ -34,17 +34,10 @@ lib/Remote/RemoteProxy.cpp
 lib/Remote/RemoteProxyHandle.cpp
 lib/Remote/Server.cpp
 lib/Remote/ServerHandler.cpp
-lib/System/HostInfo.cpp
 lib/System/Logger.cpp
-lib/System/NumaInfoOSX.cpp
-lib/System/NumaInfoOther.cpp
-lib/System/Paths.in.cpp
 lib/Testing/ScopedBlockInRegistry.hpp
 lib/Testing/ScopedPlugin.hpp
 lib/Testing/Testing.cpp
-lib/Util/Builtin/CompilerStdFlags.hpp
 lib/Util/Builtin/GccClangCompilerSupport.in.cpp
 lib/Util/Builtin/MsvcCompilerSupport.in.cpp
-lib/Util/Builtin/TestErrorCodeHandling.cpp
 lib/Util/Network.cpp
-lib/Util/UID.cpp

@@ -5,7 +5,6 @@
 #include <Pothos/System.hpp>
 #include <Pothos/Plugin.hpp>
 #include <Poco/SharedLibrary.h>
-#include <Poco/Environment.h>
 #include <Poco/Logger.h>
 #include <filesystem>
 #include <system_error>

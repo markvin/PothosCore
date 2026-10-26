@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include <Pothos/System/NumaInfo.hpp>
-#include <Poco/Environment.h>
+#include "Platform/Environment.hpp"
 
 //NUMA INFO Other assumes one NUMA node with all CPUs
 
@@ -12,7 +12,7 @@ std::vector<Pothos::System::NumaInfo> Pothos::System::NumaInfo::get(void)
     NumaInfo info;
 
     //a list of all the CPUs
-    for (size_t i = 0; i < Poco::Environment::processorCount(); i++)
+    for (size_t i = 0; i < Pothos::Platform::processorCount(); i++)
     {
         info.cpus.push_back(i);
     }

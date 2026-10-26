@@ -1,15 +1,13 @@
 // Copyright (c) 2021 Nicholas Corgan
 // SPDX-License-Identifier: BSL-1.0
 
-#include <Poco/Platform.h>
-
 // Only supported in MSVC 2017+ (no C++11 flag)
-#if defined(POCO_COMPILER_MSVC) && _MSC_VER >= 1910
+#if defined(_MSC_VER) && _MSC_VER >= 1910
     #define CPP11_COMPILER_FLAG ""
     #define CPP14_COMPILER_FLAG "/std:c++14"
     #define CPP17_COMPILER_FLAG "/std:c++17"
     #define CPP20_COMPILER_FLAG "/std:c++latest"
-#elif defined(POCO_COMPILER_GCC) || defined(POCO_COMPILER_MINGW) || defined(POCO_COMPILER_CLANG)
+#elif defined(__GNUC__) || defined(__clang__)
     #define CPP11_COMPILER_FLAG "-std=c++11"
     #define CPP14_COMPILER_FLAG "-std=c++14"
     #define CPP17_COMPILER_FLAG "-std=c++17"

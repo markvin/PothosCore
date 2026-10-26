@@ -5,10 +5,9 @@
 #include <Pothos/Util/Network.hpp>
 #include <Pothos/Plugin/Static.hpp> //static block
 #include <Poco/Logger.h>
-#include <Poco/Environment.h>
+#include "Platform/Environment.hpp"
 #include <Poco/ConsoleChannel.h>
-#include <Poco/Platform.h>
-#if POCO_OS == POCO_OS_WINDOWS_NT
+#ifdef _WIN32
 #include <Poco/WindowsConsoleChannel.h>
 #endif
 #include <Poco/NullChannel.h>
@@ -165,10 +164,10 @@ static void __startSyslogForwarding(const std::string &addr)
 {
     forwarder = new Poco::Net::RemoteSyslogChannel(addr, ""/*empty name*/);
     Poco::Logger::get("").setChannel(forwarder);
-    Poco::Logger::get("").setLevel(Poco::Environment::get("POTHOS_LOG_LEVEL", "information"));
+    Poco::Logger::get("").setLevel(Pothos::Platform::getEnv("POTHOS_LOG_LEVEL").value_or("information"));
 
     //subprocesses will automatically forward to this address
-    Poco::Environment::set("POTHOS_SYSLOG_ADDR", addr);
+    Pothos::Platform::setEnv("POTHOS_SYSLOG_ADDR", addr);
 }
 
 void Pothos::System::Logger::startSyslogForwarding(const std::string &addr)
@@ -198,11 +197,11 @@ void Pothos::System::Logger::forwardStdIoToLogging(const std::string &source)
 
 static void __setupDefaultLogging(void)
 {
-    const std::string logLevel = Poco::Environment::get("POTHOS_LOG_LEVEL", "information");
-    const std::string logChannel = Poco::Environment::get("POTHOS_LOG_CHANNEL", "color");
-    const std::string logFile = Poco::Environment::get("POTHOS_LOG_FILE", "pothos.log");
-    const std::string logFomat = Poco::Environment::get("POTHOS_LOG_FORMAT", "%Y-%m-%d %H:%M:%S %s: %t");
-    const std::string logTimeZone = Poco::Environment::get("POTHOS_LOG_TIMEZONE", "local"); //local or UTC
+    const std::string logLevel = Pothos::Platform::getEnv("POTHOS_LOG_LEVEL").value_or("information");
+    const std::string logChannel = Pothos::Platform::getEnv("POTHOS_LOG_CHANNEL").value_or("color");
+    const std::string logFile = Pothos::Platform::getEnv("POTHOS_LOG_FILE").value_or("pothos.log");
+    const std::string logFomat = Pothos::Platform::getEnv("POTHOS_LOG_FORMAT").value_or("%Y-%m-%d %H:%M:%S %s: %t");
+    const std::string logTimeZone = Pothos::Platform::getEnv("POTHOS_LOG_TIMEZONE").value_or("local"); //local or UTC
 
     //set the logging level at the chosen root of logging inheritance
     Poco::Logger::get("").setLevel(logLevel);
@@ -210,7 +209,7 @@ static void __setupDefaultLogging(void)
     //create and set the channel with the type string specified
     Poco::AutoPtr<Poco::Channel> channel;
     if (logChannel == "null") channel = new Poco::NullChannel();
-    #if POCO_OS == POCO_OS_WINDOWS_NT
+    #ifdef _WIN32
     else if (logChannel == "console") channel = new Poco::WindowsConsoleChannel();
     else if (logChannel == "color") channel = new Poco::WindowsColorConsoleChannel();
     #else
@@ -234,7 +233,7 @@ static void __setupDefaultLogging(void)
     Poco::Logger::get("").setChannel(splitterChannel);
 
     //syslog forwarding when the address is specified
-    const auto syslogAddr = Poco::Environment::get("POTHOS_SYSLOG_ADDR", "");
+    const auto syslogAddr = Pothos::Platform::getEnv("POTHOS_SYSLOG_ADDR").value_or("");
     if (not syslogAddr.empty()) __startSyslogForwarding(syslogAddr);
 }
 

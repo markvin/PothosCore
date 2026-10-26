@@ -4,10 +4,12 @@
 #include <Pothos/System/Paths.hpp>
 #include <Pothos/System/Version.hpp>
 #include <Pothos/System/Exception.hpp>
-#include <Poco/Environment.h>
+#include "Platform/Environment.hpp"
 #include <filesystem>
 #include <cstdlib>
-#include <Poco/Foundation.h>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include "Util/StringUtils.hpp"
 #include <algorithm>
 #include <iterator>
@@ -20,23 +22,23 @@ static std::string absoluteString(const std::filesystem::path &path)
 //the user's home directory (HOME, or USERPROFILE on Windows)
 static std::filesystem::path homePath(void)
 {
-    #if defined(POCO_OS_FAMILY_WINDOWS)
-    const char *home = std::getenv("USERPROFILE");
+    #ifdef _WIN32
+    const auto home = Pothos::Platform::getEnv("USERPROFILE");
     #else
-    const char *home = std::getenv("HOME");
+    const auto home = Pothos::Platform::getEnv("HOME");
     #endif
-    return home == nullptr ? std::filesystem::current_path() : std::filesystem::path(home);
+    return home ? std::filesystem::path(*home) : std::filesystem::current_path();
 }
 
 std::string Pothos::System::getRootPath(void)
 {
-    if (Poco::Environment::has("@POTHOS_ROOT_ENV@"))
-        return absoluteString(Poco::Environment::get("@POTHOS_ROOT_ENV@"));
+    if (const auto root = Pothos::Platform::getEnv("@POTHOS_ROOT_ENV@"))
+        return absoluteString(*root);
 
     // Get the path to the current dynamic linked library.
     // The path to this library can be used to determine
     // the installation root without prior knowledge.
-    #if defined(POCO_OS_FAMILY_WINDOWS)
+    #ifdef _WIN32
     char path[MAX_PATH];
     HMODULE hm = NULL;
     if (GetModuleHandleExA(
@@ -65,13 +67,13 @@ std::string Pothos::System::getDataPath(void)
 std::string Pothos::System::getUserDataPath(void)
 {
     std::filesystem::path dataPath;
-    if (Poco::Environment::has("XDG_DATA_HOME"))
+    if (const auto xdg = Pothos::Platform::getEnv("XDG_DATA_HOME"))
     {
-        dataPath = Poco::Environment::get("XDG_DATA_HOME");
+        dataPath = *xdg;
     }
-    else if (Poco::Environment::has("@APPDATA_ENV@"))
+    else if (const auto appData = Pothos::Platform::getEnv("@APPDATA_ENV@"))
     {
-        dataPath = Poco::Environment::get("@APPDATA_ENV@");
+        dataPath = *appData;
     }
     else
     {
@@ -83,13 +85,13 @@ std::string Pothos::System::getUserDataPath(void)
 std::string Pothos::System::getUserConfigPath(void)
 {
     std::filesystem::path configPath;
-    if (Poco::Environment::has("XDG_CONFIG_HOME"))
+    if (const auto xdg = Pothos::Platform::getEnv("XDG_CONFIG_HOME"))
     {
-        configPath = Poco::Environment::get("XDG_CONFIG_HOME");
+        configPath = *xdg;
     }
-    else if (Poco::Environment::has("@APPDATA_ENV@"))
+    else if (const auto appData = Pothos::Platform::getEnv("@APPDATA_ENV@"))
     {
-        configPath = Poco::Environment::get("@APPDATA_ENV@");
+        configPath = *appData;
     }
     else
     {
@@ -101,7 +103,7 @@ std::string Pothos::System::getUserConfigPath(void)
 std::string Pothos::System::getPothosUtilExecutablePath(void)
 {
     auto utilPath = std::filesystem::path(Pothos::System::getRootPath()) / "@CMAKE_INSTALL_BINDIR@" / "PothosUtil";
-    #if defined(POCO_OS_FAMILY_WINDOWS)
+    #ifdef _WIN32
     utilPath.replace_extension("exe");
     #endif
 
@@ -111,9 +113,9 @@ std::string Pothos::System::getPothosUtilExecutablePath(void)
 std::string Pothos::System::getPothosRuntimeLibraryPath(void)
 {
     std::filesystem::path dllPath(Pothos::System::getRootPath());
-    #if defined(POCO_OS_FAMILY_WINDOWS)
+    #ifdef _WIN32
     dllPath /= "@CMAKE_INSTALL_BINDIR@";
-    #elif defined(POCO_OS_FAMILY_UNIX)
+    #else
     dllPath /= "@CMAKE_INSTALL_LIBDIR@";
     #endif
     dllPath /= POTHOS_LIBRARY_NAME;
@@ -150,14 +152,14 @@ std::vector<std::string> Pothos::System::getPothosModuleSearchPaths()
     }
 
     //separator for search paths
-    #if defined(POCO_OS_FAMILY_WINDOWS)
+    #ifdef _WIN32
     const std::string sep(";");
     #else
     const std::string sep(":");
     #endif
 
     //check the environment's search path
-    const auto pluginPaths = Poco::Environment::get("POTHOS_PLUGIN_PATH", "");
+    const auto pluginPaths = Pothos::Platform::getEnv("POTHOS_PLUGIN_PATH").value_or("");
     for (const auto &pluginPath : Pothos::Util::Detail::split(pluginPaths, sep, false, false))
     {
         if (pluginPath.empty()) continue;
