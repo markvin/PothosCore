@@ -164,12 +164,28 @@ Pothos::Platform::Process Pothos::Platform::Process::launch(const std::filesyste
     if (opts.out != nullptr) posix_spawn_file_actions_adddup2(&actions, int(opts.out->writeHandle()), STDOUT_FILENO);
     if (opts.err != nullptr) posix_spawn_file_actions_adddup2(&actions, int(opts.err->writeHandle()), STDERR_FILENO);
 
+    //the child inherits only stdin, stdout and stderr: other descriptors
+    //(sockets and files of other libraries, without close-on-exec) are closed
+    posix_spawnattr_t attr;
+    posix_spawnattr_init(&attr);
+    #if defined(__APPLE__)
+    posix_spawnattr_setflags(&attr, POSIX_SPAWN_CLOEXEC_DEFAULT);
+    if (opts.in == nullptr) posix_spawn_file_actions_addinherit_np(&actions, STDIN_FILENO);
+    if (opts.out == nullptr) posix_spawn_file_actions_addinherit_np(&actions, STDOUT_FILENO);
+    if (opts.err == nullptr) posix_spawn_file_actions_addinherit_np(&actions, STDERR_FILENO);
+    #elif defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 34))
+    posix_spawn_file_actions_addclosefrom_np(&actions, STDERR_FILENO+1);
+    #else
+    #warning "child processes inherit descriptors without close-on-exec on this platform"
+    #endif
+
     auto impl = std::make_shared<Impl>();
     int ret = 0;
     {
         std::lock_guard<std::mutex> lock(fdMutex());
-        ret = ::posix_spawnp(&impl->pid, argStrs.front().c_str(), &actions, nullptr, argv.data(), envp.data());
+        ret = ::posix_spawnp(&impl->pid, argStrs.front().c_str(), &actions, &attr, argv.data(), envp.data());
     }
+    posix_spawnattr_destroy(&attr);
     posix_spawn_file_actions_destroy(&actions);
 
     //the child owns its ends now: close the parent's copies

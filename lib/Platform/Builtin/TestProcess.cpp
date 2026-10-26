@@ -9,6 +9,10 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#ifndef _WIN32
+#include <fcntl.h>
+#include <unistd.h>
+#endif
 
 using namespace Pothos::Platform;
 
@@ -94,6 +98,35 @@ POTHOS_TEST_BLOCK("/platform/tests", test_process_large_output)
     POTHOS_TEST_EQUAL(proc.wait(), 0);
     POTHOS_TEST_EQUAL(count, 4096u);
 }
+
+#ifndef _WIN32
+//helper for test_process_no_fd_inheritance: reports whether a descriptor is open
+POTHOS_TEST_BLOCK("/platform/tests", helper_check_fd)
+{
+    const auto fdStr = getEnv("POTHOS_TEST_CHECK_FD");
+    if (not fdStr) return;
+    const bool open = ::fcntl(std::stoi(*fdStr), F_GETFD) != -1;
+    std::cout << (open ? "fd-open" : "fd-closed") << std::endl;
+}
+
+POTHOS_TEST_BLOCK("/platform/tests", test_process_no_fd_inheritance)
+{
+    //a descriptor without close-on-exec, like a socket from another library
+    const int fd = ::open("/dev/null", O_RDONLY);
+    POTHOS_TEST_TRUE(fd >= 0);
+    Pipe out;
+    ProcessOptions opts;
+    opts.args = {"--self-test1", "/platform/tests/helper_check_fd"};
+    opts.env = {{"POTHOS_TEST_CHECK_FD", std::to_string(fd)}};
+    opts.out = &out;
+    auto proc = Process::launch(Pothos::System::getPothosUtilExecutablePath(), opts);
+    PipeInputStream is(out);
+    const std::string text((std::istreambuf_iterator<char>(is)), std::istreambuf_iterator<char>());
+    proc.wait();
+    ::close(fd);
+    POTHOS_TEST_TRUE(text.find("fd-closed") != std::string::npos);
+}
+#endif
 
 POTHOS_TEST_BLOCK("/platform/tests", test_process_launch_failure)
 {
