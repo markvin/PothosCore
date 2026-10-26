@@ -143,6 +143,28 @@ if(ENABLE_LIBRARY)
 endif(ENABLE_LIBRARY)
 
 ########################################################################
+# Tests: the self-tests need an installed layout (see Pothos::init()),
+# so the build is first staged into a prefix inside the build tree.
+########################################################################
+set(POTHOS_STAGE_DIR ${CMAKE_BINARY_DIR}/stage)
+set(POTHOS_SELFTEST_TIMEOUT 900 CACHE STRING "Timeout in seconds for the self-tests")
+
+add_test(NAME pothos.stage
+    COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR} --prefix ${POTHOS_STAGE_DIR} --config $<CONFIG>)
+set_tests_properties(pothos.stage PROPERTIES FIXTURES_SETUP pothos_stage)
+
+add_test(NAME pothos.selftests
+    COMMAND ${CMAKE_COMMAND}
+        -DPREFIX=${POTHOS_STAGE_DIR}
+        -DHOME_DIR=${CMAKE_BINARY_DIR}/test-home
+        -DBINDIR=${CMAKE_INSTALL_BINDIR}
+        -DLIBDIR=${CMAKE_INSTALL_LIBDIR}
+        -P ${PROJECT_SOURCE_DIR}/cmake/PothosRunSelfTests.cmake)
+set_tests_properties(pothos.selftests PROPERTIES
+    FIXTURES_REQUIRED pothos_stage
+    TIMEOUT ${POTHOS_SELFTEST_TIMEOUT})
+
+########################################################################
 # uninstall target
 ########################################################################
 if (TARGET uninstall)
