@@ -10,6 +10,7 @@
 #include <atomic>
 #include <set>
 #include <iostream>
+#include <chrono>
 
 /***********************************************************************
  * Actor definition

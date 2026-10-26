@@ -14,6 +14,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <sstream>
 
 static std::string join(
     const std::vector<std::string>& stringVec,

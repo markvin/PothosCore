@@ -8,6 +8,7 @@
 #include <mutex>
 #include <thread>
 #include <condition_variable>
+#include <chrono>
 
 /*!
  * The implementation of the exclusive access to the actor.

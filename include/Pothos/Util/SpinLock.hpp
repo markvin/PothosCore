@@ -11,6 +11,7 @@
 #pragma once
 #include <Pothos/Config.hpp>
 #include <atomic>
+#include <mutex>
 
 namespace Pothos {
 namespace Util {

@@ -7,6 +7,7 @@
 #include <Poco/Net/SocketAddress.h>
 #include <Poco/URI.h>
 #include <future>
+#include <functional>
 
 /***********************************************************************
  * helpers to create network iogress flows

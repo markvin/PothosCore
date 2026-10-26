@@ -17,6 +17,7 @@
 #include <complex>
 #include <algorithm>
 #include <cstdlib> //atoi
+#include <functional>
 
 class SuperBar
 {

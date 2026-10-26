@@ -7,6 +7,7 @@
 #include <Pothos/Callable.hpp>
 #include <Pothos/Plugin.hpp>
 #include <cassert>
+#include <functional>
 
 Pothos::BufferManagerArgs::BufferManagerArgs(void):
     numBuffers(4),

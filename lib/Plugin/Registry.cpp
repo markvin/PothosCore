@@ -335,6 +335,7 @@ static auto managedPluginRegistry = Pothos::ManagedClass()
 
 
 #include <Pothos/Object/Serialize.hpp>
+#include <algorithm>
 
 namespace Pothos { namespace serialization {
 template <class Archive>

@@ -183,6 +183,7 @@ Pothos::ProxyEnvironment::Sptr Pothos::RemoteClient::makeEnvironment(const std::
 }
 
 #include <Pothos/Managed.hpp>
+#include <chrono>
 
 static auto managedRemoteClient = Pothos::ManagedClass()
     .registerConstructor<Pothos::RemoteClient>()

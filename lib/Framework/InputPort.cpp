@@ -268,6 +268,7 @@ static auto managedInputPort = Pothos::ManagedClass()
 
 #include <Pothos/Object.hpp>
 #include <Pothos/Plugin.hpp>
+#include <mutex>
 
 static std::string pothosInputPortToString(const Pothos::InputPort& inputPort)
 {

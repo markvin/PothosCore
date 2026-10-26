@@ -5,6 +5,7 @@
 #include <Poco/Logger.h>
 #include <iostream>
 #include <cassert>
+#include <chrono>
 
 ThreadEnvironment::ThreadEnvironment(const Pothos::ThreadPoolArgs &args):
     _args(args),

@@ -12,6 +12,7 @@
 #include <Pothos/Config.hpp>
 #include <string>
 #include <memory>
+#include <mutex>
 
 namespace Pothos {
 namespace Util {

@@ -7,6 +7,7 @@
 #include <Poco/Format.h>
 #include <iostream>
 #include <future>
+#include <algorithm>
 
 struct FutureInfo
 {

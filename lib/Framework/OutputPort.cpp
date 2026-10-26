@@ -139,6 +139,8 @@ static auto managedOutputPort = Pothos::ManagedClass()
 
 #include <Pothos/Object/RegisterToString.hpp>
 #include <Pothos/Plugin.hpp>
+#include <functional>
+#include <mutex>
 
 static std::string pothosOutputPortToString(const Pothos::OutputPort& outputPort)
 {

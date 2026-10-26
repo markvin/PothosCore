@@ -6,6 +6,7 @@
 #include <Pothos/Util/SpinLockRW.hpp>
 #include <Poco/HashMap.h>
 #include <mutex>
+#include <algorithm>
 
 static Pothos::Util::SpinLockRW &getModulePathsMutex(void)
 {

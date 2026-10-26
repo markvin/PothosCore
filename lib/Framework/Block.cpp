@@ -396,6 +396,7 @@ static auto managedOutputPortMap = Pothos::ManagedClass()
  **********************************************************************/
 
 #include <Pothos/Object/RegisterToString.hpp>
+#include <functional>
 
 static std::string pothosBlockToString(const Pothos::Block& block)
 {

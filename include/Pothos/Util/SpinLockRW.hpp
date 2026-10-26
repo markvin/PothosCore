@@ -12,6 +12,7 @@
 #include <Pothos/Config.hpp>
 #include <thread>
 #include <atomic>
+#include <mutex>
 
 namespace Pothos {
 namespace Util {

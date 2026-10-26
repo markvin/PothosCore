@@ -15,6 +15,7 @@
 #include <Pothos/Object/Object.hpp>
 #include <vector>
 #include <memory>
+#include <functional>
 
 namespace Pothos {
 

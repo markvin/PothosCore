@@ -622,6 +622,8 @@ std::string Pothos::WorkerActor::queryWorkStats(void)
 }
 
 #include <Pothos/Managed.hpp>
+#include <chrono>
+#include <mutex>
 
 static auto managedWorkerActor = Pothos::ManagedClass()
     .registerClass<Pothos::WorkerActor>()
