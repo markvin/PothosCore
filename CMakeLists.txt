@@ -130,6 +130,13 @@ block()
     add_subdirectory(poco EXCLUDE_FROM_ALL)
 endblock()
 
+#poco's bundled zlib treats modern macOS (TARGET_OS_MAC) as classic Mac OS
+#and redefines fdopen() as NULL, which breaks the SDK's stdio.h declaration;
+#an identity macro makes its "#ifndef fdopen" guard skip that redefinition
+if (APPLE)
+    target_compile_definitions(Foundation PRIVATE "fdopen=fdopen")
+endif ()
+
 install(TARGETS Foundation Util XML Net
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} NAMELINK_SKIP COMPONENT pothos_runtime
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT pothos_runtime)
