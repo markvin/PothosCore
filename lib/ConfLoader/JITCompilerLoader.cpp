@@ -9,7 +9,7 @@
 #include <Poco/Logger.h>
 #include <Poco/Path.h>
 #include <Poco/File.h>
-#include <Poco/StringTokenizer.h>
+#include "Util/StringUtils.hpp"
 #include <Poco/SharedLibrary.h>
 #include <memory>
 #include <mutex>
@@ -148,8 +148,7 @@ static Pothos::Object opaqueJITCompilerFactory(
 static std::vector<Pothos::PluginPath> JITCompilerLoader(const std::map<std::string, std::string> &config)
 {
     std::vector<Pothos::PluginPath> entries;
-    const auto tokOptions = Poco::StringTokenizer::TOK_IGNORE_EMPTY | Poco::StringTokenizer::TOK_TRIM;
-    const std::string tokSep(" \t");
+        const std::string tokSep(" \t");
 
     //create handle to hold shared compilation result
     std::shared_ptr<RegistryJITResult> handle(new RegistryJITResult());
@@ -172,7 +171,7 @@ static std::vector<Pothos::PluginPath> JITCompilerLoader(const std::map<std::str
     //load the includes: make absolute to the config dir
     const auto includesIt = config.find("includes");
     if (includesIt != config.end()) for (const auto &include :
-        Poco::StringTokenizer(includesIt->second, tokSep, tokOptions))
+        Pothos::Util::Detail::split(includesIt->second, tokSep))
     {
         const auto absPath = Poco::Path(include).makeAbsolute(rootDir);
         handle->compilerArgs.includes.push_back(absPath.toString());
@@ -181,7 +180,7 @@ static std::vector<Pothos::PluginPath> JITCompilerLoader(const std::map<std::str
     //load the libraries: make absolute to the config dir
     const auto librariesIt = config.find("libraries");
     if (librariesIt != config.end()) for (const auto &library :
-        Poco::StringTokenizer(librariesIt->second, tokSep, tokOptions))
+        Pothos::Util::Detail::split(librariesIt->second, tokSep))
     {
         const auto absPath = Poco::Path(library).makeAbsolute(rootDir);
         handle->compilerArgs.libraries.push_back(absPath.toString());
@@ -190,7 +189,7 @@ static std::vector<Pothos::PluginPath> JITCompilerLoader(const std::map<std::str
     //load the sources: make absolute to the config dir
     const auto sourcesIt = config.find("sources");
     if (sourcesIt != config.end()) for (const auto &source :
-        Poco::StringTokenizer(sourcesIt->second, tokSep, tokOptions))
+        Pothos::Util::Detail::split(sourcesIt->second, tokSep))
     {
         const auto absPath = Poco::Path(source).makeAbsolute(rootDir);
         handle->compilerArgs.sources.push_back(absPath.toString());
@@ -199,7 +198,7 @@ static std::vector<Pothos::PluginPath> JITCompilerLoader(const std::map<std::str
     //load the flags:
     const auto flagsIt = config.find("flags");
     if (flagsIt != config.end()) for (const auto &flag :
-        Poco::StringTokenizer(flagsIt->second, tokSep, tokOptions))
+        Pothos::Util::Detail::split(flagsIt->second, tokSep))
     {
         handle->compilerArgs.flags.push_back(flag);
     }
@@ -208,7 +207,7 @@ static std::vector<Pothos::PluginPath> JITCompilerLoader(const std::map<std::str
     std::vector<std::string> docSources;
     const auto docSourcesIt = config.find("doc_sources");
     if (docSourcesIt != config.end()) for (const auto &docSource :
-        Poco::StringTokenizer(docSourcesIt->second, tokSep, tokOptions))
+        Pothos::Util::Detail::split(docSourcesIt->second, tokSep))
     {
         const auto absPath = Poco::Path(docSource).makeAbsolute(rootDir);
         docSources.push_back(absPath.toString());
@@ -218,7 +217,7 @@ static std::vector<Pothos::PluginPath> JITCompilerLoader(const std::map<std::str
     //load the factories: use this when providing no block description
     const auto factoriesIt = config.find("factories");
     if (factoriesIt != config.end()) for (const auto &factory :
-        Poco::StringTokenizer(factoriesIt->second, tokSep, tokOptions))
+        Pothos::Util::Detail::split(factoriesIt->second, tokSep))
     {
         handle->factories.push_back(Pothos::PluginPath("/blocks", factory));
     }

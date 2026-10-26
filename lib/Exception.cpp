@@ -30,7 +30,7 @@
 
 
 #include <Pothos/Exception.hpp>
-#include <Poco/String.h>
+#include "Util/StringUtils.hpp"
 
 
 namespace Pothos {
@@ -59,7 +59,7 @@ Exception::Exception(const std::string& msg, const std::string& arg, int code): 
 Exception::Exception(const std::string& msg, const Exception& nested, int code): _msg(msg), _pNested(nested.clone()), _code(code)
 {
 	_msg.append("\n -> {");
-	_msg.append(Poco::trim(Poco::replace(_pNested->_msg, "\n", "\n  ")));
+	_msg.append(Pothos::Util::Detail::trim(Pothos::Util::Detail::replaceAll(_pNested->_msg, "\n", "\n  ")));
 	_msg.append("}");
 }
 

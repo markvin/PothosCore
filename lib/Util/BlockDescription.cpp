@@ -5,12 +5,9 @@
 #include <Pothos/Util/BlockDescription.hpp>
 #include <Pothos/Exception.hpp>
 #include <Pothos/Plugin.hpp>
-#include <Poco/String.h>
+#include "Util/StringUtils.hpp"
 #include <Poco/Format.h>
 #include <Poco/Path.h>
-#include <Poco/StringTokenizer.h>
-#include <Poco/NumberFormatter.h>
-#include <Poco/Types.h>
 #include <Poco/File.h>
 #include <Poco/Path.h>
 #include <fstream>
@@ -55,10 +52,17 @@ bool trimCheck(const MatchType &m, const size_t ofs = 1)
 /***********************************************************************
  * misc utils
  **********************************************************************/
+static std::string trimLeft(const std::string &input)
+{
+    size_t i = 0;
+    while (i < input.size() and Pothos::Util::Detail::isSpace(input[i])) i++;
+    return input.substr(i);
+}
+
 static std::string titleCase(const std::string &input)
 {
     if (input.empty()) return input;
-    return Poco::toUpper(input.substr(0, 1)) + input.substr(1);
+    return Pothos::Util::Detail::toUpper(input.substr(0, 1)) + input.substr(1);
 }
 
 //! Split an args string into a vector of string at the comma separators
@@ -76,7 +80,7 @@ static std::vector<std::string> splitCommaArgs(const std::string &argsStr)
             "bracket mismatch for comma-separated args", argsStr);
     }
     if (args.back().empty()) args.resize(args.size()-1);
-    for (auto &arg : args) arg = Poco::trim(arg);
+    for (auto &arg : args) arg = std::string(Pothos::Util::Detail::trim(arg));
     return args;
 }
 
@@ -100,7 +104,7 @@ static void extractArgs(const std::string &argsStr, json &args, json &kwargs)
 {
     for (const auto &arg : splitCommaArgs(argsStr))
     {
-        const Poco::StringTokenizer kvpTok(arg, "=", Poco::StringTokenizer::TOK_TRIM);
+        const auto kvpTok = Pothos::Util::Detail::split(arg, "=", true, false);
         const std::vector<std::string> kvp(kvpTok.begin(), kvpTok.end());
         if (kvp.size() == 2) kwargs[kvp[0]] = exprToJSON(kvp[1]);
         else args.push_back(exprToJSON(arg));
@@ -129,8 +133,8 @@ static void loadArgs(
 static std::string bracketEscapeEncode(const std::string &payload)
 {
     std::string out = payload;
-    Poco::replaceInPlace(out, "\\[", "\\x5b");
-    Poco::replaceInPlace(out, "\\]", "\\x5d");
+    out = Pothos::Util::Detail::replaceAll(out, "\\[", "\\x5b");
+    out = Pothos::Util::Detail::replaceAll(out, "\\]", "\\x5d");
     return out;
 }
 
@@ -138,8 +142,8 @@ static std::string bracketEscapeEncode(const std::string &payload)
 static std::string bracketEscapeDecode(const std::string &payload)
 {
     std::string out = payload;
-    Poco::replaceInPlace(out, "\\x5b", "[");
-    Poco::replaceInPlace(out, "\\x5d", "]");
+    out = Pothos::Util::Detail::replaceAll(out, "\\x5b", "[");
+    out = Pothos::Util::Detail::replaceAll(out, "\\x5d", "]");
     return out;
 }
 
@@ -170,7 +174,7 @@ static std::vector<CodeBlock> extractContiguousBlocks(std::istream &is)
         partial.clear();
         if (line.empty()) continue;
 
-        const std::string lineTrim = Poco::trimLeft(line);
+        const std::string lineTrim = trimLeft(line);
         const auto openMulti = line.find("/*");
         const auto closeMulti = line.find("*/");
         if (not inMultiLineComment and lineTrim.size() >= 2 and lineTrim.substr(0, 2) == "//")
@@ -296,8 +300,8 @@ static json parseCommentBlockForMarkup(const CodeBlock &commentBlock)
         }
         else if (instruction == "keywords" and state == "DOC")
         {
-            for (const auto &keyword : Poco::StringTokenizer(
-                payload, " \t", Poco::StringTokenizer::TOK_TRIM | Poco::StringTokenizer::TOK_IGNORE_EMPTY))
+            for (const auto &keyword : Pothos::Util::Detail::split(
+                payload, " \t"))
             {
                 topObj["keywords"].push_back(keyword);
             }

@@ -4,7 +4,7 @@
 #include <Pothos/Plugin/Module.hpp>
 #include <Pothos/Plugin/Plugin.hpp>
 #include <Pothos/Util/SpinLockRW.hpp>
-#include <Poco/HashMap.h>
+#include <unordered_map>
 #include <mutex>
 #include <algorithm>
 
@@ -14,7 +14,7 @@ static Pothos::Util::SpinLockRW &getModulePathsMutex(void)
     return lock;
 }
 
-typedef Poco::HashMap<std::string, std::vector<std::string>> ModulePathsMap;
+typedef std::unordered_map<std::string, std::vector<std::string>> ModulePathsMap;
 static ModulePathsMap &getModulePathsMap(void)
 {
     static ModulePathsMap map;

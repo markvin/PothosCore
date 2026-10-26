@@ -106,7 +106,7 @@ bool Pothos::operator==(const Proxy &lhs, const Proxy &rhs)
 
 #include <Pothos/Object/Serialize.hpp>
 #include <Pothos/Proxy.hpp>
-#include <Poco/Types.h>
+#include <cstdint>
 #include <sstream>
 #include <vector>
 
@@ -123,7 +123,7 @@ void save(Archive & ar, const Pothos::Proxy &t, const unsigned int)
     const auto buff = ss.str();
 
     //save length and buffer
-    const Poco::UInt32 length = Poco::UInt32(buff.size());
+    const uint32_t length = uint32_t(buff.size());
     ar << length;
     Pothos::serialization::BinaryObject bo(buff.data(), buff.size());
     ar << bo;
@@ -137,7 +137,7 @@ void load(Archive & ar, Pothos::Proxy &t, const unsigned int)
     auto env = Pothos::ProxyEnvironment::make(name);
 
     //extract length and buffer
-    Poco::UInt32 length = 0;
+    uint32_t length = 0;
     ar >> length;
     auto buff = std::vector<char>(size_t(length));
     Pothos::serialization::BinaryObject bo(buff.data(), buff.size());

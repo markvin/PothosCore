@@ -5,7 +5,7 @@
 #include <Pothos/Util/BlockDescription.hpp>
 #include <Pothos/Plugin.hpp>
 #include <Poco/Format.h>
-#include <Poco/NumberFormatter.h>
+#include <format>
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -26,7 +26,7 @@ static void jsonArrayToCppStaticBlock(const Pothos::Util::BlockDescriptionParser
         std::string escaped;
         for (const auto &ch : parser.getJSONObject(factory))
         {
-            escaped += "\\x" + Poco::NumberFormatter::formatHex(int(ch), 2/*width*/, false/*no 0x*/);
+            escaped += std::format("\\x{:02X}", int(ch));
         }
 
         //register the block description at the specified path

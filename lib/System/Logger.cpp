@@ -20,7 +20,7 @@
 #include <Poco/Net/RemoteSyslogChannel.h>
 #include <Poco/Net/RemoteSyslogListener.h>
 #include <Poco/Net/DatagramSocket.h>
-#include <Poco/String.h>
+#include "Util/StringUtils.hpp"
 #include <Poco/AutoPtr.h>
 #include <Poco/URI.h>
 #include <iostream>
@@ -104,7 +104,7 @@ protected:
      */
     Poco::Message::Priority guessPrio(const std::string &msg)
     {
-        const auto searchStr = Poco::toLower(msg.substr(0, 25));
+        const auto searchStr = Pothos::Util::Detail::toLower(msg.substr(0, 25));
         if (searchStr.find("fatal") != std::string::npos) return Poco::Message::PRIO_FATAL;
         if (searchStr.find("critical") != std::string::npos) return Poco::Message::PRIO_CRITICAL;
         if (searchStr.find("error") != std::string::npos) return Poco::Message::PRIO_ERROR;

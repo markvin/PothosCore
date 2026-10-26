@@ -7,7 +7,7 @@
 #include <Poco/Environment.h>
 #include <Poco/Path.h>
 #include <Poco/Foundation.h>
-#include <Poco/StringTokenizer.h>
+#include "Util/StringUtils.hpp"
 #include <algorithm>
 #include <iterator>
 
@@ -155,7 +155,7 @@ std::vector<std::string> Pothos::System::getPothosModuleSearchPaths()
 
     //check the environment's search path
     const auto pluginPaths = Poco::Environment::get("POTHOS_PLUGIN_PATH", "");
-    for (const auto &pluginPath : Poco::StringTokenizer(pluginPaths, sep))
+    for (const auto &pluginPath : Pothos::Util::Detail::split(pluginPaths, sep, false, false))
     {
         if (pluginPath.empty()) continue;
         searchPaths.push_back(Poco::Path(pluginPath));

@@ -3,7 +3,8 @@
 
 #include "RemoteProxyDatagram.hpp"
 #include <Pothos/Exception.hpp>
-#include <Poco/ByteOrder.h>
+#include <bit>
+#include <cstdint>
 #include <streambuf>
 #include <iostream>
 #include <cstdint>
@@ -21,6 +22,18 @@
 
 static const uint32_t PothosRPCHeaderWord = POTHOS_PACKET_WORD32("PRPC");
 static const uint32_t PothosRPCTrailerWord = POTHOS_PACKET_WORD32("CPRP");
+
+//convert between host and network (big endian) byte order
+static uint32_t toNetwork(const uint32_t v)
+{
+    if constexpr (std::endian::native == std::endian::little) return std::byteswap(v);
+    else return v;
+}
+
+static uint32_t fromNetwork(const uint32_t v)
+{
+    return toNetwork(v);
+}
 
 struct PothosRPCHeader
 {
@@ -49,11 +62,11 @@ public:
 
         //load the header and trailer
         PothosRPCHeader header;
-        header.headerWord = Poco::ByteOrder::toNetwork(PothosRPCHeaderWord);
-        header.payloadBytes = Poco::ByteOrder::toNetwork(uint32_t(_bytesWritten));
+        header.headerWord = toNetwork(PothosRPCHeaderWord);
+        header.payloadBytes = toNetwork(uint32_t(_bytesWritten));
 
         PothosRPCTrailer trailer;
-        trailer.trailerWord = Poco::ByteOrder::toNetwork(PothosRPCTrailerWord);
+        trailer.trailerWord = toNetwork(PothosRPCTrailerWord);
 
         //write to the output stream
         os.write((const char *)&header, sizeof(header));
@@ -112,11 +125,11 @@ public:
         if (not is) throw Pothos::IOException("recvDatagram()", "stream error");
 
         //parse the header
-        if (Poco::ByteOrder::fromNetwork(header.headerWord) != PothosRPCHeaderWord)
+        if (fromNetwork(header.headerWord) != PothosRPCHeaderWord)
         {
             throw Pothos::IOException("recvDatagram()", "headerWord fail");
         }
-        _payloadData.resize(Poco::ByteOrder::fromNetwork(header.payloadBytes));
+        _payloadData.resize(fromNetwork(header.payloadBytes));
 
         //read the payload
         is.read(_payloadData.data(), _payloadData.size());
@@ -130,7 +143,7 @@ public:
         if (not is) throw Pothos::IOException("recvDatagram()", "stream error");
 
         //parse the trailer
-        if (Poco::ByteOrder::fromNetwork(trailer.trailerWord) != PothosRPCTrailerWord)
+        if (fromNetwork(trailer.trailerWord) != PothosRPCTrailerWord)
         {
             throw Pothos::IOException("recvDatagram()", "trailerWord fail");
         }

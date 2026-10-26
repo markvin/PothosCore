@@ -8,7 +8,7 @@
 #include <Poco/DOM/DOMWriter.h>
 #include <Poco/XML/XMLWriter.h>
 #include <Poco/AutoPtr.h>
-#include <Poco/NumberParser.h>
+#include <charconv>
 #include <sstream>
 #include <nlohmann/json.hpp>
 
@@ -39,7 +39,8 @@ static Poco::AutoPtr<Poco::XML::Element> portInfoToElem(Poco::AutoPtr<Poco::XML:
         if (prefix == "out" and not isSigSlot) td->setAttribute("bgcolor", "#03C03C");
         td->setAttribute("port", "__"+prefix+"__"+name);
         unsigned value = 0;
-        if (Poco::NumberParser::tryParseUnsigned(name, value)) name = prefix+name;
+        const auto parsed = std::from_chars(name.data(), name.data()+name.size(), value);
+        if (not name.empty() and parsed.ec == std::errc() and parsed.ptr == name.data()+name.size()) name = prefix+name;
         td->appendChild(xmlDoc->createTextNode(name));
     }
 

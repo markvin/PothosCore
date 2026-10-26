@@ -6,10 +6,9 @@
 #include <Poco/Pipe.h>
 #include <Poco/PipeStream.h>
 #include <Poco/Process.h>
-#include <Poco/StringTokenizer.h>
+#include "Util/StringUtils.hpp"
 #include <Poco/URI.h>
 #include <Poco/Net/SocketAddress.h>
-#include <Poco/String.h>
 #include <Poco/Message.h>
 #include <Poco/Net/RemoteSyslogChannel.h>
 #include <functional>
@@ -88,8 +87,8 @@ Pothos::RemoteServer::RemoteServer(const std::string &uriStr, const bool closePi
     {
         std::string line; std::getline(is, line);
         if (line.empty()) continue;
-        const Poco::StringTokenizer tok(line, " ", Poco::StringTokenizer::TOK_TRIM);
-        if (tok.count() >= 2 and tok[0] == "Port:")
+        const auto tok = Pothos::Util::Detail::split(line, " ", true, false);
+        if (tok.size() >= 2 and tok[0] == "Port:")
         {
             _impl->actualPort = tok[1];
             break;
@@ -181,7 +180,7 @@ std::string Pothos::RemoteServer::getActualPort(void) const
 //! Guess the priority using keywords in the front of the message.
 static Poco::Message::Priority guessPrio(const std::string &msg)
 {
-    const auto searchStr = Poco::toLower(msg.substr(0, 25));
+    const auto searchStr = Pothos::Util::Detail::toLower(msg.substr(0, 25));
     if (searchStr.find("fatal") != std::string::npos) return Poco::Message::PRIO_FATAL;
     if (searchStr.find("critical") != std::string::npos) return Poco::Message::PRIO_CRITICAL;
     if (searchStr.find("error") != std::string::npos) return Poco::Message::PRIO_ERROR;

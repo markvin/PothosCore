@@ -3,7 +3,7 @@
 
 #include <Pothos/System.hpp>
 #include <Pothos/Plugin.hpp>
-#include <Poco/StringTokenizer.h>
+#include "Util/StringUtils.hpp"
 #include <Poco/SharedLibrary.h>
 #include <Poco/Environment.h>
 #include <Poco/Logger.h>
@@ -127,7 +127,7 @@ std::vector<Pothos::PluginPath> Pothos_ConfLoader_loadConfFiles(void)
 
     //check the environment's search path
     const auto confPaths = Poco::Environment::get("POTHOS_CONF_PATH", "");
-    for (const auto &confPath : Poco::StringTokenizer(confPaths, sep))
+    for (const auto &confPath : Pothos::Util::Detail::split(confPaths, sep, false, false))
     {
         if (confPath.empty()) continue;
         searchPaths.push_back(Poco::Path(confPath));

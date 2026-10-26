@@ -7,7 +7,7 @@
 #include <Pothos/Framework/SharedBuffer.hpp>
 #include <Pothos/Framework/Exception.hpp>
 #include <Poco/File.h>
-#include <Poco/RandomStream.h>
+#include <random>
 #include <Poco/TemporaryFile.h>
 #include <cstdlib> //rand
 #include <fstream>
@@ -72,10 +72,9 @@ POTHOS_TEST_BLOCK("/framework/tests", test_mmap_shared_buffer)
     static constexpr size_t numElems = 1024;
     Pothos::BufferChunk input("int", numElems);
 
-    Poco::RandomBuf randomBuf;
-    randomBuf.readFromDevice(
-        reinterpret_cast<char*>(input.address),
-        input.length);
+    std::independent_bits_engine<std::mt19937, 8, unsigned> randomBytes{std::random_device{}()};
+    auto *inputBytes = reinterpret_cast<unsigned char*>(input.address);
+    for (size_t i = 0; i < input.length; i++) inputBytes[i] = static_cast<unsigned char>(randomBytes());
 
     auto tempFile = Poco::TemporaryFile();
     POTHOS_TEST_TRUE(tempFile.createFile());

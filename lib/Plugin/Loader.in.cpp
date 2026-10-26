@@ -4,7 +4,6 @@
 #include <Pothos/Plugin/Loader.hpp>
 #include <Pothos/System.hpp>
 #include <Pothos/Plugin.hpp>
-#include <Poco/StringTokenizer.h>
 #include <Poco/SharedLibrary.h>
 #include <Poco/Environment.h>
 #include <Poco/Logger.h>

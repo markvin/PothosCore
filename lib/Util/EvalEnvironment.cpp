@@ -16,7 +16,7 @@
 #include <Pothos/Framework/DType.hpp>
 #include <Pothos/Object/Containers.hpp>
 #include <Pothos/Proxy.hpp>
-#include <Poco/String.h>
+#include "Util/StringUtils.hpp"
 #include <string>
 #include <vector>
 #include <map>
@@ -198,7 +198,7 @@ void Pothos::Util::EvalEnvironment::unregisterConstant(const std::string &key)
 
 Pothos::Object Pothos::Util::EvalEnvironment::eval(const std::string &expr)
 {
-    if (Poco::trim(expr).empty()) throw Pothos::Exception("EvalEnvironment::eval()", "expression is empty");
+    if (Pothos::Util::Detail::trim(expr).empty()) throw Pothos::Exception("EvalEnvironment::eval()", "expression is empty");
 
     //handle multiple containers in top level
     const auto tokens = EvalEnvironment::splitExpr(expr);

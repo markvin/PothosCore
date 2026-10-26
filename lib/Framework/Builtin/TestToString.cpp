@@ -8,7 +8,7 @@
 #include <Pothos/Framework.hpp>
 
 #include <Poco/Format.h>
-#include <Poco/NumberFormatter.h>
+#include <string>
 
 #include <complex>
 #include <sstream>
@@ -27,7 +27,7 @@ static void testTypedBufferChunkToString(const BufferChunkTestParams& testParams
 
     const auto expectedToString = Poco::format("Pothos::BufferChunk (dtype: %s, elements: %s)",
                                                testParams.expectedDTypeStr,
-                                               Poco::NumberFormatter::format(testParams.elems));
+                                               std::to_string(testParams.elems));
 
     POTHOS_TEST_EQUAL(expectedToString, Pothos::Object(bufferChunk).toString());
 }
@@ -159,7 +159,7 @@ static void testPortBufferToString(
         Poco::format(
             "Pothos::BufferChunk (dtype: %s, elements: %s)",
             portProxy.call("dtype").call<std::string>("name"),
-            Poco::NumberFormatter::format(elements)),
+            std::to_string(elements)),
         portProxy.call("buffer").toString());
 }
 

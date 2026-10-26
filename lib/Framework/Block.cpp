@@ -8,7 +8,7 @@
 #include <Pothos/Framework/InputPortImpl.hpp>
 #include <Pothos/Framework/OutputPortImpl.hpp>
 #include <Pothos/Plugin.hpp>
-#include <Poco/String.h>
+#include "Util/StringUtils.hpp"
 
 /***********************************************************************
  * threadpool calls
@@ -169,7 +169,7 @@ void Pothos::Block::registerProbe(
     auto signalName = signalName_;
     if (signalName.empty()) signalName = name + "Triggered";
     auto slotName = slotName_;
-    if (slotName.empty()) slotName = "probe" + Poco::toUpper(name.substr(0, 1)) + name.substr(1);
+    if (slotName.empty()) slotName = "probe" + Pothos::Util::Detail::toUpper(name.substr(0, 1)) + name.substr(1);
 
     //create registration
     this->registerSlot(slotName);

@@ -15,6 +15,9 @@ foreach(var SRC ALLOWLIST)
     endif ()
 endforeach()
 
+#paths are reported relative to an absolute source root
+get_filename_component(SRC "${SRC}" ABSOLUTE)
+
 #read the allowlist: one path per line, # comments and blank lines ignored
 file(STRINGS "${ALLOWLIST}" allow_lines)
 set(allowed)

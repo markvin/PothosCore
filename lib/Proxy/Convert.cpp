@@ -9,7 +9,7 @@
 #include <Pothos/Callable.hpp>
 #include <Pothos/Plugin.hpp>
 #include <Poco/Logger.h>
-#include <Poco/Hash.h>
+#include <functional>
 #include <iostream>
 #include <cassert>
 #include <mutex>
@@ -49,12 +49,12 @@ static ConvertMapType &getConvertToProxyMap(void)
  **********************************************************************/
 static size_t hashIt(const std::string &name, const std::type_info &type)
 {
-    return type.hash_code() ^ Poco::hash(name);
+    return type.hash_code() ^ std::hash<std::string>{}(name);
 }
 
 static size_t hashIt(const std::string &name, const std::string &type)
 {
-    return Poco::hash(type) ^ Poco::hash(name);
+    return std::hash<std::string>{}(type) ^ std::hash<std::string>{}(name);
 }
 
 /***********************************************************************

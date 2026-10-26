@@ -9,7 +9,6 @@
 #include <Poco/Process.h>
 #include <Poco/Pipe.h>
 #include <Poco/PipeStream.h>
-#include <Poco/String.h>
 #include <Poco/Glob.h>
 #include <iostream>
 #include <sstream>
