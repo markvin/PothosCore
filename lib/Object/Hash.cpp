@@ -6,7 +6,7 @@
 #include <Pothos/Util/SpinLockRW.hpp>
 #include <Pothos/Callable.hpp>
 #include <Pothos/Plugin.hpp>
-#include <Poco/Logger.h>
+#include <Pothos/System/Logger.hpp>
 #include <mutex>
 #include <map>
 
@@ -32,7 +32,7 @@ static HashFcnMapType &getHashFcnMap(void)
  **********************************************************************/
 static void handleHashFcnPluginEvent(const Pothos::Plugin &plugin, const std::string &event)
 {
-    poco_debug_f2(Poco::Logger::get("Pothos.Object.handleHashFcnPluginEvent"), "plugin %s, event %s", plugin.toString(), event);
+    POTHOS_LOG_DEBUG("Pothos.Object.handleHashFcnPluginEvent", "plugin {}, event {}", plugin.toString(), event);
     POTHOS_EXCEPTION_TRY
     {
         //validate the plugin -- if we want to handle it -- check the signature:
@@ -53,8 +53,7 @@ static void handleHashFcnPluginEvent(const Pothos::Plugin &plugin, const std::st
     }
     POTHOS_EXCEPTION_CATCH(const Pothos::Exception &ex)
     {
-        poco_error_f3(Poco::Logger::get("Pothos.Object.handleHashFcnPluginEvent"),
-            "exception %s, plugin %s, event %s", ex.displayText(), plugin.toString(), event);
+        POTHOS_LOG_ERROR("Pothos.Object.handleHashFcnPluginEvent", "exception {}, plugin {}, event {}", ex.displayText(), plugin.toString(), event);
     }
 }
 

@@ -6,7 +6,6 @@
 #include <Pothos/Exception.hpp>
 #include <Pothos/Plugin.hpp>
 
-#include <Poco/Exception.h>
 
 #include <iostream>
 #include <string>

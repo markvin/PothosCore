@@ -8,7 +8,7 @@
 #include <Pothos/Object.hpp>
 #include <Pothos/Plugin.hpp>
 #include <Pothos/Proxy.hpp>
-#include <Poco/Logger.h>
+#include <Pothos/System/Logger.hpp>
 #include <format>
 #include <algorithm>
 #include <cassert>
@@ -43,7 +43,7 @@ Pothos::Topology::~Topology(void)
     }
     catch (const Pothos::Exception &ex)
     {
-        poco_error_f1(Poco::Logger::get("Pothos.Topology"), "Topology destructor threw: %s", ex.displayText());
+        POTHOS_LOG_ERROR("Pothos.Topology", "Topology destructor threw: {}", ex.displayText());
     }
 }
 

@@ -6,7 +6,7 @@
 #include <Pothos/Util/Compiler.hpp>
 #include <Pothos/Util/FileLock.hpp>
 #include <Pothos/Util/BlockDescription.hpp>
-#include <Poco/Logger.h>
+#include <Pothos/System/Logger.hpp>
 #include "Util/FileSystem.hpp"
 #include <filesystem>
 #include "Util/StringUtils.hpp"
@@ -17,11 +17,6 @@
 #include <exception>
 #include <map>
 
-static Poco::Logger &sourceLoaderLogger(void)
-{
-    static Poco::Logger &logger(Poco::Logger::get("Pothos.JITCompiler"));
-    return logger;
-}
 
 /*!
  * Shared data structure for a JIT entry:
@@ -82,10 +77,10 @@ static void compilationHelper(
     const auto compiler = Pothos::Util::Compiler::make();
 
     //compile
-    sourceLoaderLogger().information("Compile sources for %s...", handle->target);
+    POTHOS_LOG_INFORMATION("Pothos.JITCompiler", "Compile sources for {}...", handle->target);
     const auto tmpOutput = compiler->compileCppModule(handle->compilerArgs);
     Pothos::Util::Detail::moveFile(tmpOutput, outFile);
-    sourceLoaderLogger().information("Wrote %s", outFile.string());
+    POTHOS_LOG_INFORMATION("Pothos.JITCompiler", "Wrote {}", outFile.string());
 }
 
 /***********************************************************************
@@ -121,7 +116,7 @@ static Pothos::Object opaqueJITCompilerFactory(
     catch (const Pothos::Exception &ex)
     {
         handle->exception = std::current_exception();
-        sourceLoaderLogger().error(ex.message());
+        POTHOS_LOG_ERROR("Pothos.JITCompiler", "{}", ex.message());
         throw;
     }
 

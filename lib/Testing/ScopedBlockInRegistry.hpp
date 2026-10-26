@@ -8,7 +8,6 @@
 #include <Pothos/Framework.hpp>
 #include <Pothos/Plugin.hpp>
 
-#include <Poco/Exception.h>
 
 #include <iostream>
 #include <memory>

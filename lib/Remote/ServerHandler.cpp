@@ -7,7 +7,6 @@
 #include <Pothos/Proxy.hpp>
 #include <Pothos/Remote/Handler.hpp>
 #include <Pothos/System/HostInfo.hpp>
-#include <Poco/Exception.h>
 #include <iostream>
 #include <mutex>
 #include <map>

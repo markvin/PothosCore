@@ -8,7 +8,7 @@
 #include <Pothos/Object.hpp> //pulls in full Object implementation
 #include "Platform/DynamicLibrary.hpp"
 #include <optional>
-#include <Poco/Logger.h>
+#include <Pothos/System/Logger.hpp>
 #include <mutex>
 
 /***********************************************************************
@@ -86,7 +86,7 @@ Pothos::PluginModule::PluginModule(const std::string &path):
     _impl(new Impl())
 {
     _impl->path = path;
-    poco_debug(Poco::Logger::get("Pothos.PluginModule.load"), path);
+    POTHOS_LOG_DEBUG("Pothos.PluginModule.load", "{}", path);
     try
     {
         std::lock_guard<std::mutex> lock(getModuleMutex());
@@ -112,7 +112,7 @@ Pothos::PluginModule::~PluginModule(void)
     if (_impl.use_count() != 1) return; //this is not the last copy
     if (not _impl->sharedLibrary) return; //module not loaded
 
-    poco_debug(Poco::Logger::get("Pothos.PluginModule.unload"), _impl->sharedLibrary->path().string());
+    POTHOS_LOG_DEBUG("Pothos.PluginModule.unload", "{}", _impl->sharedLibrary->path().string());
     for (const auto &pluginPath : this->getPluginPaths())
     {
         PluginRegistry::remove(pluginPath);

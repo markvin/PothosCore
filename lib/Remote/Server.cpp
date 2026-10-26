@@ -4,6 +4,7 @@
 #include <Pothos/Remote.hpp>
 #include <Pothos/System/Paths.hpp>
 #include "Platform/Process.hpp"
+#include "System/LoggerSinks.hpp"
 #include <optional>
 #include "Util/StringUtils.hpp"
 #include <Poco/URI.h>
@@ -192,14 +193,8 @@ std::string Pothos::RemoteServer::getActualPort(void) const
 //! Guess the priority using keywords in the front of the message.
 static Poco::Message::Priority guessPrio(const std::string &msg)
 {
-    const auto searchStr = Pothos::Util::Detail::toLower(msg.substr(0, 25));
-    if (searchStr.find("fatal") != std::string::npos) return Poco::Message::PRIO_FATAL;
-    if (searchStr.find("critical") != std::string::npos) return Poco::Message::PRIO_CRITICAL;
-    if (searchStr.find("error") != std::string::npos) return Poco::Message::PRIO_ERROR;
-    if (searchStr.find("warning") != std::string::npos) return Poco::Message::PRIO_WARNING;
-    if (searchStr.find("debug") != std::string::npos) return Poco::Message::PRIO_DEBUG;
-    if (searchStr.find("trace") != std::string::npos) return Poco::Message::PRIO_TRACE;
-    return Poco::Message::PRIO_INFORMATION;
+    //the level numbers are the syslog priorities
+    return Poco::Message::Priority(int(Pothos::System::Detail::guessLevel(msg)));
 }
 
 //! Worker thread operation to read the pipe and forward to the syslog channel

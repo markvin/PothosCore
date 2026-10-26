@@ -4,14 +4,14 @@
 #include <Pothos/Plugin/Loader.hpp>
 #include <Pothos/System.hpp>
 #include <Pothos/Plugin.hpp>
-#include <Poco/Logger.h>
+#include <Pothos/System/Logger.hpp>
 #include <filesystem>
 #include <system_error>
 #include <future>
 
 static std::vector<std::filesystem::path> getModulePaths(const std::filesystem::path &path)
 {
-    poco_debug(Poco::Logger::get("Pothos.PluginLoader.load"), path.string());
+    POTHOS_LOG_DEBUG("Pothos.PluginLoader.load", "{}", path.string());
 
     std::vector<std::filesystem::path> paths;
 
@@ -57,7 +57,7 @@ std::vector<Pothos::PluginModule> Pothos::PluginLoader::loadModules(void)
         }
         POTHOS_EXCEPTION_CATCH (const Pothos::Exception &ex)
         {
-            poco_error(Poco::Logger::get("Pothos.PluginLoader.load"), ex.displayText());
+            POTHOS_LOG_ERROR("Pothos.PluginLoader.load", "{}", ex.displayText());
         }
     }
     return modules;

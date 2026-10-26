@@ -8,7 +8,7 @@
 #include <Pothos/Util/TypeInfo.hpp>
 #include <Pothos/Callable.hpp>
 #include <Pothos/Plugin.hpp>
-#include <Poco/Logger.h>
+#include <Pothos/System/Logger.hpp>
 #include <functional>
 #include <iostream>
 #include <cassert>
@@ -85,7 +85,7 @@ static bool isConvertToProxy(const Pothos::Plugin &plugin)
  **********************************************************************/
 static void handlePluginEvent(const Pothos::Plugin &plugin, const std::string &event)
 {
-    poco_debug_f2(Poco::Logger::get("Pothos.Proxy.handlePluginEvent"), "plugin %s, event %s", plugin.toString(), event);
+    POTHOS_LOG_DEBUG("Pothos.Proxy.handlePluginEvent", "plugin {}, event {}", plugin.toString(), event);
 
     const auto &nodes = plugin.getPath().listNodes();
     assert(nodes.size() > 2);
@@ -128,8 +128,7 @@ static void handlePluginEvent(const Pothos::Plugin &plugin, const std::string &e
     }
     POTHOS_EXCEPTION_CATCH(const Pothos::Exception &ex)
     {
-        poco_error_f3(Poco::Logger::get("Pothos.Proxy.handlePluginEvent"),
-            "exception %s, plugin %s, event %s", ex.displayText(), plugin.toString(), event);
+        POTHOS_LOG_ERROR("Pothos.Proxy.handlePluginEvent", "exception {}, plugin {}, event {}", ex.displayText(), plugin.toString(), event);
     }
 }
 

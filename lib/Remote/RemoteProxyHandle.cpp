@@ -3,7 +3,7 @@
 
 #include "RemoteProxy.hpp"
 #include <format>
-#include <Poco/Logger.h>
+#include <Pothos/System/Logger.hpp>
 #include <iostream>
 
 RemoteProxyHandle::RemoteProxyHandle(std::shared_ptr<RemoteProxyEnvironment> env, const size_t remoteID):
@@ -26,7 +26,7 @@ RemoteProxyHandle::~RemoteProxyHandle(void)
     catch(const Pothos::Exception &ex)
     {
         if (not env->connectionActive) return;
-        poco_error(Poco::Logger::get("Pothos.RemoteProxyHandle"), "destructor threw: "+ex.displayText());
+        POTHOS_LOG_ERROR("Pothos.RemoteProxyHandle", "{}", "destructor threw: "+ex.displayText());
     }
 }
 

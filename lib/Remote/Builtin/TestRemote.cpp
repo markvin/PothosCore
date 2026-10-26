@@ -8,7 +8,6 @@
 #include <Pothos/Managed.hpp>
 #include <Pothos/Util/Network.hpp>
 #include "Platform/Process.hpp"
-#include <Poco/URI.h>
 #include <iostream>
 #include <future>
 #include <thread>

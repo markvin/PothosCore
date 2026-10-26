@@ -1,26 +1,76 @@
 ///
 /// \file System/Logger.hpp
 ///
-/// API calls for logger control.
+/// Logging and logger control.
 ///
 /// \copyright
 /// Copyright (c) 2014-2015 Josh Blum
+///                    2026 Pothos contributors
 /// SPDX-License-Identifier: BSL-1.0
 ///
 
 #pragma once
 #include <Pothos/Config.hpp>
+#include <format>
+#include <optional>
 #include <string>
+#include <string_view>
+#include <utility>
 
 namespace Pothos {
 namespace System {
 
 /*!
- * Logger class contains static methods to deal with log configuration.
+ * Log message severity, most severe first.
+ * The values match the syslog-style priorities of the log forwarding.
+ */
+enum class LogLevel : int
+{
+    Fatal = 1,
+    Critical,
+    Error,
+    Warning,
+    Notice,
+    Information,
+    Debug,
+    Trace,
+};
+
+/*!
+ * Logger class contains static methods to log messages
+ * and to deal with log configuration.
  */
 class POTHOS_API Logger
 {
 public:
+    /*!
+     * Log a message. The message is plain text, not a format string.
+     * Messages at Fatal and Critical level are written before this returns;
+     * other messages may be written asynchronously (see flush()).
+     * \param level the severity of the message
+     * \param source the name of the logging component, for example "Pothos.Topology"
+     * \param message the text of the message
+     */
+    static void log(const LogLevel level, const std::string &source, const std::string &message);
+
+    //! Would a message at this level from this source be logged?
+    static bool isEnabled(const LogLevel level, const std::string &source);
+
+    /*!
+     * Set the lowest level that is logged.
+     * \param source a source name, or empty for the default of every source
+     */
+    static void setLevel(const LogLevel level, const std::string &source = "");
+
+    //! The lowest level that is logged for a source (empty: the default)
+    static LogLevel getLevel(const std::string &source = "");
+
+    //! Parse a level name (fatal ... trace, any case) or number (1 ... 8)
+    static std::optional<LogLevel> parseLevel(std::string_view name);
+
+    //! Wait until every message logged so far has been written
+    static void flush(void);
+
     /*!
      * Start a listener for syslog messages from other processes.
      * The log messages will be forwarded to the default logger.
@@ -70,5 +120,29 @@ private:
     Logger(void){}
 };
 
+/*!
+ * Log a message formatted with std::format.
+ * The message is only formatted when the level is enabled for the source.
+ */
+template <typename... Args>
+void log(const LogLevel level, const std::string &source, std::format_string<Args...> fmt, Args &&...args)
+{
+    if (not Logger::isEnabled(level, source)) return;
+    Logger::log(level, source, std::format(fmt, std::forward<Args>(args)...));
+}
+
 } //namespace System
 } //namespace Pothos
+
+/*!
+ * Logging macros: POTHOS_LOG_ERROR("My.Source", "value {} out of range", value);
+ * The arguments after the source are a std::format format string and its arguments.
+ */
+#define POTHOS_LOG_FATAL(source, ...) ::Pothos::System::log(::Pothos::System::LogLevel::Fatal, source, __VA_ARGS__)
+#define POTHOS_LOG_CRITICAL(source, ...) ::Pothos::System::log(::Pothos::System::LogLevel::Critical, source, __VA_ARGS__)
+#define POTHOS_LOG_ERROR(source, ...) ::Pothos::System::log(::Pothos::System::LogLevel::Error, source, __VA_ARGS__)
+#define POTHOS_LOG_WARNING(source, ...) ::Pothos::System::log(::Pothos::System::LogLevel::Warning, source, __VA_ARGS__)
+#define POTHOS_LOG_NOTICE(source, ...) ::Pothos::System::log(::Pothos::System::LogLevel::Notice, source, __VA_ARGS__)
+#define POTHOS_LOG_INFORMATION(source, ...) ::Pothos::System::log(::Pothos::System::LogLevel::Information, source, __VA_ARGS__)
+#define POTHOS_LOG_DEBUG(source, ...) ::Pothos::System::log(::Pothos::System::LogLevel::Debug, source, __VA_ARGS__)
+#define POTHOS_LOG_TRACE(source, ...) ::Pothos::System::log(::Pothos::System::LogLevel::Trace, source, __VA_ARGS__)

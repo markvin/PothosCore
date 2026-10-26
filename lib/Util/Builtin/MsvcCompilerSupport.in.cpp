@@ -8,7 +8,7 @@
 #include <Pothos/Plugin.hpp>
 #include "Platform/Process.hpp"
 #include "Platform/DynamicLibrary.hpp"
-#include <Poco/Logger.h>
+#include <Pothos/System/Logger.hpp>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -123,7 +123,7 @@ std::string MsvcCompilerSupport::compileCppModule(const Pothos::Util::CompilerAr
     //log the command
     std::string cmdToLog = "cl.exe ";
     for (const auto &a : args) cmdToLog += a + " ";
-    //poco_information(Poco::Logger::get("Pothos.MsvcCompilerSupport.compileCppModule"), cmdToLog);
+    //POTHOS_LOG_INFORMATION("Pothos.MsvcCompilerSupport.compileCppModule", "{}", cmdToLog);
 
     //launch
     Pothos::Platform::Pipe outPipe;

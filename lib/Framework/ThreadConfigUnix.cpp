@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include "Framework/ThreadEnvironment.hpp"
-#include <Poco/Logger.h>
+#include <Pothos/System/Logger.hpp>
 #include "Platform/Environment.hpp"
 #include <sched.h>
 #ifdef HAVE_LIBNUMA

@@ -8,13 +8,9 @@
 
 #include "Util/FileSystem.hpp"
 #include <filesystem>
-#include <Poco/Logger.h>
+#include <Pothos/System/Logger.hpp>
+#include <cstring> //strerror
 
-static Poco::Logger& getLogger()
-{
-    static auto& logger = Poco::Logger::get("MemoryMappedBufferContainer");
-    return logger;
-}
 
 #if !defined(_WIN32)
 #include <fcntl.h>
@@ -31,9 +27,7 @@ static void logErrnoOnFailure(int code, const char* context)
 {
     if(code < 0)
     {
-        poco_error_f2(
-            getLogger(),
-            "%s: %s",
+        POTHOS_LOG_ERROR("MemoryMappedBufferContainer", "{}: {}",
             std::string(context),
             std::string(::strerror(errno)));
     }
@@ -112,9 +106,7 @@ static void logWindowsErrorOnFailure(DWORD code, const char* context)
 {
     if(code)
     {
-        poco_error_f2(
-            getLogger(),
-            "%s: %s",
+        POTHOS_LOG_ERROR("MemoryMappedBufferContainer", "{}: {}",
             std::string(context),
             std::system_category().message(code));
     }

@@ -7,7 +7,7 @@
 #include <Pothos/Framework/BlockRegistry.hpp>
 #include <Pothos/Framework/Exception.hpp>
 #include <Pothos/Plugin.hpp>
-#include <Poco/Logger.h>
+#include <Pothos/System/Logger.hpp>
 #include <iostream>
 
 //! Helper function to check the signature of an "opaque" call
@@ -27,7 +27,7 @@ Pothos::BlockRegistry::BlockRegistry(const std::string &path, const Callable &fa
     //check the path
     if (path.empty() or path.front() != '/')
     {
-        poco_error_f1(Poco::Logger::get("Pothos.BlockRegistry"), "Invalid path: %s", path);
+        POTHOS_LOG_ERROR("Pothos.BlockRegistry", "Invalid path: {}", path);
         return;
     }
 
@@ -39,7 +39,7 @@ Pothos::BlockRegistry::BlockRegistry(const std::string &path, const Callable &fa
     }
     catch (const PluginPathError &)
     {
-        poco_error_f1(Poco::Logger::get("Pothos.BlockRegistry"), "Invalid path: %s", path);
+        POTHOS_LOG_ERROR("Pothos.BlockRegistry", "Invalid path: {}", path);
         return;
     }
 
@@ -58,7 +58,7 @@ Pothos::BlockRegistry::BlockRegistry(const std::string &path, const Callable &fa
         }
         catch (const PluginRegistryError &ex)
         {
-            poco_error(Poco::Logger::get("Pothos.BlockRegistry"), ex.displayText());
+            POTHOS_LOG_ERROR("Pothos.BlockRegistry", "{}", ex.displayText());
             return;
         }
     }
@@ -66,7 +66,7 @@ Pothos::BlockRegistry::BlockRegistry(const std::string &path, const Callable &fa
     //otherwise report the error
     else
     {
-        poco_error_f1(Poco::Logger::get("Pothos.BlockRegistry"), "Bad Factory, must return Block* or Topology*: %s", factory.toString());
+        POTHOS_LOG_ERROR("Pothos.BlockRegistry", "Bad Factory, must return Block* or Topology*: {}", factory.toString());
     }
 }
 

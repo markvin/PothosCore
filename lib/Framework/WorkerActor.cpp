@@ -6,7 +6,7 @@
 #include <Pothos/Framework/OutputPortImpl.hpp>
 #include <Pothos/Object/Containers.hpp>
 #include <format>
-#include <Poco/Logger.h>
+#include <Pothos/System/Logger.hpp>
 #include <cassert>
 #include <algorithm> //min/max
 #include <nlohmann/json.hpp>
@@ -237,7 +237,7 @@ void Pothos::WorkerActor::workTask(void)
     }
     POTHOS_EXCEPTION_CATCH(const Exception &ex)
     {
-        poco_error_f2(Poco::Logger::get("Pothos.Block.work"), "%s: %s", block->getName(), ex.displayText());
+        POTHOS_LOG_ERROR("Pothos.Block.work", "{}: {}", block->getName(), ex.displayText());
     }
 
     //postwork
@@ -279,7 +279,7 @@ void Pothos::WorkerActor::handleSlotCalls(InputPort &port)
         }
         POTHOS_EXCEPTION_CATCH(const Exception &ex)
         {
-            poco_error_f3(Poco::Logger::get("Pothos.Block.callSlot"), "%s[%s]: %s", block->getName(), port.alias(), ex.displayText());
+            POTHOS_LOG_ERROR("Pothos.Block.callSlot", "{}[{}]: {}", block->getName(), port.alias(), ex.displayText());
         }
     }
 }
@@ -426,7 +426,7 @@ void Pothos::WorkerActor::postWorkTasks(void)
             }
             POTHOS_EXCEPTION_CATCH(const Exception &ex)
             {
-                poco_error_f2(Poco::Logger::get("Pothos.Block.propagateLabels"), "%s: %s", block->getName(), ex.displayText());
+                POTHOS_LOG_ERROR("Pothos.Block.propagateLabels", "{}: {}", block->getName(), ex.displayText());
             }
 
             allLabels.erase(allLabels.begin(), allLabels.begin()+numLabels);
@@ -472,7 +472,7 @@ void Pothos::WorkerActor::postWorkTasks(void)
             {
                 if (buffer.length > buffer.getBuffer().getLength())
                 {
-                    poco_error_f4(Poco::Logger::get("Pothos.Block.produce"), "%s[%s] overproduced %z bytes, %z available",
+                    POTHOS_LOG_ERROR("Pothos.Block.produce", "{}[{}] overproduced {} bytes, {} available",
                         block->getName(), port.alias(), buffer.length, buffer.getBuffer().getLength());
                 }
 

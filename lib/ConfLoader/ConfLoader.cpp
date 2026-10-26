@@ -5,7 +5,7 @@
 #include <Pothos/Plugin.hpp>
 #include "Util/StringUtils.hpp"
 #include "Platform/Environment.hpp"
-#include <Poco/Logger.h>
+#include <Pothos/System/Logger.hpp>
 #include <filesystem>
 #include <system_error>
 #include <format>
@@ -13,11 +13,6 @@
 #include <future>
 #include <map>
 
-static Poco::Logger &confLoaderLogger(void)
-{
-    static Poco::Logger &logger(Poco::Logger::get("Pothos.ConfLoader"));
-    return logger;
-}
 
 std::string Pothos_FileRealPath(const std::string &path);
 
@@ -26,7 +21,7 @@ std::string Pothos_FileRealPath(const std::string &path);
  **********************************************************************/
 static std::vector<Pothos::PluginPath> loadConfFile(const std::string &path)
 {
-    poco_debug_f1(confLoaderLogger(), "loading %s", path);
+    POTHOS_LOG_DEBUG("Pothos.ConfLoader", "loading {}", path);
 
     //parse the configuration file with the INI parser
     Poco::AutoPtr<Poco::Util::PropertyFileConfiguration> conf;
@@ -74,7 +69,7 @@ static std::vector<Pothos::PluginPath> loadConfFile(const std::string &path)
  **********************************************************************/
 static std::vector<std::filesystem::path> getConfFilePaths(const std::filesystem::path &path)
 {
-    poco_debug_f1(confLoaderLogger(), "traversing %s", path.string());
+    POTHOS_LOG_DEBUG("Pothos.ConfLoader", "traversing {}", path.string());
 
     std::vector<std::filesystem::path> paths;
 
@@ -150,7 +145,7 @@ std::vector<Pothos::PluginPath> Pothos_ConfLoader_loadConfFiles(void)
         }
         catch(const Pothos::Exception &ex)
         {
-            confLoaderLogger().error(ex.message());
+            POTHOS_LOG_ERROR("Pothos.ConfLoader", "{}", ex.message());
         }
     }
     return entries;

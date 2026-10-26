@@ -9,7 +9,7 @@
 #include "Platform/Process.hpp"
 #include "Platform/DynamicLibrary.hpp"
 #include <filesystem>
-#include <Poco/Logger.h>
+#include <Pothos/System/Logger.hpp>
 #include <fstream>
 #include <iostream>
 
@@ -125,7 +125,7 @@ std::string GccClangCompilerSupport::compileCppModule(const Pothos::Util::Compil
     {
         std::string cmdStr(compiler_executable());
         for (const auto &arg : args) cmdStr += " " + arg;
-        poco_error_f2(Poco::Logger::get("Pothos.GccClangCompilerSupport.compileCppModule"), "\nCommand: %s\nMessage: %s", cmdStr, outBuff);
+        POTHOS_LOG_ERROR("Pothos.GccClangCompilerSupport.compileCppModule", "\nCommand: {}\nMessage: {}", cmdStr, outBuff);
         throw Pothos::Exception("GccClangCompilerSupport::compileCppModule", outBuff);
     }
 
