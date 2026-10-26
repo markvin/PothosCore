@@ -158,7 +158,10 @@ POTHOS_TEST_BLOCK("/object/tests", test_compare_to)
 
     Pothos::Object s0("hello");
     Pothos::Object s1("world");
-    POTHOS_TEST_EQUAL(s0.compareTo(s1), std::string("hello").compare("world"));
+    //only the sign of a comparison result is specified
+    const auto sign = [](const int v){return (v > 0) - (v < 0);};
+    POTHOS_TEST_EQUAL(sign(s0.compareTo(s1)), sign(std::string("hello").compare("world")));
+    POTHOS_TEST_EQUAL(sign(s0.compareTo(s1)), -1);
 
     POTHOS_TEST_THROWS(null0.compareTo(s0), Pothos::ObjectCompareError);
     POTHOS_TEST_THROWS(null1.compareTo(s1), Pothos::ObjectCompareError);
