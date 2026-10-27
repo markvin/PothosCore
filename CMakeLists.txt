@@ -13,17 +13,27 @@ set(POTHOS_LIBVER "${CMAKE_MATCH_1}")
 
 ########################################################################
 # Project setup
+#
+# The core can be a subproject of another project (add_subdirectory,
+# FetchContent): options are prefixed with POTHOS_, and the globals,
+# tests, summaries and the uninstall target are only for a top level build.
 ########################################################################
 project(Pothos VERSION ${POTHOS_LIBVER} LANGUAGES C CXX)
-enable_testing()
 
-#compile_commands.json in the build directory for code navigation (clangd)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+option(POTHOS_BUILD_APPS "Build PothosUtil (needed by the self-tests and module safe-loading)" ON)
+option(POTHOS_BUILD_DOCS "Build the Doxygen documentation (when Doxygen is found)" ${PROJECT_IS_TOP_LEVEL})
+option(POTHOS_BUILD_TESTS "Register the CTest tests of the core" ${PROJECT_IS_TOP_LEVEL})
 
-#C++23 is a required language feature for this project
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+if(PROJECT_IS_TOP_LEVEL)
+    #compile_commands.json in the build directory for code navigation (clangd)
+    set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+    #select the release build type by default to get optimization flags
+    if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+        set(CMAKE_BUILD_TYPE "Release" CACHE STRING "" FORCE)
+        message(STATUS "Build type not specified: defaulting to release.")
+    endif()
+endif()
 
 if (NOT POTHOS_EXTVER)
     include(${PROJECT_SOURCE_DIR}/cmake/Modules/GetGitRevisionDescription.cmake)
@@ -56,42 +66,32 @@ file(TO_CMAKE_PATH "${POTHOS_ROOT}" POTHOS_ROOT)
 set(POTHOS_ROOT_ENV "POTHOS_ROOT" CACHE STRING
     "Environment variable for Pothos::System::getRootPath()")
 
-#APPDATA_ENV is the name of the environment variable
+#POTHOS_APPDATA_ENV is the name of the environment variable
 #which tells Pothos where to find the user's data directory.
 #By default, the environment variable APPDATA is used.
-#Example: set -DAPPDATA_ENV=SNAP_USER_DATA for snappy packages.
-set(APPDATA_ENV "APPDATA" CACHE STRING
+#Example: set -DPOTHOS_APPDATA_ENV=SNAP_USER_DATA for snappy packages.
+set(POTHOS_APPDATA_ENV "APPDATA" CACHE STRING
     "Environment variable for Pothos::System::getUserDataPath()")
 
 include(FeatureSummary)
-include(CMakeDependentOption)
 include(GNUInstallDirs)
 
 ########################################################################
-# rpath setup - http://www.cmake.org/Wiki/CMake_RPATH_handling
+# Target settings instead of globals (CMAKE_CXX_STANDARD, CMAKE_INSTALL_RPATH...)
 ########################################################################
-# use, i.e. don't skip the full RPATH for the build tree
-option(CMAKE_SKIP_BUILD_RPATH "skip rpath build" FALSE)
-
-# when building, don't use the install RPATH already
-# (but later on when installing)
-option(CMAKE_BUILD_WITH_INSTALL_RPATH "build with install rpath" FALSE)
-
-# the RPATH to be used when installing: relative to the installed binary,
-# so that an installation can be relocated (bin/ and lib/ are siblings)
-if(APPLE)
-    set(CMAKE_INSTALL_RPATH "@loader_path/../${CMAKE_INSTALL_LIBDIR}")
-elseif(UNIX)
-    set(CMAKE_INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
-endif()
-
-# add the automatically determined parts of the RPATH
-# which point to directories outside the build tree to the install RPATH
-option(CMAKE_INSTALL_RPATH_USE_LINK_PATH "build with automatic rpath" TRUE)
-
-if(APPLE)
-    set(CMAKE_MACOSX_RPATH ON)
-endif()
+#C++23 comes from target_compile_features(cxx_std_23); no compiler extensions;
+#the install RPATH is relative to the installed binary, so that an installation
+#can be relocated (bin/ and lib/ are siblings)
+function(pothos_target_settings target)
+    set_target_properties(${target} PROPERTIES
+        CXX_EXTENSIONS OFF
+        INSTALL_RPATH_USE_LINK_PATH TRUE)
+    if(APPLE)
+        set_target_properties(${target} PROPERTIES INSTALL_RPATH "@loader_path/../${CMAKE_INSTALL_LIBDIR}")
+    elseif(UNIX)
+        set_target_properties(${target} PROPERTIES INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
+    endif()
+endfunction()
 
 ########################################################################
 # Third party libraries in the source tree
@@ -101,79 +101,102 @@ add_subdirectory(third_party)
 ########################################################################
 # Build the framework library
 ########################################################################
-cmake_dependent_option(ENABLE_LIBRARY "Enable Pothos Library component" ON "TRUE" OFF)
-add_feature_info(Library ENABLE_LIBRARY "The main library for all Pothos projects")
-
-if(ENABLE_LIBRARY)
-    find_package(Pothos CONFIG REQUIRED)
-    add_subdirectory(include)
-    add_subdirectory(lib)
-    add_subdirectory(cmake/Modules)
+find_package(Pothos CONFIG REQUIRED)
+add_subdirectory(include)
+add_subdirectory(lib)
+add_subdirectory(cmake/Modules)
+if(POTHOS_BUILD_APPS)
     add_subdirectory(apps)
+endif()
+if(POTHOS_BUILD_DOCS)
     add_subdirectory(docs)
-endif(ENABLE_LIBRARY)
+endif()
 
 ########################################################################
 # Tests: the self-tests need an installed layout (see Pothos::init()),
 # so the build is first staged into a prefix inside the build tree.
 ########################################################################
-set(POTHOS_STAGE_DIR ${CMAKE_BINARY_DIR}/stage)
-set(POTHOS_SELFTEST_TIMEOUT 900 CACHE STRING "Timeout in seconds for the self-tests")
+if(POTHOS_BUILD_TESTS)
+    enable_testing()
+    set(POTHOS_STAGE_DIR ${PROJECT_BINARY_DIR}/stage)
+    set(POTHOS_SELFTEST_TIMEOUT 900 CACHE STRING "Timeout in seconds for the self-tests")
 
-add_test(NAME pothos.stage
-    COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR} --prefix ${POTHOS_STAGE_DIR} --config $<CONFIG>)
-set_tests_properties(pothos.stage PROPERTIES FIXTURES_SETUP pothos_stage)
+    add_test(NAME pothos.stage
+        COMMAND ${CMAKE_COMMAND} --install ${PROJECT_BINARY_DIR} --prefix ${POTHOS_STAGE_DIR} --config $<CONFIG>)
+    set_tests_properties(pothos.stage PROPERTIES FIXTURES_SETUP pothos_stage)
 
-add_test(NAME pothos.selftests
-    COMMAND ${CMAKE_COMMAND}
-        -DPREFIX=${POTHOS_STAGE_DIR}
-        -DTEST_HOME_DIR=${CMAKE_BINARY_DIR}/test-home
-        -DBINDIR=${CMAKE_INSTALL_BINDIR}
-        -DLIBDIR=${CMAKE_INSTALL_LIBDIR}
-        -P ${PROJECT_SOURCE_DIR}/cmake/PothosRunSelfTests.cmake)
-set_tests_properties(pothos.selftests PROPERTIES
-    FIXTURES_REQUIRED pothos_stage
-    TIMEOUT ${POTHOS_SELFTEST_TIMEOUT})
+    if(POTHOS_BUILD_APPS)
+        add_test(NAME pothos.selftests
+            COMMAND ${CMAKE_COMMAND}
+                -DPREFIX=${POTHOS_STAGE_DIR}
+                -DTEST_HOME_DIR=${PROJECT_BINARY_DIR}/test-home
+                -DBINDIR=${CMAKE_INSTALL_BINDIR}
+                -DLIBDIR=${CMAKE_INSTALL_LIBDIR}
+                -P ${PROJECT_SOURCE_DIR}/cmake/PothosRunSelfTests.cmake)
+        set_tests_properties(pothos.selftests PROPERTIES
+            FIXTURES_REQUIRED pothos_stage
+            TIMEOUT ${POTHOS_SELFTEST_TIMEOUT})
+    endif()
 
-add_test(NAME pothos.consumer
-    COMMAND ${CMAKE_COMMAND}
-        -DPREFIX=${POTHOS_STAGE_DIR}
-        -DSRC=${PROJECT_SOURCE_DIR}/tests/consumer
-        -DWORK=${CMAKE_BINARY_DIR}/consumer
-        -DGENERATOR=${CMAKE_GENERATOR}
-        -DCONFIG=$<CONFIG>
-        -DBINDIR=${CMAKE_INSTALL_BINDIR}
-        -DLIBDIR=${CMAKE_INSTALL_LIBDIR}
-        -P ${PROJECT_SOURCE_DIR}/cmake/PothosConsumerTest.cmake)
-set_tests_properties(pothos.consumer PROPERTIES FIXTURES_REQUIRED pothos_stage)
+    add_test(NAME pothos.consumer
+        COMMAND ${CMAKE_COMMAND}
+            -DPREFIX=${POTHOS_STAGE_DIR}
+            -DSRC=${PROJECT_SOURCE_DIR}/tests/consumer
+            -DWORK=${PROJECT_BINARY_DIR}/consumer
+            -DGENERATOR=${CMAKE_GENERATOR}
+            -DCONFIG=$<CONFIG>
+            -DBINDIR=${CMAKE_INSTALL_BINDIR}
+            -DLIBDIR=${CMAKE_INSTALL_LIBDIR}
+            -P ${PROJECT_SOURCE_DIR}/cmake/PothosConsumerTest.cmake)
+    set_tests_properties(pothos.consumer PROPERTIES FIXTURES_REQUIRED pothos_stage)
 
-add_test(NAME pothos.test_env_guard
-    COMMAND ${CMAKE_COMMAND}
-        -DWORK=${CMAKE_BINARY_DIR}/test-env-guard
-        -P ${PROJECT_SOURCE_DIR}/tests/test_env_guard.cmake)
+    #the core inside a parent project (not again from inside such a parent)
+    if(PROJECT_IS_TOP_LEVEL)
+        add_test(NAME pothos.subproject
+            COMMAND ${CMAKE_COMMAND}
+                -DSRC=${PROJECT_SOURCE_DIR}
+                -DWORK=${PROJECT_BINARY_DIR}/subproject
+                -DGENERATOR=${CMAKE_GENERATOR}
+                -DCXX=${CMAKE_CXX_COMPILER}
+                -DCC=${CMAKE_C_COMPILER}
+                -P ${PROJECT_SOURCE_DIR}/cmake/PothosSubprojectTest.cmake)
+    endif()
+
+    add_test(NAME pothos.test_env_guard
+        COMMAND ${CMAKE_COMMAND}
+            -DWORK=${PROJECT_BINARY_DIR}/test-env-guard
+            -P ${PROJECT_SOURCE_DIR}/tests/test_env_guard.cmake)
+endif()
 
 ########################################################################
-# uninstall target
+# uninstall target (pothos_uninstall inside a parent project)
 ########################################################################
-add_custom_target(uninstall
-    "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake")
+if(PROJECT_IS_TOP_LEVEL)
+    set(uninstall_target uninstall)
+else()
+    set(uninstall_target pothos_uninstall)
+endif()
+add_custom_target(${uninstall_target}
+    "${CMAKE_COMMAND}" -P "${PROJECT_BINARY_DIR}/cmake_uninstall.cmake")
 configure_file(
-    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake_uninstall.cmake.in"
-    "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
+    "${PROJECT_SOURCE_DIR}/cmake/cmake_uninstall.cmake.in"
+    "${PROJECT_BINARY_DIR}/cmake_uninstall.cmake"
     @ONLY)
 
 ########################################################################
-# print features summary
+# print features summary (not into a parent project's output)
 ########################################################################
-message(STATUS "")
-message(STATUS "######################################################")
-message(STATUS "## Enabled features")
-message(STATUS "######################################################")
-feature_summary(WHAT ENABLED_FEATURES)
-message(STATUS "######################################################")
-message(STATUS "## Disabled features")
-message(STATUS "######################################################")
-feature_summary(WHAT DISABLED_FEATURES)
+if(PROJECT_IS_TOP_LEVEL)
+    message(STATUS "")
+    message(STATUS "######################################################")
+    message(STATUS "## Enabled features")
+    message(STATUS "######################################################")
+    feature_summary(WHAT ENABLED_FEATURES)
+    message(STATUS "######################################################")
+    message(STATUS "## Disabled features")
+    message(STATUS "######################################################")
+    feature_summary(WHAT DISABLED_FEATURES)
+endif()
 message(STATUS "Pothos version: v${POTHOS_VERSION}")
 message(STATUS "ABI/so version: v${POTHOS_ABI_VERSION}")
 message(STATUS "Install prefix: ${CMAKE_INSTALL_PREFIX}")

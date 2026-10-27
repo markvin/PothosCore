@@ -17,11 +17,15 @@ include(PothosUtil) #utility functions
 ########################################################################
 # select the release build type by default to get optimization flags
 ########################################################################
-if(NOT CMAKE_BUILD_TYPE)
-   set(CMAKE_BUILD_TYPE "Release")
-   message(STATUS "Build type not specified: defaulting to release.")
-endif(NOT CMAKE_BUILD_TYPE)
-set(CMAKE_BUILD_TYPE ${CMAKE_BUILD_TYPE} CACHE STRING "")
+#(not for the in-tree build of the core: it may be a subproject of another
+#project, whose build type it must not set)
+if(NOT POTHOS_IN_TREE_SOURCE_DIR)
+    if(NOT CMAKE_BUILD_TYPE)
+       set(CMAKE_BUILD_TYPE "Release")
+       message(STATUS "Build type not specified: defaulting to release.")
+    endif(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE ${CMAKE_BUILD_TYPE} CACHE STRING "")
+endif()
 
 ########################################################################
 # Use GNU Install Dirs, but support LIB_SUFFIX if specified

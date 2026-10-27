@@ -1,11 +1,6 @@
 ########################################################################
 ## Feature registration
 ########################################################################
-cmake_dependent_option(ENABLE_LIBRARY_CMAKE "Enable Pothos Library.CMake component" ON "ENABLE_LIBRARY" OFF)
-add_feature_info("  CMake" ENABLE_LIBRARY_CMAKE "CMake project utilities for Pothos library")
-if (NOT ENABLE_LIBRARY_CMAKE)
-    return()
-endif()
 
 ########################################################################
 # Install cmake helper modules

@@ -1,11 +1,6 @@
 ########################################################################
 ## Feature registration
 ########################################################################
-cmake_dependent_option(ENABLE_LIBRARY_LIB "Enable Pothos Library.Lib component" ON "ENABLE_LIBRARY" OFF)
-add_feature_info("  Lib" ENABLE_LIBRARY_LIB "Pothos development and runtime libraries")
-if (NOT ENABLE_LIBRARY_LIB)
-    return()
-endif()
 
 ########################################################################
 # Library sources
@@ -193,6 +188,7 @@ add_library(Pothos SHARED
     Archive/Exception.cpp
 )
 add_library(Pothos::Pothos ALIAS Pothos)
+pothos_target_settings(Pothos)
 
 ########################################################################
 # Internal static libraries shared by libPothos and PothosUtil: the
@@ -204,6 +200,7 @@ add_library(Pothos::Pothos ALIAS Pothos)
 function(pothos_internal_library name)
     add_library(${name} STATIC ${ARGN})
     set_target_properties(${name} PROPERTIES
+        CXX_EXTENSIONS OFF
         POSITION_INDEPENDENT_CODE ON
         C_VISIBILITY_PRESET hidden
         CXX_VISIBILITY_PRESET hidden
