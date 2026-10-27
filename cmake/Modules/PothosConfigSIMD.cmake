@@ -1357,7 +1357,7 @@ function(PothosGenerateSIMDSources FileListVariable JSONInputFile)
         OUTPUT ${outputHeaderPath}
         COMMENT "Generating ${JSONInputFilename} SIMD dynamic dispatchers"
         COMMAND ${POTHOS_UTIL_EXE} --simd-arches=${ArchString} --output=${outputHeaderPath} --generate-simd-dispatchers=${JSONInputFileAbsolute}
-        DEPENDS ${JSONInputFileAbsolute})
+        DEPENDS ${JSONInputFileAbsolute} ${__POTHOS_UTIL_TARGET_NAME})
     add_custom_target(${JSONInputFilename}_SIMDDispatcher DEPENDS ${outputHeaderPath})
 
     set(${FileListVariable} ${FileList} PARENT_SCOPE)
