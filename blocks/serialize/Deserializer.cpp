@@ -4,8 +4,8 @@
 
 #include "SerializeCommon.hpp"
 #include <Pothos/Framework.hpp>
-#include <Poco/ByteOrder.h>
-#include <Poco/Format.h>
+#include "common/ByteOrder.hpp"
+#include <format>
 
 #include <sstream>
 #include <cstring>
@@ -145,12 +145,12 @@ static bool inspectPacket(const Pothos::BufferChunk &packet, bool &isFragment, s
 
     if ((p[0] == 'm') and (p[1] == 'V') and (p[2] == 'R') and (p[3] == 'L'))
     {
-        assert(Poco::ByteOrder::fromNetwork(vrlp_pkt[0]) == mVRL);
-        pkt_bytes = Poco::ByteOrder::fromNetwork(vrlp_pkt[1]) & 0xfffff;
+        assert(BlocksByteOrder::fromNetwork(vrlp_pkt[0]) == mVRL);
+        pkt_bytes = BlocksByteOrder::fromNetwork(vrlp_pkt[1]) & 0xfffff;
         const size_t pkt_words32 = padUp32(pkt_bytes)/4;
         isFragment = pkt_bytes > packet.length;
         if (pkt_bytes > MAX_PKT_BYTES) return false; //call this BS
-        return isFragment or Poco::ByteOrder::fromNetwork(vrlp_pkt[pkt_words32-1]) == VEND;
+        return isFragment or BlocksByteOrder::fromNetwork(vrlp_pkt[pkt_words32-1]) == VEND;
     }
     return false;
 }
@@ -164,15 +164,15 @@ static void unpackBuffer(const Pothos::BufferChunk &packet, size_t &seq, size_t 
     const uint32_t *p = packet;
 
     //validate vrlp
-    assert(Poco::ByteOrder::fromNetwork(p[0]) == mVRL);
-    const size_t pkt_bytes = Poco::ByteOrder::fromNetwork(p[1]) & 0xfffff;
+    assert(BlocksByteOrder::fromNetwork(p[0]) == mVRL);
+    const size_t pkt_bytes = BlocksByteOrder::fromNetwork(p[1]) & 0xfffff;
     const size_t pkt_words32 = padUp32(pkt_bytes)/4;
-    assert(Poco::ByteOrder::fromNetwork(p[pkt_words32-1]) == VEND);
+    assert(BlocksByteOrder::fromNetwork(p[pkt_words32-1]) == VEND);
     unpackCheck(pkt_words32*4 <= packet.length);
-    const size_t seq12 = Poco::ByteOrder::fromNetwork(p[1]) >> 20;
+    const size_t seq12 = BlocksByteOrder::fromNetwork(p[1]) >> 20;
 
     //validate vita
-    const auto vita_hdr = Poco::ByteOrder::fromNetwork(p[2]);
+    const auto vita_hdr = BlocksByteOrder::fromNetwork(p[2]);
     const size_t vita_words32 = vita_hdr & 0xffff;
     unpackCheck(vita_words32 == pkt_words32 - 3);
 
@@ -193,10 +193,10 @@ static void unpackBuffer(const Pothos::BufferChunk &packet, size_t &seq, size_t 
 
     //extract seq and sid
     seq = seq12;
-    sid = Poco::ByteOrder::fromNetwork(p[3]);
+    sid = BlocksByteOrder::fromNetwork(p[3]);
 
     //only valid when has_tsf
-    tsf = (uint64_t(Poco::ByteOrder::fromNetwork(p[4])) << 32) | Poco::ByteOrder::fromNetwork(p[5]);
+    tsf = (uint64_t(BlocksByteOrder::fromNetwork(p[4])) << 32) | BlocksByteOrder::fromNetwork(p[5]);
 
     //set out buff
     const size_t hdr_words32 = has_tsf? 6 : 4;
@@ -254,7 +254,7 @@ void Deserializer::handlePacket(const Pothos::BufferChunk &packetBuff)
     unpackBuffer(packetBuff, seq, sid, has_tsf, tsf, is_ext, payloadBuff);
 
     if (sid >= this->outputs().size()) throw Pothos::RangeException("Deserializer::handlePacket()",
-        Poco::format("packet has SID %z, but block has %z outputs", sid, this->outputs().size()));
+        std::format("packet has SID {}, but block has {} outputs", sid, this->outputs().size()));
     auto outputPort = this->output(sid);
 
     //handle buffs

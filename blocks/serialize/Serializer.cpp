@@ -3,7 +3,7 @@
 
 #include "SerializeCommon.hpp"
 #include <Pothos/Framework.hpp>
-#include <Poco/ByteOrder.h>
+#include "common/ByteOrder.hpp"
 #include <sstream>
 #include <cstring>
 #include <cassert>
@@ -73,13 +73,13 @@ static void packBuffer(const size_t seq, const size_t sid, const bool has_tsf, c
     buff.length = pkt_words32*4;
 
     uint32_t *p = buff;
-    p[0] = Poco::ByteOrder::toNetwork(mVRL);
-    p[1] = Poco::ByteOrder::toNetwork(uint32_t(((seq << 20) & 0xfff) | (pkt_bytes & 0xfffff)));
-    p[2] = Poco::ByteOrder::toNetwork(uint32_t(VITA_SID | (is_ext? VITA_EXT : 0) | (has_tsf? VITA_TSF : 0) | ((seq << 16) & 0xf) | (vita_words32 & 0xffff)));
-    p[3] = Poco::ByteOrder::toNetwork(uint32_t(sid));
-    if (has_tsf) p[4] = Poco::ByteOrder::toNetwork(uint32_t(tsf >> 32));
-    if (has_tsf) p[5] = Poco::ByteOrder::toNetwork(uint32_t(tsf >> 0));
-    p[pkt_words32-1] = Poco::ByteOrder::toNetwork(VEND);
+    p[0] = BlocksByteOrder::toNetwork(mVRL);
+    p[1] = BlocksByteOrder::toNetwork(uint32_t(((seq << 20) & 0xfff) | (pkt_bytes & 0xfffff)));
+    p[2] = BlocksByteOrder::toNetwork(uint32_t(VITA_SID | (is_ext? VITA_EXT : 0) | (has_tsf? VITA_TSF : 0) | ((seq << 16) & 0xf) | (vita_words32 & 0xffff)));
+    p[3] = BlocksByteOrder::toNetwork(uint32_t(sid));
+    if (has_tsf) p[4] = BlocksByteOrder::toNetwork(uint32_t(tsf >> 32));
+    if (has_tsf) p[5] = BlocksByteOrder::toNetwork(uint32_t(tsf >> 0));
+    p[pkt_words32-1] = BlocksByteOrder::toNetwork(VEND);
 }
 
 /*!

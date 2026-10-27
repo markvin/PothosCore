@@ -28,5 +28,7 @@ function(pothos_blocks_module)
     endforeach()
 endfunction()
 
+add_subdirectory(event)
 add_subdirectory(packet)
+add_subdirectory(serialize)
 add_subdirectory(testers)

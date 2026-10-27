@@ -4,7 +4,7 @@
 #include <Pothos/Framework.hpp>
 #include <Pothos/Object/Containers.hpp>
 #include <Pothos/Util/EvalEnvironment.hpp>
-#include <Poco/Format.h>
+#include <format>
 #include <cctype> //toupper
 #include <string>
 #include <map>
@@ -73,7 +73,7 @@ public:
         for (const auto &name : varNames)
         {
             if (name.empty()) continue;
-            const auto slotName = Poco::format("set%s%s", std::string(1, std::toupper(name.front())), name.substr(1));
+            const auto slotName = std::format("set{}{}", std::string(1, std::toupper(name.front())), name.substr(1));
             _slotNameToVarName[slotName] = name;
             this->registerSlot(slotName); //opaqueCallHandler
         }
@@ -120,7 +120,7 @@ public:
         for (size_t i = 0; i < numArgs; i++)
         {
             if (numArgs == 1) _varValues[it->second] = inputArgs[i];
-            else _varValues[Poco::format("%s%z", it->second, i)] = inputArgs[i];
+            else _varValues[std::format("{}{}", it->second, i)] = inputArgs[i];
         }
         _varsReady.insert(it->second);
 

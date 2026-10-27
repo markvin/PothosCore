@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include <Pothos/Framework.hpp>
-#include <Poco/Logger.h>
-#include <Poco/Format.h>
+#include <Pothos/System/Logger.hpp>
+#include <format>
 #include <iostream>
 
 /***********************************************************************
@@ -45,8 +45,7 @@ public:
         return new MessagePrinter();
     }
 
-    MessagePrinter(void):
-        _logger(nullptr)
+    MessagePrinter(void)
     {
         this->setupInput(0);
         this->registerCall(this, POTHOS_FCN_TUPLE(MessagePrinter, setDestination));
@@ -70,7 +69,6 @@ public:
     void setSourceName(const std::string &name)
     {
         _srcName = name;
-        _logger = &Poco::Logger::get(_srcName);
     }
 
     std::string getSourceName(void) const
@@ -89,7 +87,7 @@ public:
         {
             const auto &buff = input->buffer();
             input->consume(input->elements());
-            msg = Poco::format("%s[%d]", buff.dtype.toString(), int(buff.elements()));
+            msg = std::format("{}[{}]", buff.dtype.toString(), int(buff.elements()));
         }
 
         //got an input message, convert to string
@@ -106,17 +104,15 @@ public:
 
         if      (_dest == "STDOUT")      std::cout << (_srcName.empty()?"":(_srcName+": ")) << msg << std::endl;
         else if (_dest == "STDERR")      std::cerr << (_srcName.empty()?"":(_srcName+": ")) << msg << std::endl;
-        else if (_dest == "ERROR")       {poco_error(*_logger, msg);}
-        else if (_dest == "WARNING")     {poco_warning(*_logger, msg);}
-        else if (_dest == "INFORMATION") {poco_information(*_logger, msg);}
-        else if (_dest == "DEBUG")       {poco_debug(*_logger, msg);}
-        else                             {poco_information(*_logger, msg);}
+        else if (_dest == "ERROR")       Pothos::System::Logger::log(Pothos::System::LogLevel::Error, _srcName, msg);
+        else if (_dest == "WARNING")     Pothos::System::Logger::log(Pothos::System::LogLevel::Warning, _srcName, msg);
+        else if (_dest == "DEBUG")       Pothos::System::Logger::log(Pothos::System::LogLevel::Debug, _srcName, msg);
+        else                             Pothos::System::Logger::log(Pothos::System::LogLevel::Information, _srcName, msg);
     }
 
 private:
     std::string _dest;
     std::string _srcName;
-    Poco::Logger *_logger;
 };
 
 static Pothos::BlockRegistry registerMessagePrinter(
