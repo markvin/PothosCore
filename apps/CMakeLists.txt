@@ -1,11 +1,6 @@
 ########################################################################
 ## Feature registration
 ########################################################################
-cmake_dependent_option(ENABLE_LIBRARY_APPS "Enable Pothos Library.Apps component" ON "ENABLE_LIBRARY" OFF)
-add_feature_info("  Apps" ENABLE_LIBRARY_APPS "Utility application for Pothos library")
-if (NOT ENABLE_LIBRARY_APPS)
-    return()
-endif()
 
 ########################################################################
 # build PothosUtil
@@ -36,6 +31,7 @@ target_link_libraries(PothosUtil PRIVATE
     pothos_net
     pothos_app
     pothos_json)
+pothos_target_settings(PothosUtil)
 install(TARGETS PothosUtil
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT pothos_runtime
 )

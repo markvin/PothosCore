@@ -1,11 +1,6 @@
 ########################################################################
 ## Feature registration
 ########################################################################
-cmake_dependent_option(ENABLE_LIBRARY_LIB "Enable Pothos Library.Lib component" ON "ENABLE_LIBRARY" OFF)
-add_feature_info("  Lib" ENABLE_LIBRARY_LIB "Pothos development and runtime libraries")
-if (NOT ENABLE_LIBRARY_LIB)
-    return()
-endif()
 
 ########################################################################
 # Library sources
@@ -193,6 +188,7 @@ add_library(Pothos SHARED
     Archive/Exception.cpp
 )
 add_library(Pothos::Pothos ALIAS Pothos)
+pothos_target_settings(Pothos)
 
 ########################################################################
 # Internal static libraries shared by libPothos and PothosUtil: the
@@ -204,6 +200,7 @@ add_library(Pothos::Pothos ALIAS Pothos)
 function(pothos_internal_library name)
     add_library(${name} STATIC ${ARGN})
     set_target_properties(${name} PROPERTIES
+        CXX_EXTENSIONS OFF
         POSITION_INDEPENDENT_CODE ON
         C_VISIBILITY_PRESET hidden
         CXX_VISIBILITY_PRESET hidden
@@ -382,16 +379,16 @@ target_sources(Pothos PRIVATE
 option(POTHOS_ENABLE_LIBNUMA "Use the system libnuma for NUMA info on Linux" OFF)
 if(POTHOS_ENABLE_LIBNUMA)
     find_library(
-        NUMA_LIBRARIES
+        POTHOS_NUMA_LIBRARY
         NAMES numa
         PATHS /usr/lib /usr/lib64
     )
 endif()
 
-if(NUMA_LIBRARIES)
+if(POTHOS_ENABLE_LIBNUMA AND POTHOS_NUMA_LIBRARY)
     target_compile_definitions(Pothos PRIVATE -DHAVE_LIBNUMA)
     target_sources(Pothos PRIVATE  System/NumaInfoLinux.cpp)
-    target_link_libraries(Pothos PRIVATE ${NUMA_LIBRARIES})
+    target_link_libraries(Pothos PRIVATE ${POTHOS_NUMA_LIBRARY})
     list(APPEND PC_LIBS_PRIVATE "-lnuma")
 elseif(WIN32)
     target_sources(Pothos PRIVATE System/NumaInfoWindows.cpp)
@@ -405,13 +402,13 @@ endif()
 # Link libatomic
 ########################################################################
 find_library(
-    ATOMIC_LIBRARIES
+    POTHOS_ATOMIC_LIBRARY
     NAMES atomic atomic.so.1 libatomic.so.1
     PATHS /usr/lib /usr/lib64
 )
 
-if (ATOMIC_LIBRARIES)
-    target_link_libraries(Pothos PRIVATE ${ATOMIC_LIBRARIES})
+if (POTHOS_ATOMIC_LIBRARY)
+    target_link_libraries(Pothos PRIVATE ${POTHOS_ATOMIC_LIBRARY})
     list(APPEND PC_LIBS_PRIVATE "-latomic")
 endif()
 
@@ -419,13 +416,13 @@ endif()
 # Thread config support
 ########################################################################
 find_library(
-    RT_LIBRARIES
+    POTHOS_RT_LIBRARY
     NAMES rt
     PATHS /usr/lib /usr/lib64
 )
 
-if (RT_LIBRARIES)
-    target_link_libraries(Pothos PRIVATE ${RT_LIBRARIES})
+if (POTHOS_RT_LIBRARY)
+    target_link_libraries(Pothos PRIVATE ${POTHOS_RT_LIBRARY})
     list(APPEND PC_LIBS_PRIVATE "-lrt")
 endif()
 
@@ -441,8 +438,8 @@ endif()
 if (APPLE)
     #Need to link to CoreFoundation to fix dlopen() issue:
     #http://openradar.appspot.com/7209349
-    find_library(COREFOUNDATION_LIBRARY CoreFoundation)
-    target_link_libraries(Pothos PRIVATE ${COREFOUNDATION_LIBRARY})
+    find_library(POTHOS_COREFOUNDATION_LIBRARY CoreFoundation)
+    target_link_libraries(Pothos PRIVATE ${POTHOS_COREFOUNDATION_LIBRARY})
 endif()
 
 ########################################################################

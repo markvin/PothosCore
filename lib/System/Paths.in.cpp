@@ -71,7 +71,7 @@ std::string Pothos::System::getUserDataPath(void)
     {
         dataPath = *xdg;
     }
-    else if (const auto appData = Pothos::Platform::getEnv("@APPDATA_ENV@"))
+    else if (const auto appData = Pothos::Platform::getEnv("@POTHOS_APPDATA_ENV@"))
     {
         dataPath = *appData;
     }
@@ -89,7 +89,7 @@ std::string Pothos::System::getUserConfigPath(void)
     {
         configPath = *xdg;
     }
-    else if (const auto appData = Pothos::Platform::getEnv("@APPDATA_ENV@"))
+    else if (const auto appData = Pothos::Platform::getEnv("@POTHOS_APPDATA_ENV@"))
     {
         configPath = *appData;
     }

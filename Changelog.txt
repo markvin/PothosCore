@@ -15,6 +15,18 @@ Expressions (EvalEnvironment):
 - Decimal integer literals beyond 64 bits (JSON uint64 numbers) are floats
 - Duplicate dict keys: the last value wins
 
+Build (CMake):
+
+- The core works as a subproject (add_subdirectory/FetchContent): prefixed
+  options and cache entries (POTHOS_NUMA_LIBRARY, POTHOS_CAN_COMPILE_*, ...),
+  no change to the parent's globals; tests only when POTHOS_BUILD_TESTS=ON;
+  documentation target pothos_docs; no uninstall target in a parent project
+- Options renamed/removed: ENABLE_LIBRARY, ENABLE_LIBRARY_LIB,
+  ENABLE_LIBRARY_INCLUDE, ENABLE_LIBRARY_CMAKE removed; ENABLE_LIBRARY_APPS
+  -> POTHOS_BUILD_APPS; ENABLE_LIBRARY_DOCS -> POTHOS_BUILD_DOCS; new
+  POTHOS_BUILD_TESTS; APPDATA_ENV -> POTHOS_APPDATA_ENV
+- No global CMAKE_CXX_STANDARD or RPATH settings any more (target properties)
+
 SIMD:
 
 - libsimdpp replaced by xsimd (vendored in third_party/xsimd): CPU feature

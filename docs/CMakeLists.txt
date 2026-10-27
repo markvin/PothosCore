@@ -12,9 +12,8 @@ endif()
 ########################################################################
 ## Feature registration
 ########################################################################
-cmake_dependent_option(ENABLE_LIBRARY_DOCS "Enable Pothos Library.Docs component" ON "ENABLE_LIBRARY;DOXYGEN_FOUND" OFF)
-add_feature_info("  Docs" ENABLE_LIBRARY_DOCS "Doxygen generated docs for Pothos library")
-if (NOT ENABLE_LIBRARY_DOCS)
+add_feature_info("Pothos docs" DOXYGEN_FOUND "Doxygen generated docs for Pothos library")
+if (NOT DOXYGEN_FOUND)
     return()
 endif()
 
@@ -39,5 +38,5 @@ if (DOXYGEN_FOUND)
         COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
         COMMENT "Generating documentation with doxygen"
     )
-    add_custom_target(docs ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR_DOXYGEN})
+    add_custom_target(pothos_docs ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR_DOXYGEN})
 endif()

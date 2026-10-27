@@ -55,6 +55,29 @@ cmake --install build
 Only the framework library is built; the toolkit submodules are not part
 of this build.
 
+Build options:
+
+* `POTHOS_BUILD_APPS` (ON) - build PothosUtil (used by the self-tests and
+  module safe-loading)
+* `POTHOS_BUILD_DOCS` (ON for a top level build) - Doxygen documentation
+  when Doxygen is found
+* `POTHOS_BUILD_TESTS` (ON for a top level build) - register the CTest tests
+* `POTHOS_ENABLE_LIBNUMA` (OFF) - use the system libnuma on Linux
+* `POTHOS_ROOT`, `POTHOS_ROOT_ENV`, `POTHOS_APPDATA_ENV` - install root and
+  the environment variables that override it and the user data directory
+
+The core can also be a subproject of another CMake project:
+
+```cmake
+add_subdirectory(PothosCore)   # or FetchContent_MakeAvailable
+target_link_libraries(myapp PRIVATE Pothos::Pothos)
+```
+
+As a subproject its options and cache entries are prefixed `POTHOS_`, it
+leaves the parent's global settings alone, registers no tests unless
+`POTHOS_BUILD_TESTS=ON`, names its documentation target `pothos_docs` and
+creates no uninstall target (that is the parent's).
+
 ## Layout
 
 * include/ - public API C++23 header files
