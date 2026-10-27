@@ -15,7 +15,7 @@ std::vector<std::string> Pothos::System::Detail::detectSIMDFeatures(void)
     std::vector<std::string> out;
     const auto add = [&out](const bool supported, const char *name){if (supported) out.emplace_back(name);};
 
-    //x86: a level implies the levels it builds on, as in the old libsimdpp masks
+    //x86: a level implies the levels it builds on (the composition Pothos always used)
     const bool sse2 = cpu.sse2(), sse3 = sse2 and cpu.sse3(), ssse3 = sse3 and cpu.ssse3();
     const bool sse4_1 = ssse3 and cpu.sse4_1(), avx = sse4_1 and cpu.avx(), avx2 = avx and cpu.avx2();
     const bool avx512f = avx2 and cpu.avx512f();

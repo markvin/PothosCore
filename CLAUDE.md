@@ -11,7 +11,7 @@ Restore / update the project so it builds and works on a modern toolchain.
 
 - `lib/`, `include/` — core framework
 - Git submodules: spuce, plotters, widgets, flow, soapy,
-  blocks, python, audio, comms, libsimdpp
+  blocks, python, audio, comms (none of them is part of the core build)
 
 ## Build
 
@@ -19,7 +19,7 @@ Design and plans: `docs/superpowers/specs/2026-10-26-core-modernization-design.m
 `docs/superpowers/plans/` (roadmap + per-phase plans).
 
 Only the core is built (toolkit submodules are not part of the build).
-Core submodules: `git submodule update --init libsimdpp`.
+The core needs no submodule: dependencies are vendored in `third_party/`.
 
 ```sh
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
@@ -29,7 +29,7 @@ ctest --test-dir build --output-on-failure
 
 - C++23, CMake >= 3.25 (works on 4.x). No network access during the build;
   `third_party/` holds vendored code (nlohmann/json, standalone Asio, xsimd).
-- Internal dependencies (nlohmann/json, Asio, libsimdpp) are PRIVATE; they
+- Internal dependencies (nlohmann/json, Asio, xsimd) are PRIVATE; they
   must never appear in the exported `Pothos::Pothos` target (checked by
   `pothos.consumer`). Poco is gone (phase 5): do not reintroduce it.
 - `Pothos::init()` requires an installed layout, so CTest first runs

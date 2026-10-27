@@ -473,8 +473,6 @@ endif(MSVC)
 # SIMD/SIMDConvertDispatch.cpp from the generated list of copies
 ########################################################################
 include(${PROJECT_SOURCE_DIR}/cmake/Modules/PothosConfigSIMD.cmake)
-#only for the temporary libsimdpp cross-check test until the submodule is removed
-target_include_directories(Pothos SYSTEM PRIVATE ${PROJECT_SOURCE_DIR}/libsimdpp)
 pothos_get_compilable_archs(simd_convert_archs)
 set(simd_convert_files)
 pothos_multiarch(simd_convert_files simd_convert_arch_string SIMD/SIMDConvert.cpp ${simd_convert_archs})

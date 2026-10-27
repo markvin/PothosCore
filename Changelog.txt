@@ -15,6 +15,12 @@ Expressions (EvalEnvironment):
 - Decimal integer literals beyond 64 bits (JSON uint64 numbers) are floats
 - Duplicate dict keys: the last value wins
 
+SIMD:
+
+- libsimdpp replaced by xsimd (vendored in third_party/xsimd): CPU feature
+  detection and SIMD buffer conversion; the feature names stay the same
+  (x86_sse2, x86_avx2, ...); x86_xop and mips_msa are no longer detected
+
 PothosUtil and dependencies:
 
 - Poco removed: PothosUtil has its own command line parser, termination
