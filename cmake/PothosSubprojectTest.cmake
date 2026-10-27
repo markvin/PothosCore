@@ -10,7 +10,7 @@
 #    into the core's own binary directory
 #  - -DPOTHOS_BUILD_APPS=OFF: configures without PothosUtil
 #  - -DPOTHOS_BUILD_DOCS=ON: no clash with the parent's docs target
-#  - FetchContent with OVERRIDE_FIND_PACKAGE instead of add_subdirectory
+#  - the core declared with OVERRIDE_FIND_PACKAGE instead of add_subdirectory
 # In each one a toolkit next to the core (tests/subproject/sibling) and the
 # parent find the core with find_package(Pothos).
 ########################################################################
@@ -63,6 +63,6 @@ endif ()
 configure_parent("${WORK}/no-apps" -DPOTHOS_BUILD_APPS=OFF)
 configure_parent("${WORK}/docs" -DPOTHOS_BUILD_DOCS=ON)
 
-#FetchContent_Declare(... OVERRIDE_FIND_PACKAGE): the core still finds its own configuration
+#declared with OVERRIDE_FIND_PACKAGE: the core still finds its own configuration
 configure_parent("${WORK}/fetchcontent" -DPOTHOS_SUBPROJECT_FETCHCONTENT=ON)
 message(STATUS "subproject checks passed")

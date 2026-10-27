@@ -111,7 +111,7 @@ add_subdirectory(third_party)
 # Build the framework library
 ########################################################################
 #the core's own configuration, included directly: find_package(Pothos) could
-#resolve to a parent's FetchContent redirect (OVERRIDE_FIND_PACKAGE)
+#resolve to a package redirect of the parent (OVERRIDE_FIND_PACKAGE)
 include(${PROJECT_SOURCE_DIR}/cmake/Modules/PothosConfig.cmake)
 add_subdirectory(include)
 add_subdirectory(lib)
