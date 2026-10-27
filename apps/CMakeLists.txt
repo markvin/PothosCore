@@ -33,7 +33,7 @@ target_sources(PothosUtil PRIVATE ${POTHOS_PLATFORM_SOURCES} ${POTHOS_NET_SOURCE
 target_link_libraries(PothosUtil PRIVATE ${POTHOS_PLATFORM_LIBRARIES})
 target_link_libraries(PothosUtil PRIVATE
     Pothos
-    PocoFoundation PocoUtil PocoNet #transitional
+    PocoFoundation PocoUtil #transitional
     pothos_asio
     pothos_json)
 install(TARGETS PothosUtil

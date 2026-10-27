@@ -19,7 +19,7 @@ The framework is being made self-contained: every dependency it needs
 is built from the source tree and kept private to the library.
 
 * poco C++ utility library (transitional submodule, being removed;
-  only its Net and Util libraries are still used)
+  only its Util library is still used)
 * libsimdpp SIMD library (submodule, header only)
 * nlohmann/json (vendored in third_party/)
 * standalone Asio networking library (vendored in third_party/asio)

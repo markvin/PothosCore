@@ -254,7 +254,7 @@ endif(MSVC)
 ########################################################################
 #Poco is a transitional private dependency
 target_link_libraries(Pothos PRIVATE
-    PocoFoundation PocoUtil PocoNet
+    PocoFoundation PocoUtil
     pothos_asio
     pothos_json)
 

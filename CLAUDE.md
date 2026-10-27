@@ -45,9 +45,17 @@ ctest --test-dir build --output-on-failure
 
 - Poco is confined by a ratchet: `cmake/poco-allowlist.txt` lists the only
   files allowed to use Poco (`pothos.poco_allowlist` test). Remove a line as
-  soon as a file stops using Poco; never add one. After phase 3 only Poco Net
-  (Remote, syslog, network utils) and Poco::Util (PothosUtil CLI/server,
-  `PropertyFileConfiguration`) users remain.
+  soon as a file stops using Poco; never add one. After phase 4 only
+  Poco::Util users remain (PothosUtil CLI/server, `PropertyFileConfiguration`);
+  Poco Net is not built.
+- Networking goes through the internal layer `lib/Net/` (namespace
+  `Pothos::Net`, standalone Asio from `third_party/asio`): `ioContext()` (one
+  shared io_context + background thread), `Uri`/`HostPort` parsing,
+  `resolveHost`, `TcpStream` (blocking `std::iostream`), `TcpServer` (thread
+  per connection, protocol agnostic), syslog (`formatSyslog`/`parseSyslog`,
+  `SyslogSender`, `SyslogListener`; RFC 5424 with `[pothos@32473 ...]`).
+  Asio is included only from `lib/Net/` and never from `include/`. Its sources
+  are also compiled into PothosUtil (`POTHOS_NET_SOURCES`). Tests: `/net/tests`.
 - OS-specific code goes into the internal platform layer `lib/Platform/`
   (namespace `Pothos::Platform`: environment, host info, `DynamicLibrary`,
   `Process`/`Pipe`). Its sources are compiled into both libPothos and
