@@ -257,3 +257,41 @@ POTHOS_TEST_BLOCK("/proxy/remote/tests", test_remote_ipv4_to_wildcard)
     POTHOS_TEST_EQUAL(env->findProxy("Pothos/Util/EvalEnvironment")().call<Pothos::Object>("eval", "1 + 2").convert<int>(), 3);
     POTHOS_TEST_EQUAL(Pothos::RemoteClient::lookupIpFromNodeId(env->getNodeId()), "127.0.0.1");
 }
+
+POTHOS_TEST_BLOCK("/proxy/remote/tests", test_remote_convert_integers)
+{
+    //integer values make the round trip through a remote environment
+    Pothos::RemoteServer server("tcp://"+Pothos::Util::getWildcardAddr());
+    Pothos::RemoteClient client("tcp://"+Pothos::Util::getLoopbackAddr(server.getActualPort()));
+    auto env = client.makeEnvironment("managed");
+    POTHOS_TEST_EQUAL(env->makeProxy(int(-7)).convert<int>(), -7);
+    POTHOS_TEST_EQUAL(env->makeProxy(size_t(42)).convert<size_t>(), size_t(42));
+    POTHOS_TEST_EQUAL(env->makeProxy(long(-42)).convert<long>(), long(-42));
+    POTHOS_TEST_EQUAL(env->makeProxy((unsigned long long)(1) << 40).convert<unsigned long long>(), (unsigned long long)(1) << 40);
+    POTHOS_TEST_EQUAL(env->makeProxy(std::uint8_t(200)).convert<std::uint8_t>(), std::uint8_t(200));
+}
+
+static bool evalRemoteMany(const Pothos::ProxyEnvironment::Sptr &env, const int seed)
+{
+    for (int i = 0; i < 50; i++)
+    {
+        const auto evalEnv = env->findProxy("Pothos/Util/EvalEnvironment")();
+        const auto result = evalEnv.call<Pothos::Object>("eval", std::to_string(seed+i)+" + 1");
+        if (result.convert<int>() != seed+i+1) return false;
+    }
+    return true;
+}
+
+POTHOS_TEST_BLOCK("/proxy/remote/tests", test_remote_tcp_multithread_safe)
+{
+    //many threads share one TCP connection: replies never get mixed up
+    Pothos::RemoteServer server("tcp://"+Pothos::Util::getWildcardAddr());
+    Pothos::RemoteClient client("tcp://"+Pothos::Util::getLoopbackAddr(server.getActualPort()));
+    auto env = client.makeEnvironment("managed");
+    std::vector<std::future<bool>> futures;
+    for (int t = 0; t < 8; t++)
+    {
+        futures.push_back(std::async(std::launch::async, &evalRemoteMany, env, t*1000));
+    }
+    for (auto &f : futures) POTHOS_TEST_TRUE(f.get());
+}
