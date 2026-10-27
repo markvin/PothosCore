@@ -3,6 +3,7 @@
 
 #include "Util/Expr/Eval.hpp"
 #include "Util/Expr/Ops.hpp"
+#include <algorithm>
 #include <limits>
 #include <numbers>
 #include <string>
@@ -80,9 +81,15 @@ public:
         case Node::Kind::Not: return Value(not this->eval(*c[0]).truthy());
         case Node::Kind::IfElse: return this->eval(*c[this->eval(*c[0]).truthy()? 1 : 2]);
         case Node::Kind::List:
-        case Node::Kind::Dict:
-        case Node::Kind::Call:
-        case Node::Kind::Index: break;
+        {
+            List list;
+            list.reserve(c.size());
+            for (const auto &child : c) list.push_back(this->eval(*child));
+            return Value(std::move(list));
+        }
+        case Node::Kind::Dict: return this->dict(node);
+        case Node::Kind::Index: return this->index(node);
+        case Node::Kind::Call: break;
         }
         throw ExprError("not implemented", node.pos);
     }
@@ -94,6 +101,57 @@ private:
         if (v == nullptr) v = builtinConstant(node.name);
         if (v == nullptr) throw ExprError("unknown name '" + node.name + "'", node.pos);
         return *v;
+    }
+
+    Value dict(const Node &node) const
+    {
+        Dict dict;
+        for (std::size_t i = 0; i < node.children.size(); i += 2)
+        {
+            auto key = this->eval(*node.children[i]);
+            if (key.is<List>() or key.is<Dict>())
+            {
+                throw ExprError("unhashable type: '" + std::string(key.typeName()) + "'", node.children[i]->pos);
+            }
+            auto value = this->eval(*node.children[i+1]);
+            //a repeated key keeps its first position and takes the last value
+            const auto it = std::ranges::find_if(dict, [&key](const auto &kv){return kv.first == key;});
+            if (it != dict.end()) it->second = std::move(value);
+            else dict.emplace_back(std::move(key), std::move(value));
+        }
+        return Value(std::move(dict));
+    }
+
+    Value index(const Node &node) const
+    {
+        const auto container = this->eval(*node.children[0]);
+        const auto &indexNode = *node.children[1];
+        const auto key = this->eval(indexNode);
+
+        if (const auto *dict = std::get_if<Dict>(&container.data))
+        {
+            const auto it = std::ranges::find_if(*dict, [&key](const auto &kv){return kv.first == key;});
+            if (it == dict->end()) throw ExprError("key " + key.repr() + " not found", indexNode.pos);
+            return it->second;
+        }
+
+        const auto *list = std::get_if<List>(&container.data);
+        const auto *str = std::get_if<std::string>(&container.data);
+        if (list == nullptr and str == nullptr)
+        {
+            throw ExprError("'" + std::string(container.typeName()) + "' object is not subscriptable", node.pos);
+        }
+        if (not key.is<std::int64_t>() and not key.is<bool>())
+        {
+            throw ExprError(std::string(container.typeName()) + " indices must be integers, not '" +
+                std::string(key.typeName()) + "'", indexNode.pos);
+        }
+        const auto size = static_cast<std::int64_t>((list != nullptr)? list->size() : str->size());
+        auto i = key.is<bool>()? std::int64_t(std::get<bool>(key.data)) : std::get<std::int64_t>(key.data);
+        if (i < 0) i += size;
+        if (i < 0 or i >= size) throw ExprError(std::string(container.typeName()) + " index out of range", indexNode.pos);
+        if (list != nullptr) return (*list)[static_cast<std::size_t>(i)];
+        return Value(std::string(1, (*str)[static_cast<std::size_t>(i)]));
     }
 
     const Lookup &_lookup;

@@ -270,6 +270,26 @@ int compareReal(const Value &a, const Value &b)
 
 Value Pothos::Util::Expr::binaryOp(const std::string_view op, const Value &a, const Value &b, const std::size_t pos)
 {
+    //element-wise over lists: list op scalar, scalar op list, list op list of the same length
+    const auto *la = std::get_if<List>(&a.data);
+    const auto *lb = std::get_if<List>(&b.data);
+    if ((la != nullptr or lb != nullptr) and not a.is<Dict>() and not b.is<Dict>())
+    {
+        if (la != nullptr and lb != nullptr and la->size() != lb->size())
+        {
+            fail("list length mismatch for " + std::string(op) + ": " +
+                std::to_string(la->size()) + " and " + std::to_string(lb->size()), pos);
+        }
+        const auto n = (la != nullptr)? la->size() : lb->size();
+        List out;
+        out.reserve(n);
+        for (std::size_t i = 0; i < n; i++)
+        {
+            out.push_back(binaryOp(op, (la != nullptr)? (*la)[i] : a, (lb != nullptr)? (*lb)[i] : b, pos));
+        }
+        return Value(std::move(out));
+    }
+
     if (op == "+" and a.is<std::string>() and b.is<std::string>())
     {
         return Value(std::get<std::string>(a.data) + std::get<std::string>(b.data));
@@ -287,6 +307,14 @@ Value Pothos::Util::Expr::binaryOp(const std::string_view op, const Value &a, co
 
 Value Pothos::Util::Expr::unaryOp(const std::string_view op, const Value &a, const std::size_t pos)
 {
+    if (const auto *list = std::get_if<List>(&a.data))
+    {
+        List out;
+        out.reserve(list->size());
+        for (const auto &item : *list) out.push_back(unaryOp(op, item, pos));
+        return Value(std::move(out));
+    }
+
     const auto r = rank(a);
     if (r == NotNumber or (op == "~" and r > RankInt))
     {

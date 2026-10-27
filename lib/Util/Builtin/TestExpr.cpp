@@ -480,3 +480,67 @@ POTHOS_TEST_BLOCK("/util/tests", test_expr_names)
     POTHOS_TEST_TRUE(same(ev("j", {{"j", Value(5)}}), Value(5)));
     POTHOS_TEST_TRUE(same(ev("pi", {{"pi", Value("x")}}), Value("x")));
 }
+
+POTHOS_TEST_BLOCK("/util/tests", test_expr_containers)
+{
+    POTHOS_TEST_TRUE(same(ev("[]"), Value(List{})));
+    POTHOS_TEST_TRUE(same(ev("[1, [2, 'x'], 3]"), Value(List{Value(1), Value(List{Value(2), Value("x")}), Value(3)})));
+    POTHOS_TEST_TRUE(same(ev("{}"), Value(Dict{})));
+    POTHOS_TEST_EQUAL(ev("{'a': 1, 'b': [1, 2]}").repr(), "{'a': 1, 'b': [1, 2]}");
+    POTHOS_TEST_EQUAL(ev("{1: 2, 1: 3}").repr(), "{1: 3}");
+    POTHOS_TEST_EQUAL(ev("{1: 2, 'x': 0, 1.0: 3}").repr(), "{1: 3, 'x': 0}");
+    POTHOS_TEST_EQUAL(ev("{None: 1, 1 if 0 else 2: 3}").repr(), "{None: 1, 2: 3}");
+    POTHOS_TEST_EQUAL(errorPos([]{ev("{[1]: 2}");}), 1);
+    POTHOS_TEST_TRUE(errorMessage("{[1]: 2}").find("unhashable type: 'list'") != std::string::npos);
+    POTHOS_TEST_THROWS(ev("{{}: 2}"), ExprError);
+
+    POTHOS_TEST_TRUE(same(ev("[1,2,3][-1]"), Value(3)));
+    POTHOS_TEST_TRUE(same(ev("[1,2,3][0]"), Value(1)));
+    POTHOS_TEST_TRUE(same(ev("[1,2,3][True]"), Value(2)));
+    POTHOS_TEST_TRUE(same(ev("[[1, 2], [3, 4]][1][0]"), Value(3)));
+    POTHOS_TEST_EQUAL(errorPos([]{ev("[1][5]");}), 4);
+    POTHOS_TEST_EQUAL(errorPos([]{ev("[1][-2]");}), 4);
+    POTHOS_TEST_TRUE(errorMessage("[1][5]").find("index out of range") != std::string::npos);
+    POTHOS_TEST_EQUAL(errorPos([]{ev("[1][0.0]");}), 4);
+    POTHOS_TEST_TRUE(same(ev("{'a': 1}['a']"), Value(1)));
+    POTHOS_TEST_TRUE(same(ev("{1: 'one'}[1.0]"), Value("one")));
+    POTHOS_TEST_EQUAL(errorPos([]{ev("{'a': 1}['b']");}), 9);
+    POTHOS_TEST_TRUE(errorMessage("{'a': 1}['b']").find("key 'b' not found") != std::string::npos);
+    POTHOS_TEST_TRUE(same(ev("'abc'[1]"), Value("b")));
+    POTHOS_TEST_TRUE(same(ev("'abc'[-1]"), Value("c")));
+    POTHOS_TEST_EQUAL(errorPos([]{ev("'abc'[3]");}), 6);
+    POTHOS_TEST_EQUAL(errorPos([]{ev("5[0]");}), 1);
+    POTHOS_TEST_TRUE(errorMessage("5[0]").find("'int' object is not subscriptable") != std::string::npos);
+}
+
+POTHOS_TEST_BLOCK("/util/tests", test_expr_elementwise)
+{
+    const auto list = [](std::initializer_list<Value> items){return Value(List(items));};
+    POTHOS_TEST_TRUE(same(ev("(2 * [1, 2, 3]) + [3, 2, 1]"), list({5, 6, 7})));
+    POTHOS_TEST_TRUE(same(ev("[1, 2] + [3, 4]"), list({4, 6})));
+    POTHOS_TEST_TRUE(same(ev("[1, 2] - 1"), list({0, 1})));
+    POTHOS_TEST_TRUE(same(ev("10 - [1, 2]"), list({9, 8})));
+    POTHOS_TEST_TRUE(same(ev("[1, 2] / 2"), list({0.5, 1.0})));
+    POTHOS_TEST_TRUE(same(ev("[1, 2] ** 2"), list({1, 4})));
+    POTHOS_TEST_TRUE(same(ev("[6, 5] & 3"), list({2, 1})));
+    POTHOS_TEST_TRUE(same(ev("[1, [2, 3]] * 2"), list({2, list({4, 6})})));
+    POTHOS_TEST_TRUE(same(ev("-[1, [2, 3]]"), list({-1, list({-2, -3})})));
+    POTHOS_TEST_TRUE(same(ev("~[0, 1]"), list({-1, -2})));
+    POTHOS_TEST_TRUE(same(ev("['a', 'b'] + 'c'"), list({"ac", "bc"})));
+    POTHOS_TEST_TRUE(same(ev("[] + 1"), list({})));
+    POTHOS_TEST_TRUE(same(ev("j * [1, 2]"), list({C(0.0, 1.0), C(0.0, 2.0)})));
+
+    POTHOS_TEST_EQUAL(errorPos([]{ev("[1, 2] + [1]");}), 7);
+    POTHOS_TEST_TRUE(errorMessage("[1, 2] + [1]").find("length") != std::string::npos);
+    POTHOS_TEST_EQUAL(errorPos([]{ev("[1, 'a'] * 2");}), 9);
+    POTHOS_TEST_EQUAL(errorPos([]{ev("[1, 0] // 0");}), 7);
+    POTHOS_TEST_EQUAL(errorPos([]{ev("[9223372036854775807] + 1");}), 22);
+
+    POTHOS_TEST_TRUE(same(ev("[1,2] == [1,2.0]"), Value(true)));
+    POTHOS_TEST_TRUE(same(ev("[1,2] != [1,2,3]"), Value(true)));
+    POTHOS_TEST_TRUE(same(ev("{'a': [1]} == {'a': [1.0]}"), Value(true)));
+    POTHOS_TEST_EQUAL(errorPos([]{ev("[1,2] < [3,4]");}), 6);
+    POTHOS_TEST_EQUAL(errorPos([]{ev("{'a': 1} + 1");}), 9);
+    POTHOS_TEST_EQUAL(errorPos([]{ev("-{}");}), 0);
+    POTHOS_TEST_EQUAL(errorPos([]{ev("[1] + {}");}), 4);
+}
