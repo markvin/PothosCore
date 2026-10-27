@@ -74,7 +74,7 @@ typename std::enable_if<
     std::is_same<T, signed short>::value
 >::type save(Archive &ar, const T &t, const unsigned int)
 {
-    unsigned char buff[2];
+    unsigned char buff[2]{}; //filled by the archive
     const auto v = static_cast<unsigned short>(t);
     buff[0] = static_cast<unsigned char>(v >> 0);
     buff[1] = static_cast<unsigned char>(v >> 8);
@@ -88,7 +88,7 @@ typename std::enable_if<
     std::is_same<T, signed short>::value
 >::type load(Archive &ar, T &t, const unsigned int)
 {
-    unsigned char buff[2];
+    unsigned char buff[2]{}; //filled by the archive
     BinaryObject bo(buff, sizeof(buff));
     ar >> bo;
     t = static_cast<T>(

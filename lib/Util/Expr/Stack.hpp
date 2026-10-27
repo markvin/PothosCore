@@ -7,6 +7,9 @@
 #include "Util/Expr/Value.hpp"
 #include <cstddef>
 #include <cstdint>
+#ifdef _MSC_VER
+#include <intrin.h>
+#endif
 
 namespace Pothos {
 namespace Util {
@@ -38,10 +41,14 @@ public:
     }
 
 private:
+    //! The current stack position (the frame of the caller after inlining)
     static std::uintptr_t here(void)
     {
-        volatile char marker = 0;
-        return reinterpret_cast<std::uintptr_t>(&marker);
+        #ifdef _MSC_VER
+        return reinterpret_cast<std::uintptr_t>(_AddressOfReturnAddress());
+        #else
+        return reinterpret_cast<std::uintptr_t>(__builtin_frame_address(0));
+        #endif
     }
 
     std::uintptr_t _base;

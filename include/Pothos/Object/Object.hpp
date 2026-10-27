@@ -312,6 +312,18 @@ inline bool operator==(const Object &lhs, const Object &rhs);
  */
 inline bool operator!=(const Object &lhs, const Object &rhs);
 
+/*!
+ * Compare the value of an Object with a value of another type
+ * (the Object is converted to that type). In namespace Pothos so that
+ * argument dependent lookup finds them from any namespace.
+ */
+template <typename T>
+inline bool operator==(const Object &lhs, const T &rhs);
+
+//! \copydoc operator==(const Object &, const T &)
+template <typename T>
+inline bool operator==(const T &lhs, const Object &rhs);
+
 } //namespace Pothos
 
 inline bool Pothos::operator==(const Object &lhs, const Object &rhs)
@@ -325,13 +337,13 @@ inline bool Pothos::operator!=(const Object &lhs, const Object &rhs)
 }
 
 template <typename T>
-inline bool operator==(const Pothos::Object &lhs, const T &rhs)
+inline bool Pothos::operator==(const Object &lhs, const T &rhs)
 {
     return lhs.convert<T>() == rhs;
 }
 
 template <typename T>
-inline bool operator==(const T &lhs, const Pothos::Object &rhs)
+inline bool Pothos::operator==(const T &lhs, const Object &rhs)
 {
     return lhs == rhs.convert<T>();
 }

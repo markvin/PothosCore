@@ -35,6 +35,7 @@ static Pothos::Object getNewObjectId(const Pothos::Object &obj)
     return Pothos::Object(id);
 }
 
+//returns a copy: take values out of it by value, not by reference
 static Pothos::Object getObjectAtId(const Pothos::Object &id)
 {
     const size_t key(id);
@@ -90,20 +91,20 @@ bool Pothos::RemoteHandler::runHandlerOnce(std::istream &is, std::ostream &os)
         }
         else if (action == "findProxy")
         {
-            const auto &env = getObjectAtId(reqArgs.at("envID")).extract<Pothos::ProxyEnvironment::Sptr>();
+            const auto env = getObjectAtId(reqArgs.at("envID")).extract<Pothos::ProxyEnvironment::Sptr>();
             const auto &proxy = env->findProxy(reqArgs.at("name").extract<std::string>());
             replyArgs["handleID"] = getNewObjectId(Pothos::Object(proxy));
         }
         else if (action == "convertObjectToProxy")
         {
-            const auto &env = getObjectAtId(reqArgs.at("envID")).extract<Pothos::ProxyEnvironment::Sptr>();
+            const auto env = getObjectAtId(reqArgs.at("envID")).extract<Pothos::ProxyEnvironment::Sptr>();
             const auto &proxy = env->convertObjectToProxy(reqArgs.at("local"));
             replyArgs["handleID"] = getNewObjectId(Pothos::Object(proxy));
         }
         else if (action == "convertProxyToObject")
         {
-            const auto &env = getObjectAtId(reqArgs.at("envID")).extract<Pothos::ProxyEnvironment::Sptr>();
-            const auto &proxy = getObjectAtId(reqArgs.at("handleID")).extract<Pothos::Proxy>();
+            const auto env = getObjectAtId(reqArgs.at("envID")).extract<Pothos::ProxyEnvironment::Sptr>();
+            const auto proxy = getObjectAtId(reqArgs.at("handleID")).extract<Pothos::Proxy>();
             auto local = env->convertProxyToObject(proxy);
             replyArgs["local"] = local;
         }
@@ -113,7 +114,7 @@ bool Pothos::RemoteHandler::runHandlerOnce(std::istream &is, std::ostream &os)
         }
         else if (action == "call")
         {
-            const auto &proxy = getObjectAtId(reqArgs.at("handleID")).extract<Pothos::Proxy>();
+            const auto proxy = getObjectAtId(reqArgs.at("handleID")).extract<Pothos::Proxy>();
 
             //load the args
             std::vector<Pothos::Proxy> args;
@@ -139,23 +140,23 @@ bool Pothos::RemoteHandler::runHandlerOnce(std::istream &is, std::ostream &os)
         }
         else if (action == "compareTo")
         {
-            const auto &proxy = getObjectAtId(reqArgs.at("handleID")).extract<Pothos::Proxy>();
-            const auto &other = getObjectAtId(reqArgs.at("otherID")).extract<Pothos::Proxy>();
+            const auto proxy = getObjectAtId(reqArgs.at("handleID")).extract<Pothos::Proxy>();
+            const auto other = getObjectAtId(reqArgs.at("otherID")).extract<Pothos::Proxy>();
             replyArgs["result"] = Pothos::Object(proxy.compareTo(other));
         }
         else if (action == "hashCode")
         {
-            const auto &proxy = getObjectAtId(reqArgs.at("handleID")).extract<Pothos::Proxy>();
+            const auto proxy = getObjectAtId(reqArgs.at("handleID")).extract<Pothos::Proxy>();
             replyArgs["result"] = Pothos::Object(proxy.hashCode());
         }
         else if (action == "toString")
         {
-            const auto &proxy = getObjectAtId(reqArgs.at("handleID")).extract<Pothos::Proxy>();
+            const auto proxy = getObjectAtId(reqArgs.at("handleID")).extract<Pothos::Proxy>();
             replyArgs["result"] = Pothos::Object(proxy.toString());
         }
         else if (action == "getClassName")
         {
-            const auto &proxy = getObjectAtId(reqArgs.at("handleID")).extract<Pothos::Proxy>();
+            const auto proxy = getObjectAtId(reqArgs.at("handleID")).extract<Pothos::Proxy>();
             replyArgs["result"] = Pothos::Object(proxy.getClassName());
         }
         else

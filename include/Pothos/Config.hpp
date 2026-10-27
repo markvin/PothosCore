@@ -98,4 +98,5 @@
 #define POTHOS_FCN_TUPLE(classPath, functionName) \
     #functionName, &classPath::functionName
 
-#include <ciso646>
+//and, or, not: alternative tokens are part of C++ (MSVC needs /permissive-,
+//the default for C++20 and newer); <ciso646> is no longer included

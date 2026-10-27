@@ -18,8 +18,13 @@
 #include <Pothos/Callable.hpp>
 #include <Pothos/Exception.hpp>
 #include <cmath>
+#include <cstddef>
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
+#include <type_traits>
+#include <utility>
 
 /*!
  * Declare a unit test block of code inside a plugin.
@@ -109,7 +114,8 @@
 { \
     __POTHOS_TEST_ASSERT( \
         "assert equal " + Pothos::TestingBase::current().toString(lhs) + \
-        " == " + Pothos::TestingBase::current().toString(rhs), (lhs) == (rhs)); \
+        " == " + Pothos::TestingBase::current().toString(rhs), \
+        Pothos::Detail::testingCompare<Pothos::Detail::TestingEqual>(lhs, rhs)); \
 }
 
 //! Test if lhs > rhs
@@ -117,7 +123,8 @@
 { \
     __POTHOS_TEST_ASSERT( \
         "assert " + Pothos::TestingBase::current().toString(lhs) + \
-        " > " + Pothos::TestingBase::current().toString(rhs), (lhs) > (rhs)); \
+        " > " + Pothos::TestingBase::current().toString(rhs), \
+        Pothos::Detail::testingCompare<Pothos::Detail::TestingGreater>(lhs, rhs)); \
 }
 
 //! Test if lhs >= rhs
@@ -125,7 +132,8 @@
 { \
     __POTHOS_TEST_ASSERT( \
         "assert " + Pothos::TestingBase::current().toString(lhs) + \
-        " >= " + Pothos::TestingBase::current().toString(rhs), (lhs) >= (rhs)); \
+        " >= " + Pothos::TestingBase::current().toString(rhs), \
+        Pothos::Detail::testingCompare<Pothos::Detail::TestingGreaterEqual>(lhs, rhs)); \
 }
 
 //! Test if lhs < rhs
@@ -133,7 +141,8 @@
 { \
     __POTHOS_TEST_ASSERT( \
         "assert " + Pothos::TestingBase::current().toString(lhs) + \
-        " < " + Pothos::TestingBase::current().toString(rhs), (lhs) < (rhs)); \
+        " < " + Pothos::TestingBase::current().toString(rhs), \
+        Pothos::Detail::testingCompare<Pothos::Detail::TestingLess>(lhs, rhs)); \
 }
 
 //! Test if lhs <= rhs
@@ -141,7 +150,8 @@
 { \
     __POTHOS_TEST_ASSERT( \
         "assert " + Pothos::TestingBase::current().toString(lhs) + \
-        " <= " + Pothos::TestingBase::current().toString(rhs), (lhs) <= (rhs)); \
+        " <= " + Pothos::TestingBase::current().toString(rhs), \
+        Pothos::Detail::testingCompare<Pothos::Detail::TestingLessEqual>(lhs, rhs)); \
 }
 
 //! Test if two values are equal within tolerance
@@ -157,7 +167,8 @@
 { \
     __POTHOS_TEST_ASSERT( \
         "assert not equal " + Pothos::TestingBase::current().toString(lhs) + \
-        " != " + Pothos::TestingBase::current().toString(rhs), (lhs) != (rhs)); \
+        " != " + Pothos::TestingBase::current().toString(rhs), \
+        Pothos::Detail::testingCompare<Pothos::Detail::TestingNotEqual>(lhs, rhs)); \
 }
 
 //! Test if two values are not equal within tolerance
@@ -297,6 +308,65 @@
 
 namespace Pothos {
 
+namespace Detail {
+
+/*!
+ * The value a test assertion compares: C strings (pointers and char arrays)
+ * compare by content (nullopt for a null pointer), everything else as is.
+ */
+template <typename T>
+const T &testingValue(const T &v)
+{
+    return v;
+}
+
+inline std::optional<std::string_view> testingValue(const char *s)
+{
+    if (s == nullptr) return std::nullopt;
+    return std::string_view(s);
+}
+
+inline std::optional<std::string_view> testingValue(char *s)
+{
+    return testingValue(static_cast<const char *>(s));
+}
+
+template <std::size_t N>
+std::optional<std::string_view> testingValue(char (&s)[N])
+{
+    return testingValue(static_cast<const char *>(s));
+}
+
+//! Integers that std::cmp_equal and friends accept (not bool or character types)
+template <typename T>
+constexpr bool isTestingInteger = std::is_integral_v<T> and
+    not std::is_same_v<T, bool> and not std::is_same_v<T, char> and not std::is_same_v<T, wchar_t> and
+    not std::is_same_v<T, char8_t> and not std::is_same_v<T, char16_t> and not std::is_same_v<T, char32_t>;
+
+//comparison operators of the assertions: integers of any signedness compare
+//by value (std::cmp_*: -1 < 1u), C strings by content, the rest as written
+struct TestingEqual {template <typename A, typename B> static bool cmp(const A &a, const B &b) {return a == b;}
+    template <typename A, typename B> static bool ints(A a, B b) {return std::cmp_equal(a, b);}};
+struct TestingNotEqual {template <typename A, typename B> static bool cmp(const A &a, const B &b) {return a != b;}
+    template <typename A, typename B> static bool ints(A a, B b) {return std::cmp_not_equal(a, b);}};
+struct TestingLess {template <typename A, typename B> static bool cmp(const A &a, const B &b) {return a < b;}
+    template <typename A, typename B> static bool ints(A a, B b) {return std::cmp_less(a, b);}};
+struct TestingLessEqual {template <typename A, typename B> static bool cmp(const A &a, const B &b) {return a <= b;}
+    template <typename A, typename B> static bool ints(A a, B b) {return std::cmp_less_equal(a, b);}};
+struct TestingGreater {template <typename A, typename B> static bool cmp(const A &a, const B &b) {return a > b;}
+    template <typename A, typename B> static bool ints(A a, B b) {return std::cmp_greater(a, b);}};
+struct TestingGreaterEqual {template <typename A, typename B> static bool cmp(const A &a, const B &b) {return a >= b;}
+    template <typename A, typename B> static bool ints(A a, B b) {return std::cmp_greater_equal(a, b);}};
+
+template <typename Op, typename A, typename B>
+bool testingCompare(const A &a, const B &b)
+{
+    if constexpr (isTestingInteger<A> and isTestingInteger<B>) return Op::ints(a, b);
+    else return Op::cmp(testingValue(a), testingValue(b));
+}
+
+} //namespace Detail
+
 struct POTHOS_API TestingBase
 {
     TestingBase(void);
@@ -314,6 +384,17 @@ struct POTHOS_API TestingBase
     std::string toString(const T &v)
     {
         return Pothos::Object(v).toString();
+    }
+
+    //! C strings print as quoted text, a null pointer as (null)
+    std::string toString(const char *s)
+    {
+        return (s == nullptr)? "(null)" : Pothos::Object(s).toString();
+    }
+
+    std::string toString(char *s)
+    {
+        return this->toString(static_cast<const char *>(s));
     }
 };
 

@@ -63,7 +63,7 @@ private:
 class GenericBufferContainerNuma
 {
 public:
-    GenericBufferContainerNuma(const size_t numBytes, const long nodeAffinity):
+    GenericBufferContainerNuma(const size_t numBytes, [[maybe_unused]] const long nodeAffinity):
         _mem(nullptr),
         _len(numBytes)
     {
@@ -87,7 +87,7 @@ public:
 
 private:
     void *_mem;
-    size_t _len;
+    [[maybe_unused]] size_t _len; //used with libnuma only
 };
 
 /***********************************************************************
