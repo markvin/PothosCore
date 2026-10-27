@@ -10,7 +10,7 @@ find_package(Pothos CONFIG REQUIRED)
 
 foreach(prop INTERFACE_INCLUDE_DIRECTORIES INTERFACE_LINK_LIBRARIES INTERFACE_COMPILE_DEFINITIONS)
     get_target_property(val Pothos::Pothos ${prop})
-    if(val MATCHES "nlohmann|simdpp|asio")
+    if(val MATCHES "nlohmann|xsimd|asio")
         message(FATAL_ERROR "Pothos::Pothos leaks a private dependency via ${prop}: ${val}")
     endif()
 endforeach()

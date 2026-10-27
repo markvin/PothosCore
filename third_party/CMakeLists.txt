@@ -22,3 +22,10 @@ if (WIN32)
     target_compile_definitions(pothos_asio INTERFACE _WIN32_WINNT=0x0A00)
     target_link_libraries(pothos_asio INTERFACE ws2_32 mswsock)
 endif ()
+
+########################################################################
+# xsimd 14.3.0 (headers only, BSD-3-Clause): CPU features, SIMD conversion
+########################################################################
+add_library(pothos_xsimd INTERFACE)
+target_include_directories(pothos_xsimd SYSTEM INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/xsimd/include>)

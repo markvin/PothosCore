@@ -181,6 +181,8 @@ add_library(Pothos SHARED
     Net/Builtin/TestNetSyslog.cpp
     App/Builtin/TestOptions.cpp
     App/Builtin/TestServer.cpp
+    System/Builtin/TestSIMDFeatures.cpp
+    SIMD/Builtin/TestSIMDConvert.cpp
     Util/Builtin/TestSIMDDispatcherUtils.cpp
 
     Archive/ArchiveEntry.cpp
@@ -292,7 +294,7 @@ endif(MSVC)
 ########################################################################
 # Link feature dependencies
 ########################################################################
-target_link_libraries(Pothos PRIVATE pothos_json)
+target_link_libraries(Pothos PRIVATE pothos_json pothos_xsimd)
 
 #C++23 is required by the public headers
 target_compile_features(Pothos PUBLIC cxx_std_23)
@@ -466,21 +468,23 @@ if(MSVC)
 endif(MSVC)
 
 ########################################################################
-# Generate dynamic dispatch files for SIMD code
+# SIMD buffer conversion: one copy of SIMD/SIMDConvert.cpp per architecture
+# (pothos_multiarch, like the toolkits' SIMD code), chosen at runtime by
+# SIMD/SIMDConvertDispatch.cpp from the generated list of copies
 ########################################################################
-target_include_directories(Pothos SYSTEM PRIVATE ${PROJECT_SOURCE_DIR}/libsimdpp)
+include(${PROJECT_SOURCE_DIR}/cmake/Modules/PothosConfigSIMD.cmake)
+pothos_get_compilable_archs(simd_convert_archs)
+set(simd_convert_files)
+pothos_multiarch(simd_convert_files simd_convert_arch_string SIMD/SIMDConvert.cpp ${simd_convert_archs})
+target_sources(Pothos PRIVATE ${simd_convert_files} SIMD/SIMDConvertDispatch.cpp)
+if(NOT MSVC)
+    #the scalar loops of the copies rely on the vectorizer
+    set_property(SOURCE ${simd_convert_files} APPEND PROPERTY COMPILE_OPTIONS -O3)
+endif()
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/../libsimdpp/cmake/SimdppMultiarch.cmake)
-
-set(simd_sources
-    SIMD/SIMDConvert.cpp)
-
-simdpp_get_runnable_archs(simdpp_runnable_archs)
-simdpp_multiarch(
-    GeneratedSIMDFiles
-    ${simd_sources}
-    ${simdpp_runnable_archs})
-target_sources(Pothos PRIVATE ${GeneratedSIMDFiles})
+string(REPLACE "," ") X(" POTHOS_SIMD_CONVERT_ARCH_LIST "X(${simd_convert_arch_string})")
+configure_file(SIMD/SIMDConvertArches.hpp.in ${CMAKE_CURRENT_BINARY_DIR}/SIMDConvertArches.hpp @ONLY)
+target_include_directories(Pothos PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 ########################################################################
 # Install the library

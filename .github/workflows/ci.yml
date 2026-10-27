@@ -43,11 +43,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # only the submodules the core needs; pinned commits are not branch tips,
-      # so no shallow clone
-      - name: Submodules
-        run: git submodule update --init libsimdpp
-
       # the build must never download anything
       - name: No network access in the build
         shell: bash

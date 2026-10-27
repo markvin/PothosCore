@@ -4,134 +4,51 @@
 #include <Pothos/Object.hpp>
 #include <Pothos/System/SIMD.hpp>
 
-#include <simdpp/simd.h>
-#include <simdpp/dispatch/get_arch_gcc_builtin_cpu_supports.h>
-#include <simdpp/dispatch/get_arch_linux_cpuinfo.h>
-#include <simdpp/dispatch/get_arch_raw_cpuid.h>
-
+#include "System/SIMDFeatures.hpp"
+#include <xsimd/config/xsimd_cpu_features.hpp>
 #include <algorithm>
 #include <sstream>
 
-using simdpp::Arch;
-
-//
-// This call returns an arch enum corrseponding to the arches supported by the
-// current processor. This is the code underlying everything below.
-//
-
-static inline Arch getSupportedSIMDPPArches()
+std::vector<std::string> Pothos::System::Detail::detectSIMDFeatures(void)
 {
-#if SIMDPP_HAS_GET_ARCH_RAW_CPUID
-    return simdpp::get_arch_raw_cpuid();
-#elif SIMDPP_HAS_GET_ARCH_GCC_BUILTIN_CPU_SUPPORTS
-    return simdpp::get_arch_gcc_builtin_cpu_supports();
-#elif SIMDPP_HAS_GET_ARCH_LINUX_CPUINFO
-    return simdpp::get_arch_linux_cpuinfo();
-#else
-    return simdpp::Arch::NONE_NULL;
-#endif
-}
+    const auto cpu = xsimd::cpu_features();
+    std::vector<std::string> out;
+    const auto add = [&out](const bool supported, const char *name){if (supported) out.emplace_back(name);};
 
-//
-// SIMDPP has no function to go from arch enum to string, so the code below cannibalizes
-// simdpp::get_arch_string_list to expose the strings alongside the arch enums used to
-// track support.
-//
-// See: https://github.com/p12tic/libsimdpp/blob/master/simdpp/dispatch/get_arch_string_list.h
-//
+    //x86: a level implies the levels it builds on (the composition Pothos always used)
+    const bool sse2 = cpu.sse2(), sse3 = sse2 and cpu.sse3(), ssse3 = sse3 and cpu.ssse3();
+    const bool sse4_1 = ssse3 and cpu.sse4_1(), avx = sse4_1 and cpu.avx(), avx2 = avx and cpu.avx2();
+    const bool avx512f = avx2 and cpu.avx512f();
+    add(avx512f and cpu.avx512vl(), "x86_avx512vl");
+    add(avx512f and cpu.avx512dq(), "x86_avx512dq");
+    add(avx512f and cpu.avx512bw(), "x86_avx512bw");
+    add(avx512f, "x86_avx512f");
+    add(sse3 and cpu.fma4(), "x86_fma4");
+    add(sse3 and cpu.fma3(), "x86_fma3");
+    add(avx2, "x86_avx2");
+    add(avx, "x86_avx");
+    add(cpu.popcnt(), "x86_popcnt");
+    add(sse4_1, "x86_sse4_1");
+    add(ssse3, "x86_ssse3");
+    add(sse3, "x86_sse3");
+    add(sse2, "x86_sse2");
 
-struct ArchDesc
-{
-    std::string id;
-    Arch arch;
+    //ARM: NEON (64-bit NEON always has single precision float support)
+    const bool neon = cpu.neon64() or cpu.neon();
+    add(neon, "neonfltsp");
+    add(neon, "neon");
 
-    ArchDesc(const std::string& i, Arch a) : id(i), arch(a) {}
-};
-
-static std::vector<ArchDesc> getAllPotentialSIMDFeatures()
-{
-    std::vector<ArchDesc> features;
-
-#if SIMDPP_ARM && SIMDPP_32_BITS
-    features.emplace_back("neon", Arch::ARM_NEON);
-    features.emplace_back("neonfltsp", Arch::ARM_NEON | Arch::ARM_NEON_FLT_SP);
-#elif SIMDPP_ARM && SIMDPP_64_BITS
-    features.emplace_back("neon", Arch::ARM_NEON | Arch::ARM_NEON_FLT_SP);
-    features.emplace_back("neonfltsp", Arch::ARM_NEON | Arch::ARM_NEON_FLT_SP);
-#elif SIMDPP_X86
-    Arch a_sse2 = Arch::X86_SSE2;
-    Arch a_sse3 = a_sse2 | Arch::X86_SSE3;
-    Arch a_ssse3 = a_sse3 | Arch::X86_SSSE3;
-    Arch a_sse4_1 = a_ssse3 | Arch::X86_SSE4_1;
-    Arch a_popcnt = Arch::X86_POPCNT_INSN;
-    Arch a_avx = a_sse4_1 | Arch::X86_AVX;
-    Arch a_avx2 = a_avx | Arch::X86_AVX2;
-    Arch a_fma3 = a_sse3 | Arch::X86_FMA3;
-    Arch a_fma4 = a_sse3 | Arch::X86_FMA4;
-    Arch a_xop = a_sse3 | Arch::X86_XOP;
-    Arch a_avx512f = a_avx2 | Arch::X86_AVX512F;
-    Arch a_avx512bw = a_avx512f | Arch::X86_AVX512BW;
-    Arch a_avx512dq = a_avx512f | Arch::X86_AVX512DQ;
-    Arch a_avx512vl = a_avx512f | Arch::X86_AVX512VL;
-
-    features.emplace_back("x86_sse2", a_sse2);
-    features.emplace_back("x86_sse3", a_sse3);
-    features.emplace_back("x86_ssse3", a_ssse3);
-    features.emplace_back("x86_sse4_1", a_sse4_1);
-    features.emplace_back("x86_popcnt", a_popcnt);
-    features.emplace_back("x86_avx", a_avx);
-    features.emplace_back("x86_avx2", a_avx2);
-    features.emplace_back("x86_fma3", a_fma3);
-    features.emplace_back("x86_fma4", a_fma4);
-    features.emplace_back("x86_xop", a_xop);
-    features.emplace_back("x86_avx512f", a_avx512f);
-    features.emplace_back("x86_avx512bw", a_avx512bw);
-    features.emplace_back("x86_avx512dq", a_avx512dq);
-    features.emplace_back("x86_avx512vl", a_avx512vl);
-#elif SIMDPP_PPC
-    Arch a_altivec = Arch::POWER_ALTIVEC;
-    Arch a_vsx_206 = a_altivec | Arch::POWER_VSX_206;
-    Arch a_vsx_207 = a_vsx_206 | Arch::POWER_VSX_207;
-
-    features.emplace_back("power_altivec", a_altivec);
-    features.emplace_back("power_vsx_206", a_vsx_206);
-    features.emplace_back("power_vsx_207", a_vsx_207);
-#elif SIMDPP_MIPS
-    features.emplace_back("mips_msa", Arch::MIPS_MSA);
-#endif
-
-    // Per the simdpp::Arch documentation, the higher the arch enum,
-    // the faster the instruction set is likely to be.
-    std::sort(
-        features.begin(),
-        features.end(),
-        [](const ArchDesc& archDesc0, const ArchDesc& archDesc1)
-        {
-            return (archDesc0.arch > archDesc1.arch);
-        });
-
-    return features;
+    //PowerPC: xsimd detects VSX (POWER8 and newer), which includes the older levels
+    add(cpu.vsx(), "power_vsx_207");
+    add(cpu.vsx(), "power_vsx_206");
+    add(cpu.vsx(), "power_altivec");
+    return out;
 }
 
 //
 // Pothos-level utility code
 //
-
 static const std::string SEPARATOR = "__";
-
-static std::vector<std::string> _getSupportedSIMDFeatureSet()
-{
-    const auto simdppArchInfo = getSupportedSIMDPPArches();
-    const auto arches = getAllPotentialSIMDFeatures();
-
-    std::vector<std::string> simdArchitectures;
-    for(const auto& arch: arches)
-    {
-        if(simdpp::test_arch_subset(simdppArchInfo, arch.arch)) simdArchitectures.emplace_back(arch.id);
-    }
-
-    return simdArchitectures;
-}
 
 //
 // For a given file, PothosConfigSIMD generates copies of it that compile with different sets of SIMD
@@ -192,7 +109,7 @@ static bool _isSIMDFeatureSetSupported(const std::string& featureSetKey)
 std::vector<std::string> Pothos::System::getSupportedSIMDFeatureSet()
 {
     // Only do this once
-    static const auto supportedSIMDFeatureSet = _getSupportedSIMDFeatureSet();
+    static const auto supportedSIMDFeatureSet = Detail::detectSIMDFeatures();
 
     return supportedSIMDFeatureSet;
 }
