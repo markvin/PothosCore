@@ -21,6 +21,10 @@ get_property(build_type_before CACHE CMAKE_BUILD_TYPE PROPERTY VALUE)
 
 add_subdirectory(${POTHOS_SOURCE} pothos)
 
+#a toolkit next to the core and the parent itself find the core with find_package
+add_subdirectory(sibling)
+find_package(Pothos CONFIG REQUIRED)
+
 set(errors)
 
 #new cache entries must belong to the core (POTHOS_/Pothos prefix) or to CMake
