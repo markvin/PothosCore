@@ -179,6 +179,7 @@ add_library(Pothos SHARED
     Net/Builtin/TestNetAddress.cpp
     Net/Builtin/TestNetTcp.cpp
     Net/Builtin/TestNetSyslog.cpp
+    App/Builtin/TestOptions.cpp
     Util/Builtin/TestSIMDDispatcherUtils.cpp
 
     Archive/ArchiveEntry.cpp
@@ -238,7 +239,11 @@ pothos_internal_library(pothos_net
     Net/Syslog.cpp)
 target_link_libraries(pothos_net PUBLIC pothos_asio)
 
-target_link_libraries(Pothos PRIVATE pothos_platform pothos_net)
+#internal application support for PothosUtil (lib/App): command line, server modes
+pothos_internal_library(pothos_app
+    App/Options.cpp)
+
+target_link_libraries(Pothos PRIVATE pothos_platform pothos_net pothos_app)
 if(MSVC)
     #the internal libraries call the Pothos API through dllimport declarations,
     #inside Pothos.dll the linker resolves them locally: "locally defined

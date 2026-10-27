@@ -34,6 +34,7 @@ target_link_libraries(PothosUtil PRIVATE
     Pothos
     pothos_platform
     pothos_net
+    pothos_app
     PocoFoundation PocoUtil #transitional
     pothos_json)
 install(TARGETS PothosUtil

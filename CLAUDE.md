@@ -59,7 +59,10 @@ ctest --test-dir build --output-on-failure
 - OS-specific code goes into the internal platform layer `lib/Platform/`
   (namespace `Pothos::Platform`: environment, host info, `DynamicLibrary`,
   `Process`/`Pipe`), built as the internal static library `pothos_platform`.
-- `pothos_platform` and `pothos_net` (`pothos_internal_library()` in
+- `pothos_app` (`lib/App/`, namespace `Pothos::App`): PothosUtil support —
+  command line parsing and help (`Options`), server modes (`Server`). Tests:
+  `/app/tests`.
+- `pothos_platform`, `pothos_net` and `pothos_app` (`pothos_internal_library()` in
   `lib/CMakeLists.txt`) are compiled once and linked into both libPothos and
   PothosUtil, because libPothos exports no internal symbols. They are PIC,
   hidden visibility, use the Pothos API as clients (no `POTHOS_DLL_EXPORTS`)
