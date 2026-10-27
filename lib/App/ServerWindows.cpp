@@ -18,11 +18,11 @@ BOOL WINAPI onConsoleControl(const DWORD type)
 {
     switch (type)
     {
+    //not LOGOFF/SHUTDOWN: a service receives them whenever any user logs off
+    //(SERVICE_CONTROL_SHUTDOWN covers the shutdown of a service)
     case CTRL_C_EVENT:
     case CTRL_BREAK_EVENT:
     case CTRL_CLOSE_EVENT:
-    case CTRL_LOGOFF_EVENT:
-    case CTRL_SHUTDOWN_EVENT:
         SetEvent(terminationEvent);
         return TRUE;
     default: return FALSE;

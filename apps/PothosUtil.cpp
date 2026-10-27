@@ -7,9 +7,11 @@
 #include "App/PothosUtilOptions.hpp"
 #include "App/Server.hpp"
 #include <Pothos/System.hpp>
+#include <Pothos/System/Paths.hpp>
 #include <Pothos/Exception.hpp>
 #include <algorithm>
 #include <charconv>
+#include <format>
 #include <functional>
 #include <iostream>
 #include <map>
@@ -51,23 +53,34 @@ public:
             "and can spawn servers and daemons for remote interfaces.");
     }
 
-    #ifdef _WIN32
-    //! The command line options again, without the service options (for the service command line)
-    std::vector<std::string> serviceArgs(void) const
+    /*!
+     * The parsed command line as arguments again, without the given options:
+     * the command line of the daemon (without --daemon) or of a service
+     * (without the service options). Options that take a value keep the '='.
+     */
+    std::vector<std::string> argsWithout(const std::vector<std::string> &excluded) const
     {
-        static const std::vector<std::string> serviceOptions{
-            "register-service", "unregister-service", "display-name", "description", "startup", "run-service"};
+        const auto specs = Pothos::App::pothosUtilOptions();
         std::vector<std::string> out;
         for (const auto &[name, value] : _config.given())
         {
-            if (std::ranges::find(serviceOptions, name) != serviceOptions.end()) continue;
-            out.push_back(value.empty()? "--" + name : "--" + name + "=" + value);
+            if (std::ranges::find(excluded, name) != excluded.end()) continue;
+            const auto spec = std::ranges::find(specs, name, &Pothos::App::OptionSpec::name);
+            const bool takesValue = spec != specs.end() and spec->arg != Pothos::App::Arg::None;
+            const bool emptyOptional = spec != specs.end() and spec->arg == Pothos::App::Arg::Optional and value.empty();
+            out.push_back((takesValue and not emptyOptional)? "--" + name + "=" + value : "--" + name);
         }
         if (not _config.positional().empty()) out.push_back("--");
         out.insert(out.end(), _config.positional().begin(), _config.positional().end());
         return out;
     }
-    #endif
+
+    //! Commands that wait for a termination request (they catch Ctrl-C and SIGTERM)
+    bool isServerMode(void) const
+    {
+        return _config.has("proxy-server") or
+            (_config.has("run-topology") and not _config.has("run-duration") and not _config.has("idle-time"));
+    }
 
     //! Run the commands: those with a value in command line order, then the first flag command
     void runCommands(void)
@@ -114,18 +127,35 @@ static std::optional<unsigned> parseUmask(const Pothos::App::CommandLine &config
 }
 #endif
 
-int main(int argc, char *argv[])
+//! Run f; any exception is printed and becomes the usage exit code
+template <typename Fn>
+static int runGuarded(Fn &&f)
 {
-    PothosUtil app;
     try
     {
-        app.parse(std::vector<std::string>(argv+1, argv+argc));
+        return f();
     }
     catch (const Pothos::Exception &ex)
     {
         std::cerr << ex.displayText() << std::endl;
-        return ExitUsage;
     }
+    catch (const std::exception &ex)
+    {
+        std::cerr << ex.what() << std::endl;
+    }
+    catch (...)
+    {
+        std::cerr << "unknown exception" << std::endl;
+    }
+    std::cout << std::endl;
+    return ExitUsage;
+}
+
+int main(int argc, char *argv[])
+{
+    PothosUtil app;
+    const int parsed = runGuarded([&]{app.parse(std::vector<std::string>(argv+1, argv+argc)); return 0;});
+    if (parsed != 0) return parsed;
 
     if (argc <= 1 or app.config().has("help"))
     {
@@ -133,10 +163,10 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    #ifdef _WIN32
-    try
+    return runGuarded([&app]
     {
         const auto &config = app.config();
+        #ifdef _WIN32
         if (config.has("register-service"))
         {
             Pothos::App::ServiceOptions opts;
@@ -144,7 +174,7 @@ int main(int argc, char *argv[])
             opts.displayName = config.getString("display-name");
             opts.description = config.getString("description");
             opts.startup = config.getString("startup", "manual");
-            opts.args = app.serviceArgs();
+            opts.args = app.argsWithout({"register-service", "unregister-service", "display-name", "description", "startup", "run-service"});
             Pothos::App::registerService(opts);
             std::cout << "Registered the service " << opts.name << std::endl;
             return 0;
@@ -162,34 +192,27 @@ int main(int argc, char *argv[])
             app.runCommands();
             return app.config().getInt("success-code", 0);
         });
-    }
-    catch (const Pothos::Exception &ex)
-    {
-        std::cerr << ex.displayText() << std::endl;
-        return ExitUsage;
-    }
-    #endif
-
-    try
-    {
-        //server modes first: fork before Pothos starts any thread
-        std::optional<Pothos::App::PidFile> pidFile;
-        #ifndef _WIN32
-        const auto umaskValue = parseUmask(app.config());
-        if (app.config().has("daemon")) Pothos::App::becomeDaemon(umaskValue);
-        else if (umaskValue) ::umask(static_cast<mode_t>(*umaskValue));
-        if (app.config().has("pidfile")) pidFile.emplace(app.config().getString("pidfile"));
+        #else
+        //the daemon is a new PothosUtil process (exec): see spawnDaemon
+        const auto umaskValue = parseUmask(config);
+        if (config.has("daemon"))
+        {
+            auto args = app.argsWithout({"daemon", "umask"});
+            args.push_back("--umask=" + std::format("{:o}", umaskValue.value_or(027)));
+            Pothos::App::spawnDaemon(Pothos::System::getPothosUtilExecutablePath(), args);
+            return 0;
+        }
+        if (umaskValue) ::umask(static_cast<mode_t>(*umaskValue));
         #endif
-        Pothos::App::installTerminationHandlers();
+
+        //only the commands that wait catch termination requests, and before
+        //the pid file exists: a request in between must not leave it behind
+        if (app.isServerMode()) Pothos::App::installTerminationHandlers();
+        std::optional<Pothos::App::PidFile> pidFile;
+        if (config.has("pidfile")) pidFile.emplace(config.getString("pidfile"));
 
         Pothos::System::Logger::setupDefaultLogging();
         app.runCommands();
-        return app.config().getInt("success-code", 0);
-    }
-    catch (const Pothos::Exception &ex)
-    {
-        std::cerr << ex.displayText() << std::endl;
-        std::cout << std::endl;
-    }
-    return ExitUsage;
+        return config.getInt("success-code", 0);
+    });
 }

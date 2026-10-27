@@ -26,12 +26,13 @@ void waitForTerminationRequest(void);
 
 #ifndef _WIN32
 /*!
- * Detach like Poco's ServerApplication: fork (the parent exits 0), setsid,
- * umask (027 unless given) and stdin/stdout/stderr on /dev/null.
- * Call it before any thread is started: only the calling thread survives fork.
+ * Start exe with args as a daemon: a new session, stdin/stdout/stderr on
+ * /dev/null. The new process starts from exec, so threads that the library
+ * started in this process (logger, network) do not haunt it as they would
+ * after a plain fork. The caller (the original process) then exits.
  * \throws Pothos::SystemException when fork fails
  */
-void becomeDaemon(std::optional<unsigned> umaskValue);
+void spawnDaemon(const std::filesystem::path &exe, const std::vector<std::string> &args);
 #endif
 
 #ifdef _WIN32

@@ -7,6 +7,8 @@
 #include <csignal>
 #include <cstdio>
 #include <cstring>
+#include <string>
+#include <vector>
 #include <fcntl.h>
 #include <fstream>
 #include <mutex>
@@ -52,22 +54,31 @@ void Pothos::App::waitForTerminationRequest(void)
     while (::read(terminationPipe[0], &byte, 1) < 0 and errno == EINTR) {}
 }
 
-void Pothos::App::becomeDaemon(const std::optional<unsigned> umaskValue)
+void Pothos::App::spawnDaemon(const std::filesystem::path &exe, const std::vector<std::string> &args)
 {
+    //everything the child needs is prepared before fork: only async-signal-safe calls after it
+    std::vector<std::string> strings{exe.string()};
+    strings.insert(strings.end(), args.begin(), args.end());
+    std::vector<char *> argv;
+    for (auto &s : strings) argv.push_back(s.data());
+    argv.push_back(nullptr);
+
     const auto pid = ::fork();
-    if (pid < 0) throw Pothos::SystemException("becomeDaemon", std::string("cannot fork: ") + std::strerror(errno));
-    if (pid != 0) ::_exit(0); //the parent: no destructors, the daemon carries on
+    if (pid < 0) throw Pothos::SystemException("spawnDaemon", std::string("cannot fork: ") + std::strerror(errno));
+    if (pid != 0) return;
 
     ::setsid();
-    ::umask(static_cast<mode_t>(umaskValue.value_or(027)));
-
     //on /dev/null rather than closed: code that writes to stdout keeps working
-    if (std::freopen("/dev/null", "r", stdin) == nullptr or
-        std::freopen("/dev/null", "w", stdout) == nullptr or
-        std::freopen("/dev/null", "w", stderr) == nullptr)
+    const int null = ::open("/dev/null", O_RDWR);
+    if (null >= 0)
     {
-        throw Pothos::SystemException("becomeDaemon", "cannot attach the standard streams to /dev/null");
+        ::dup2(null, STDIN_FILENO);
+        ::dup2(null, STDOUT_FILENO);
+        ::dup2(null, STDERR_FILENO);
+        if (null > STDERR_FILENO) ::close(null);
     }
+    ::execv(argv[0], argv.data());
+    ::_exit(127);
 }
 
 Pothos::App::PidFile::PidFile(std::filesystem::path path):
