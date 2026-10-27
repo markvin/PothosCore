@@ -69,5 +69,6 @@ POTHOS_TEST_BLOCK("/framework/tests/topology", test_domain_crossing_needs_blocks
     std::cout << "commit error: " << error << std::endl;
     POTHOS_TEST_TRUE(error.find("/blocks/copier") != std::string::npos);
     POTHOS_TEST_TRUE(error.find("PothosBlocks") != std::string::npos);
+    POTHOS_TEST_TRUE(error.find("in this process") != std::string::npos);
     POTHOS_TEST_TRUE(error.find("wrong exception") == std::string::npos);
 }

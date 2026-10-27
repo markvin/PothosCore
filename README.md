@@ -41,7 +41,7 @@ next to it in the same parent project (see below).
 
 The core itself is self-contained, but two kinds of topology flows insert
 blocks from PothosBlocks: a connection between incompatible port domains
-(`/blocks/copier`) and a topology across hosts (`/blocks/network_sink`,
+(`/blocks/copier`) and a topology across processes or hosts (`/blocks/network_sink`,
 `/blocks/network_source`). Without PothosBlocks installed, `Topology::commit()`
 throws a `TopologyConnectError` that names the missing block.
 

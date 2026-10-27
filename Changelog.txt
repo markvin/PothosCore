@@ -11,7 +11,7 @@ Repository:
 - find_package(Pothos) finds the core added with add_subdirectory or
   FetchContent (for the parent and the toolkits next to it)
 - Topology::commit() throws TopologyConnectError naming the missing block
-  when a domain crossing (/blocks/copier) or a flow across hosts
+  when a domain crossing (/blocks/copier) or a flow across processes/hosts
   (/blocks/network_*) needs PothosBlocks and it is not installed
 
 Expressions (EvalEnvironment):

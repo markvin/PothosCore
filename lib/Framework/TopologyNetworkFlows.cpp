@@ -38,11 +38,11 @@ std::pair<Pothos::Proxy, Pothos::Proxy> createNetworkFlow(const Flow &flow)
     assert(not bindIp.empty());
     Pothos::Net::Uri uri{"tcp", bindIp, 0};
     netBind = makeToolkitBlock(bindEnv->findProxy("Pothos/BlockRegistry"), netBindPath,
-        "A topology across hosts", Pothos::Net::toString(uri), "BIND");
+        "A topology across processes or hosts", Pothos::Net::toString(uri), "BIND");
     const std::string connectPort = netBind.call("getActualPort");
     uri.port = static_cast<std::uint16_t>(std::stoi(connectPort));
     netConn = makeToolkitBlock(connEnv->findProxy("Pothos/BlockRegistry"), netConnPath,
-        "A topology across hosts", Pothos::Net::toString(uri), "CONNECT");
+        "A topology across processes or hosts", Pothos::Net::toString(uri), "CONNECT");
 
     //return the pair of network blocks
     const auto name = flow.src.obj.call<std::string>("getName")+"["+flow.src.name+"]";

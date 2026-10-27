@@ -3,10 +3,20 @@
 
 #pragma once
 #include <Pothos/Proxy.hpp>
+#include <Pothos/Remote/Client.hpp>
 #include <Pothos/Framework/Exception.hpp>
 #include <format>
 #include <string>
 #include <utility>
+
+//! Where an environment runs, for error messages: this process or a remote host
+inline std::string toolkitBlockLocation(const Pothos::ProxyEnvironment::Sptr &env)
+{
+    if (env->getUniquePid() == Pothos::ProxyEnvironment::getLocalUniquePid()) return "in this process";
+    const auto ip = Pothos::RemoteClient::lookupIpFromNodeId(env->getNodeId());
+    return std::format("in the remote {} environment on {}", env->getName(),
+        ip.empty()? "node "+env->getNodeId() : ip);
+}
 
 /*!
  * Make a block that the topology inserts on its own (a copier for a domain
@@ -20,7 +30,7 @@ Pothos::Proxy makeToolkitBlock(const Pothos::Proxy &registry, const std::string 
 {
     const bool exists = registry.call("doesBlockExist", path);
     if (not exists) throw Pothos::TopologyConnectError("Pothos::Topology::commit()", std::format(
-        "{} needs the block {} from the blocks toolkit (PothosBlocks), "
-        "which is not installed in the {} environment", purpose, path, registry.getEnvironment()->getName()));
+        "{} needs the block {} from the blocks toolkit (PothosBlocks), which is not installed {}",
+        purpose, path, toolkitBlockLocation(registry.getEnvironment())));
     return registry.call(path, std::forward<ArgsType>(args)...);
 }

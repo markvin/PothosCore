@@ -191,7 +191,8 @@ public:
      * Some flows need blocks from the blocks toolkit (PothosBlocks),
      * which is not part of the core library:
      *   - a connection between incompatible port domains inserts /blocks/copier;
-     *   - a connection between blocks on different hosts inserts
+     *   - a connection between blocks in different processes
+     *     (remote environments, on this host or another) inserts
      *     /blocks/network_sink and /blocks/network_source.
      *
      * \throws TopologyConnectError when such a block is not installed
