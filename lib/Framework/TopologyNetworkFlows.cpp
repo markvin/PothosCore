@@ -4,7 +4,6 @@
 #include "Framework/TopologyImpl.hpp"
 #include <Pothos/System/HostInfo.hpp>
 #include <Pothos/Remote.hpp>
-#include <Poco/Net/SocketAddress.h>
 #include "Net/Uri.hpp"
 #include <future>
 #include <functional>
