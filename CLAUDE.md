@@ -28,7 +28,7 @@ ctest --test-dir build --output-on-failure
 ```
 
 - C++23, CMake >= 3.25 (works on 4.x). No network access during the build;
-  `third_party/` holds vendored code (nlohmann/json, standalone Asio).
+  `third_party/` holds vendored code (nlohmann/json, standalone Asio, xsimd).
 - Internal dependencies (nlohmann/json, Asio, libsimdpp) are PRIVATE; they
   must never appear in the exported `Pothos::Pothos` target (checked by
   `pothos.consumer`). Poco is gone (phase 5): do not reintroduce it.

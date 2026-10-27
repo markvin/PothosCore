@@ -181,6 +181,7 @@ add_library(Pothos SHARED
     Net/Builtin/TestNetSyslog.cpp
     App/Builtin/TestOptions.cpp
     App/Builtin/TestServer.cpp
+    System/Builtin/TestSIMDFeatures.cpp
     Util/Builtin/TestSIMDDispatcherUtils.cpp
 
     Archive/ArchiveEntry.cpp
@@ -292,7 +293,7 @@ endif(MSVC)
 ########################################################################
 # Link feature dependencies
 ########################################################################
-target_link_libraries(Pothos PRIVATE pothos_json)
+target_link_libraries(Pothos PRIVATE pothos_json pothos_xsimd)
 
 #C++23 is required by the public headers
 target_compile_features(Pothos PUBLIC cxx_std_23)

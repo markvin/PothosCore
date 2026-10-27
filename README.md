@@ -21,6 +21,7 @@ is built from the source tree and kept private to the library.
 * libsimdpp SIMD library (submodule, header only)
 * nlohmann/json (vendored in third_party/)
 * standalone Asio networking library (vendored in third_party/asio)
+* xsimd SIMD library (vendored in third_party/xsimd)
 * spuce filter design library (toolkit dependency, not used by the framework)
 
 ## Toolkits
