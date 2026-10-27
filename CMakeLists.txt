@@ -169,19 +169,17 @@ if(POTHOS_BUILD_TESTS)
 endif()
 
 ########################################################################
-# uninstall target (pothos_uninstall inside a parent project)
+# uninstall target (top level only: inside a parent project the install
+# manifest is the parent's, and uninstalling is the parent's business)
 ########################################################################
 if(PROJECT_IS_TOP_LEVEL)
-    set(uninstall_target uninstall)
-else()
-    set(uninstall_target pothos_uninstall)
+    add_custom_target(uninstall
+        "${CMAKE_COMMAND}" -P "${PROJECT_BINARY_DIR}/cmake_uninstall.cmake")
+    configure_file(
+        "${PROJECT_SOURCE_DIR}/cmake/cmake_uninstall.cmake.in"
+        "${PROJECT_BINARY_DIR}/cmake_uninstall.cmake"
+        @ONLY)
 endif()
-add_custom_target(${uninstall_target}
-    "${CMAKE_COMMAND}" -P "${PROJECT_BINARY_DIR}/cmake_uninstall.cmake")
-configure_file(
-    "${PROJECT_SOURCE_DIR}/cmake/cmake_uninstall.cmake.in"
-    "${PROJECT_BINARY_DIR}/cmake_uninstall.cmake"
-    @ONLY)
 
 ########################################################################
 # print features summary (not into a parent project's output)

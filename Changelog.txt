@@ -17,9 +17,10 @@ Expressions (EvalEnvironment):
 
 Build (CMake):
 
-- The core works as a subproject (add_subdirectory/FetchContent): it leaves
-  the parent's options, cache and globals alone; tests only when
-  POTHOS_BUILD_TESTS=ON; uninstall target pothos_uninstall
+- The core works as a subproject (add_subdirectory/FetchContent): prefixed
+  options and cache entries (POTHOS_NUMA_LIBRARY, POTHOS_CAN_COMPILE_*, ...),
+  no change to the parent's globals; tests only when POTHOS_BUILD_TESTS=ON;
+  documentation target pothos_docs; no uninstall target in a parent project
 - Options renamed/removed: ENABLE_LIBRARY, ENABLE_LIBRARY_LIB,
   ENABLE_LIBRARY_INCLUDE, ENABLE_LIBRARY_CMAKE removed; ENABLE_LIBRARY_APPS
   -> POTHOS_BUILD_APPS; ENABLE_LIBRARY_DOCS -> POTHOS_BUILD_DOCS; new

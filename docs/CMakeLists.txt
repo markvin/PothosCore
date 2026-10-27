@@ -12,7 +12,7 @@ endif()
 ########################################################################
 ## Feature registration
 ########################################################################
-add_feature_info("Docs" DOXYGEN_FOUND "Doxygen generated docs for Pothos library")
+add_feature_info("Pothos docs" DOXYGEN_FOUND "Doxygen generated docs for Pothos library")
 if (NOT DOXYGEN_FOUND)
     return()
 endif()
@@ -38,5 +38,5 @@ if (DOXYGEN_FOUND)
         COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
         COMMENT "Generating documentation with doxygen"
     )
-    add_custom_target(docs ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR_DOXYGEN})
+    add_custom_target(pothos_docs ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR_DOXYGEN})
 endif()

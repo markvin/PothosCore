@@ -73,9 +73,10 @@ add_subdirectory(PothosCore)   # or FetchContent_MakeAvailable
 target_link_libraries(myapp PRIVATE Pothos::Pothos)
 ```
 
-As a subproject it leaves the parent's options, cache and global settings
-alone, registers no tests unless `POTHOS_BUILD_TESTS=ON`, and names its
-uninstall target `pothos_uninstall`.
+As a subproject its options and cache entries are prefixed `POTHOS_`, it
+leaves the parent's global settings alone, registers no tests unless
+`POTHOS_BUILD_TESTS=ON`, names its documentation target `pothos_docs` and
+creates no uninstall target (that is the parent's).
 
 ## Layout
 
