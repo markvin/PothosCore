@@ -10,8 +10,6 @@
 #include <Pothos/Exception.hpp>
 #include <Pothos/Framework.hpp>
 
-#include <Poco/Format.h>
-#include <Poco/NumberFormatter.h>
 
 #include <algorithm>
 #include <limits>

@@ -9,12 +9,13 @@
 #include <Pothos/Proxy.hpp>
 #include <Pothos/Util/ExceptionForErrorCode.hpp>
 
-#include <json.hpp>
+#include <nlohmann/json.hpp>
 
-#include <Poco/Random.h>
-#include <Poco/RandomStream.h>
-#include <Poco/TemporaryFile.h>
-#include <Poco/Thread.h>
+#include "Util/TempFile.hpp"
+#include <algorithm>
+#include <chrono>
+#include <random>
+#include <thread>
 
 #include <iostream>
 
@@ -57,18 +58,17 @@ static void testBinaryFileBlocksCommon(
 
 static void testBinaryFileBlocks(bool optimizeSourceForStandardFile)
 {
-    auto tempFile = Poco::TemporaryFile();
-    POTHOS_TEST_TRUE(tempFile.createFile());
+    Pothos::Util::Detail::TempFile tempFile;
 
     auto fileSource = Pothos::BlockRegistry::make(
                           "/blocks/binary_file_source",
                           "int",
                           optimizeSourceForStandardFile);
     fileSource.call("setAutoRewind", false);
-    fileSource.call("setFilePath", tempFile.path());
+    fileSource.call("setFilePath", tempFile.path().string());
 
     auto fileSink = Pothos::BlockRegistry::make("/blocks/binary_file_sink");
-    fileSink.call("setFilePath", tempFile.path());
+    fileSink.call("setFilePath", tempFile.path().string());
 
     testBinaryFileBlocksCommon(fileSource, fileSink);
 }
@@ -84,13 +84,12 @@ POTHOS_TEST_BLOCK("/blocks/tests", test_binary_file_blocks)
 
 POTHOS_TEST_BLOCK("/blocks/tests", test_binary_file_descriptor_blocks)
 {
-    auto tempFile = Poco::TemporaryFile();
-    POTHOS_TEST_TRUE(tempFile.createFile());
+    Pothos::Util::Detail::TempFile tempFile;
 
-    int readFD = openFileForRead(tempFile.path().c_str());
+    int readFD = openFileForRead(tempFile.path().string().c_str());
     if(readFD < 0) throw Pothos::Util::ErrnoException<Pothos::OpenFileException>();
 
-    int writeFD = openFileForWrite(tempFile.path().c_str());
+    int writeFD = openFileForWrite(tempFile.path().string().c_str());
     if(writeFD < 0) throw Pothos::Util::ErrnoException<Pothos::OpenFileException>();
 
     auto fdSource = Pothos::BlockRegistry::make(
@@ -109,31 +108,28 @@ POTHOS_TEST_BLOCK("/blocks/tests", test_circular_binary_file_source)
     // Generate some random input.
     constexpr size_t maxSize = 2 << 15;
 
-    Poco::Random rng;
-    const size_t inputSize = rng.next(maxSize);
+    std::mt19937 rng(std::random_device{}());
+    const size_t inputSize = std::uniform_int_distribution<size_t>(1, maxSize-1)(rng);
 
     Pothos::BufferChunk input("int", inputSize);
 
-    Poco::RandomBuf randomBuf;
-    randomBuf.readFromDevice(
-        reinterpret_cast<char*>(input.address),
-        (inputSize*sizeof(int)));
+    std::uniform_int_distribution<int> randomInt;
+    std::generate_n(input.as<int*>(), inputSize, [&]{return randomInt(rng);});
 
     auto feeder = Pothos::BlockRegistry::make("/blocks/feeder_source", "int");
     auto collector = Pothos::BlockRegistry::make("/blocks/collector_sink", "int");
 
-    auto tempFile = Poco::TemporaryFile();
-    POTHOS_TEST_TRUE(tempFile.createFile());
+    Pothos::Util::Detail::TempFile tempFile;
 
     auto fileSource = Pothos::BlockRegistry::make(
                           "/blocks/binary_file_source",
                           "int",
                           true /*optimizeForStandardFile*/);
-    fileSource.call("setFilePath", tempFile.path());
+    fileSource.call("setFilePath", tempFile.path().string());
     fileSource.call("setAutoRewind", true);
 
     auto fileSink = Pothos::BlockRegistry::make("/blocks/binary_file_sink");
-    fileSink.call("setFilePath", tempFile.path());
+    fileSink.call("setFilePath", tempFile.path().string());
 
     feeder.call("feedBuffer", input);
 
@@ -151,7 +147,7 @@ POTHOS_TEST_BLOCK("/blocks/tests", test_circular_binary_file_source)
         topology.connect(fileSource, 0, collector, 0);
         topology.commit();
 
-        Poco::Thread::sleep(10); // ms
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
     // Check that the output is our file contents repeated

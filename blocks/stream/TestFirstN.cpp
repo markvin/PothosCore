@@ -6,7 +6,7 @@
 #include <Pothos/Framework.hpp>
 #include <Pothos/Testing.hpp>
 
-#include <Poco/Random.h>
+#include <random>
 
 #include <complex>
 #include <iostream>
@@ -18,7 +18,7 @@
 static constexpr size_t BufferLen = 1024;
 static constexpr size_t FirstNLength = BufferLen / 4;
 
-static Poco::Random rng;
+static std::mt19937 rng(std::random_device{}());
 
 template <typename T>
 static void getTestValues(
@@ -34,7 +34,7 @@ static void getTestValues(
 
     for(size_t elem = 0; elem < BufferLen; ++elem)
     {
-        auto val = T(rng.next(100));
+        auto val = T(std::uniform_int_distribution<int>(0, 99)(rng));
 
         pInputs->template as<T*>()[elem] = val;
 

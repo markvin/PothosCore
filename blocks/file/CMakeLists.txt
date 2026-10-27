@@ -1,28 +1,17 @@
 ########################################################################
-## Feature registration
-########################################################################
-cmake_dependent_option(ENABLE_BLOCKS_FILE "Enable Pothos Blocks.File component" ON "ENABLE_BLOCKS;JSON_HPP_INCLUDE_DIR" OFF)
-add_feature_info("  File" ENABLE_BLOCKS_FILE "Filesystem resource source/sink blocks")
-if (NOT ENABLE_BLOCKS_FILE)
-    return()
-endif()
-
-########################################################################
 # File blocks module
 ########################################################################
-set(fileBlocksSources
-    BinaryFileSink.cpp
-    BinaryFileSource.cpp
-    MemoryMappedBufferContainer.cpp
-    MemoryMappedBufferManager.cpp
-    TextFileSink.cpp
-    TestBinaryFileBlocks.cpp
-)
-
-include_directories(${JSON_HPP_INCLUDE_DIR})
-POTHOS_MODULE_UTIL(
+pothos_blocks_module(
     TARGET FileBlocks
-    SOURCES ${fileBlocksSources}
-    DESTINATION blocks
-    ENABLE_DOCS
+    SOURCES
+        BinaryFileSink.cpp
+        BinaryFileSource.cpp
+        MemoryMappedBufferContainer.cpp
+        MemoryMappedBufferManager.cpp
+        TextFileSink.cpp
+        TestBinaryFileBlocks.cpp
+    TESTS
+        test_binary_file_blocks
+        test_binary_file_descriptor_blocks
+        test_circular_binary_file_source
 )

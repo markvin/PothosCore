@@ -6,6 +6,7 @@ pothos_blocks_module(
     SOURCES
         TestUnitTestBlocks.cpp
         TestSetThreadPool.cpp
+        TestJSONTopology.cpp
         TestConstantSource.cpp
         FeederSource.cpp
         CollectorSink.cpp
@@ -23,5 +24,6 @@ pothos_blocks_module(
         test_unit_test_blocks
         test_unit_testplans
         test_set_thread_pool
+        test_json_topology
         test_constant_source
 )

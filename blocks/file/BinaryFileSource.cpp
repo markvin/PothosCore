@@ -9,22 +9,15 @@
 #include <Pothos/Framework.hpp>
 #include <Pothos/Util/ExceptionForErrorCode.hpp>
 
-#include <Poco/File.h>
-#include <Poco/Format.h>
-#include <Poco/Logger.h>
-#include <Poco/Platform.h>
+#include <Pothos/System/Logger.hpp>
+#include <cstring>
+#include <filesystem>
 
 #include <memory>
 
 //
 // Utility code
 //
-
-static Poco::Logger& getLogger()
-{
-    static auto& logger = Poco::Logger::get("BinaryFileSource");
-    return logger;
-}
 
 template <typename ExcType = Pothos::RuntimeException>
 static inline void throwErrnoOnFailure(int code)
@@ -36,9 +29,10 @@ static void logErrnoOnFailure(int code, const char* context)
 {
     if (code < 0)
     {
-        poco_error_f2(
-            getLogger(),
-            "%s: %s",
+        Pothos::System::log(
+            Pothos::System::LogLevel::Error,
+            "BinaryFileSource",
+            "{}: {}",
             std::string(context),
             std::string(::strerror(errno)));
     }
@@ -68,7 +62,7 @@ public:
         const auto elems = this->workInfo().minElements;
         if (0 == elems) return;
 
-#if defined(POCO_OS_FAMILY_UNIX)
+#ifndef _WIN32
         //setup timeval for timeout
         timeval tv;
         tv.tv_sec = 0;
@@ -137,7 +131,7 @@ public:
 
     void setFilePath(const std::string& path)
     {
-        if (!Poco::File(path).exists())
+        if (!std::filesystem::exists(path))
         {
            throw Pothos::FileNotFoundException(path);
         }

@@ -10,8 +10,7 @@
 #include <Pothos/Exception.hpp>
 #include <Pothos/Framework.hpp>
 
-#include <Poco/Format.h>
-#include <Poco/NumberFormatter.h>
+#include <format>
 
 #include <algorithm>
 #include <limits>
@@ -232,10 +231,7 @@ private:
         {
             throw Pothos::InvalidArgumentException(
                       "Min value > max value",
-                      Poco::format(
-                          "Min: %s, max: %s",
-                          Poco::NumberFormatter::format(minVal),
-                          Poco::NumberFormatter::format(maxVal)));
+                      std::format("Min: {}, max: {}", minVal, maxVal));
         }
     }
 };

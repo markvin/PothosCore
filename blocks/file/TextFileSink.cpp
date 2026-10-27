@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include <Pothos/Framework.hpp>
-#include <Poco/Logger.h>
+#include <Pothos/System/Logger.hpp>
+#include <cstring>
 #include <complex>
 #include <fstream>
 #include <cerrno>
@@ -79,7 +80,7 @@ public:
         _file.open(_path.c_str());
         if (not _file)
         {
-            poco_error_f3(Poco::Logger::get("TextFileSink"), "open(%s) failed -- %s(%d)", _path, std::string(strerror(errno)), errno);
+            Pothos::System::log(Pothos::System::LogLevel::Error, "TextFileSink", "open({}) failed -- {}({})", _path, std::string(strerror(errno)), errno);
         }
     }
 

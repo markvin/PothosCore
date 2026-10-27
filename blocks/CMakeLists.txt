@@ -21,7 +21,10 @@ function(pothos_blocks_module)
         DESTINATION blocks
         ${docs})
     set_target_properties(${BLOCKS_TARGET} PROPERTIES CXX_EXTENSIONS OFF)
-    target_include_directories(${BLOCKS_TARGET} PRIVATE ${CMAKE_CURRENT_FUNCTION_LIST_DIR})
+    #blocks/ for common/, lib/ for the core's internal header-only helpers
+    target_include_directories(${BLOCKS_TARGET} PRIVATE
+        ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
+        ${PROJECT_SOURCE_DIR}/lib)
     pothos_warnings_as_errors(${BLOCKS_TARGET})
     foreach(test IN LISTS BLOCKS_TESTS)
         set_property(GLOBAL APPEND PROPERTY POTHOS_BLOCKS_TESTS /blocks/tests/${test})
@@ -29,6 +32,8 @@ function(pothos_blocks_module)
 endfunction()
 
 add_subdirectory(event)
+add_subdirectory(file)
 add_subdirectory(packet)
 add_subdirectory(serialize)
+add_subdirectory(stream)
 add_subdirectory(testers)

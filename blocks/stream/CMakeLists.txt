@@ -1,76 +1,59 @@
 ########################################################################
-## Feature registration
-########################################################################
-cmake_dependent_option(ENABLE_BLOCKS_STREAM "Enable Pothos Blocks.Stream component" ON "ENABLE_BLOCKS;JSON_HPP_INCLUDE_DIR" OFF)
-add_feature_info("  Stream" ENABLE_BLOCKS_STREAM "Miscellaneous stream manipulation blocks")
-if (NOT ENABLE_BLOCKS_STREAM)
-    return()
-endif()
-
-########################################################################
 # Stream blocks module
 ########################################################################
-set(sources
-    Converter.cpp
-    TestConverter.cpp
-    Copier.cpp
-    Delay.cpp
-    TestDelay.cpp
-    DynamicRouter.cpp
-    Pacer.cpp
-    Relabeler.cpp
-    LabelStripper.cpp
-    Gateway.cpp
-    TestGateway.cpp
-    Reinterpret.cpp
-    RateMonitor.cpp
-    MinMax.cpp
-    TestMinMax.cpp
-    Interleaver.cpp
-    TestInterleaver.cpp
-    Deinterleaver.cpp
-    Clamp.cpp
-    TestClamp.cpp
-    Repeat.cpp
-    TestRepeat.cpp
-    IsX.cpp
-    TestIsX.cpp
-    Mute.cpp
-    Round.cpp
-    TestRoundBlocks.cpp
-    Replace.cpp
-    TestReplace.cpp
-    FirstN.cpp
-    TestFirstN.cpp)
-set(libraries "")
-
-if(xsimd_FOUND)
-    set(SIMDInputs
-        SIMD/Clamp.cpp
-        SIMD/IsX.cpp
-        SIMD/MinMax.cpp
-        SIMD/Round.cpp)
-
-    PothosGenerateSIMDSources(
-        SIMDSources
-        SIMD/StreamBlocks.json
-        ${SIMDInputs})
-
-    list(APPEND sources ${SIMDSources})
-    include_directories(${CMAKE_CURRENT_BINARY_DIR})
-    list(APPEND libraries xsimd)
-endif()
-
-include_directories(
-    ${CMAKE_CURRENT_BINARY_DIR}
-    ${JSON_HPP_INCLUDE_DIR})
-POTHOS_MODULE_UTIL(
+pothos_blocks_module(
     TARGET StreamBlocks
-    SOURCES ${sources}
-    LIBRARIES ${libraries}
-    DESTINATION blocks
-    ENABLE_DOCS
+    SOURCES
+        Converter.cpp
+        TestConverter.cpp
+        Copier.cpp
+        Delay.cpp
+        TestDelay.cpp
+        DynamicRouter.cpp
+        Pacer.cpp
+        Relabeler.cpp
+        LabelStripper.cpp
+        Gateway.cpp
+        TestGateway.cpp
+        Reinterpret.cpp
+        RateMonitor.cpp
+        MinMax.cpp
+        TestMinMax.cpp
+        Interleaver.cpp
+        TestInterleaver.cpp
+        Deinterleaver.cpp
+        Clamp.cpp
+        TestClamp.cpp
+        Repeat.cpp
+        TestRepeat.cpp
+        IsX.cpp
+        TestIsX.cpp
+        Mute.cpp
+        Round.cpp
+        TestRoundBlocks.cpp
+        Replace.cpp
+        TestReplace.cpp
+        FirstN.cpp
+        TestFirstN.cpp
+        TestCopier.cpp
+    TESTS
+        test_converter
+        test_round_blocks
+        test_is_x
+        test_gateway
+        test_first_n
+        test_repeat
+        test_interleaver
+        test_deinterleaver
+        test_deinterleaver_to_interleaver
+        test_interleaver_to_deinterleaver
+        test_replace
+        test_replace_infinity
+        test_replace_neg_infinity
+        test_replace_nan
+        test_replace_neg_nan
+        test_minmax
+        test_delay
+        test_clamp
+        test_copier_domain_crossing
 )
-if(xsimd_FOUND)
-    add_dependencies(StreamBlocks StreamBlocks_SIMDDispatcher)
-endif()
