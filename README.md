@@ -1,9 +1,9 @@
 # Pothos framework library and build environment
 
-This is the project for the Pothos framework library.
-It also contains submodules for various dependencies
-and Pothos toolkits to make it easy to install
-the entire Pothos software suite in one build.
+This is the project for the Pothos framework library: the core library,
+its public headers, the PothosUtil application and the CMake support for
+building toolkits. It has no submodules; the toolkits live in their own
+repositories.
 
 ## Documentation
 
@@ -21,23 +21,29 @@ is built from the source tree and kept private to the library.
 * nlohmann/json (vendored in third_party/)
 * standalone Asio networking library (vendored in third_party/asio)
 * xsimd SIMD library (vendored in third_party/xsimd)
-* spuce filter design library (toolkit dependency, not used by the framework)
 
 ## Toolkits
 
-Although all toolkits can be built as standalone cmake projects,
-user may wish to build these toolkits alongside the framework
-library to simplfy the effort involved building from source.
-The following toolkits are available as git submodules:
+The toolkits are separate CMake projects in their own repositories
+(they are not yet ported to the pothos2 API of this branch):
 
-* PothosAudio
-* PothosBlocks
-* PothosComms
-* PothosFlow
-* PothosPlotters
-* PothosPython
-* PothosSoapy
-* PothosWidgets
+* [PothosAudio](https://github.com/pothosware/PothosAudio)
+* [PothosBlocks](https://github.com/pothosware/PothosBlocks)
+* [PothosComms](https://github.com/pothosware/PothosComms)
+* [PothosFlow](https://github.com/pothosware/PothosFlow)
+* [PothosPlotters](https://github.com/pothosware/PothosPlotters)
+* [PothosPython](https://github.com/pothosware/PothosPython)
+* [PothosSoapy](https://github.com/pothosware/PothosSoapy)
+* [PothosWidgets](https://github.com/pothosware/PothosWidgets)
+
+A toolkit finds the core with `find_package(Pothos)`, either installed or
+next to it in the same parent project (see below).
+
+The core itself is self-contained, but two kinds of topology flows insert
+blocks from PothosBlocks: a connection between incompatible port domains
+(`/blocks/copier`) and a topology across processes or hosts (`/blocks/network_sink`,
+`/blocks/network_source`). Without PothosBlocks installed, `Topology::commit()`
+throws a `TopologyConnectError` that names the missing block.
 
 ## Building
 
@@ -51,9 +57,6 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 cmake --install build
 ```
-
-Only the framework library is built; the toolkit submodules are not part
-of this build.
 
 Build options:
 
@@ -71,12 +74,14 @@ The core can also be a subproject of another CMake project:
 ```cmake
 add_subdirectory(PothosCore)   # or FetchContent_MakeAvailable
 target_link_libraries(myapp PRIVATE Pothos::Pothos)
+add_subdirectory(PothosBlocks) # its find_package(Pothos) finds the core above
 ```
 
 As a subproject its options and cache entries are prefixed `POTHOS_`, it
 leaves the parent's global settings alone, registers no tests unless
 `POTHOS_BUILD_TESTS=ON`, names its documentation target `pothos_docs` and
-creates no uninstall target (that is the parent's).
+creates no uninstall target (that is the parent's). The parent and the
+projects added after the core find it with `find_package(Pothos)`.
 
 ## Layout
 
@@ -85,6 +90,8 @@ creates no uninstall target (that is the parent's).
 * docs/ - doxygen configuration and generation
 * apps/ - the source for the PothosUtil binary
 * cmake/ - cmake utilities for building projects
+* tests/ - CTest projects (consumer, api_compat, subproject)
+* third_party/ - vendored dependencies (private to the library)
 
 ## Licensing library
 
@@ -94,42 +101,8 @@ http://www.boost.org/LICENSE_1_0.txt)
 
 ## Licensing other
 
-This repository is a meta-project for developing, building, and installing
-the main Pothos framework, core dependency libraries, and official toolkits.
-License files and source code are available in each project sub-directory.
-
-The core Pothos library
-and official toolkits found in this repository
-are available under the Boost Software License - Version 1.0.
 The libraries vendored in third_party/ keep their own licenses
 (Asio: BSL-1.0, xsimd: BSD-3-Clause, nlohmann/json: MIT; see each directory).
 
-Please note that Pothos toolkits that are NOT found in this repository,
-both official and unofficial, may have different licensing terms.
-
-Several external libraries have been included into this meta-project
-that are not licensed under the Boost Software License - Version 1.0,
-however are available under a permissive compatible software license.
-
-### kissfft
-
-* Description: C and C++ Fast Fourier Transform library
-* Homepage: https://github.com/itdaniher/kissfft/blob/master/README
-* License: https://github.com/itdaniher/kissfft/blob/master/COPYING
-* Usage: Pothos comms FFT transform blocks
-* Source: comms/fft/ (embedded copy)
-
-### Qwt
-
-* Description: C++ plotting library based around Qt widgets
-* Homepage: http://qwt.sourceforge.net/
-* License: http://qwt.sourceforge.net/qwtlicense.html
-* Usage: Pothos plotters toolkit support library
-* Source: plotters/qwt/ (nested submodule)
-
-### qtcolorpicker
-
-* Description: C++ drop-down color selection Qt widget
-* License: GNU Lesser General Public License Usage
-* Usage: Pothos GUI designer affinity color selection
-* Source: flow/qtcolorpicker/ (embedded copy)
+Pothos toolkits, official and unofficial, are separate projects
+and may have different licensing terms.

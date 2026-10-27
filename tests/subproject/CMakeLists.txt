@@ -19,7 +19,21 @@ add_custom_target(docs)
 get_cmake_property(cache_before CACHE_VARIABLES)
 get_property(build_type_before CACHE CMAKE_BUILD_TYPE PROPERTY VALUE)
 
-add_subdirectory(${POTHOS_SOURCE} pothos)
+#the core as add_subdirectory, or as FetchContent that also overrides find_package
+if(POTHOS_SUBPROJECT_FETCHCONTENT)
+    include(FetchContent)
+    FetchContent_Declare(Pothos SOURCE_DIR ${POTHOS_SOURCE} OVERRIDE_FIND_PACKAGE)
+    FetchContent_MakeAvailable(Pothos)
+else()
+    add_subdirectory(${POTHOS_SOURCE} pothos)
+endif()
+
+#a toolkit next to the core, directories of the parent without their own
+#project() and the parent itself find the core with find_package
+add_subdirectory(sibling)
+add_subdirectory(plain_a)
+add_subdirectory(plain_b)
+find_package(Pothos CONFIG REQUIRED)
 
 set(errors)
 

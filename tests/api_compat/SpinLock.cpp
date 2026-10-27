@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Pothos contributors
 // SPDX-License-Identifier: BSL-1.0
 
-//the locking pattern of comms/mac/SimpleLlc.cpp
+//the locking pattern of mac/SimpleLlc.cpp in PothosComms
 #include <Pothos/Util/SpinLock.hpp>
 #include <mutex> //lock_guard
 #include <deque>

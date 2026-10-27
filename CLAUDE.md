@@ -9,17 +9,19 @@ Restore / update the project so it builds and works on a modern toolchain.
 
 ## Repository layout
 
-- `lib/`, `include/` — core framework
-- Git submodules: spuce, plotters, widgets, flow, soapy,
-  blocks, python, audio, comms (none of them is part of the core build)
+- `lib/`, `include/` — core framework; `apps/` — PothosUtil; `cmake/` —
+  build support (installed `PothosConfig.cmake`, `PothosUtil.cmake`);
+  `tests/` — CTest projects; `third_party/` — vendored dependencies
+- No submodules: the toolkits (blocks, flow, comms, …) live in their own
+  repositories (pothosware/Pothos*); the core only knows the plugin paths
+  `/blocks/copier` and `/blocks/network_*` (clear error when missing)
 
 ## Build
 
 Design and plans: `docs/superpowers/specs/2026-10-26-core-modernization-design.md`,
 `docs/superpowers/plans/` (roadmap + per-phase plans).
 
-Only the core is built (toolkit submodules are not part of the build).
-The core needs no submodule: dependencies are vendored in `third_party/`.
+Dependencies are vendored in `third_party/`; the build needs no network.
 
 ```sh
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
@@ -101,8 +103,6 @@ ctest --test-dir build --output-on-failure
   incompatible API); every phase is merged into it via PR. `master` keeps the
   original API. CI runs on pushes and PRs.
 - Remotes: `origin` = fork (markvin), `upstream` = pothosware/PothosCore.
-- spuce: the URL in `.gitmodules` (audiofilter/spuce) is dead — the account was
-  renamed and the repo is no longer public. The recorded commit `ad08df7` is
-  available in the fork https://github.com/hayguen/spuce.git (one-off clone:
-  `git -c submodule.spuce.url=https://github.com/hayguen/spuce.git submodule update --init spuce`).
-- plotters/qwt6 (nested submodule) is initialized.
+- spuce (filter design library of the toolkits, no longer a submodule): the old
+  URL audiofilter/spuce is dead; commit `ad08df7` is in the fork
+  https://github.com/hayguen/spuce.git.
