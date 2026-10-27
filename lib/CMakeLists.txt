@@ -160,6 +160,8 @@ add_library(Pothos SHARED
     Net/IoContext.cpp
     Net/Uri.cpp
     Net/Address.cpp
+    Net/TcpStream.cpp
+    Net/TcpServer.cpp
 
     Util/Builtin/BlockEval.cpp
     Util/Builtin/DeviceInfoUtils.cpp
@@ -178,6 +180,7 @@ add_library(Pothos SHARED
     Platform/Builtin/TestDynamicLibrary.cpp
     Platform/Builtin/TestProcess.cpp
     Net/Builtin/TestNetAddress.cpp
+    Net/Builtin/TestNetTcp.cpp
     Util/Builtin/TestSIMDDispatcherUtils.cpp
 
     Archive/ArchiveEntry.cpp
