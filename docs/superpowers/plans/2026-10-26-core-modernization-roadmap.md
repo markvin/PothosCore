@@ -13,7 +13,8 @@ in-tree зависимость (спека это разрешает).
 | 2 | Свой вычислитель выражений | `EvalEnvironment` без muparserx, сабмодуль muparserx удалён | пишется после этапа 1 |
 | 3 | Замена Poco Foundation | `std::format`/`filesystem`/…, внутренний платформенный слой (DynamicLibrary, Process+Pipe, Environment), публичный logging API; Poco остаётся только в Net/Util | пишется после этапа 2 |
 | 4 | Сеть на Asio | Asio в дереве, Remote (клиент/сервер/прокси), syslog-совместимые forward/listener, `Util/Network`; сетевой слой готов к будущему HTTP/WebSocket (web-UI) | пишется после этапа 3 |
-| 5 | PothosUtil без Poco::Util и удаление Poco | свой разбор аргументов, завершение по сигналам, `--daemon`/`--pidfile`/`--umask`, служба Windows; сабмодуль poco удалён | пишется после этапа 4 |
+| 5 | PothosUtil без Poco::Util и удаление Poco | свой разбор аргументов, завершение по сигналам, `--daemon`/`--pidfile`/`--umask`, служба Windows; сабмодуль poco удалён | `2026-10-27-phase5-remove-poco.md` |
+| 5a | libsimdpp → xsimd | xsimd копией в `third_party/xsimd`: определение CPU и `SIMDConvert` на xsimd, `PothosConfigSIMD.cmake` без `SimdppMultiarch`, сабмодуль libsimdpp удалён; имена архитектур (`sse2`, `avx2`…) — сохранить или менять вместе с тулкитами | пишется после этапа 5 |
 | 6 | Модернизация публичного API | проход по `include/Pothos/**` (std::span/optional/стандартные примитивы), чистка предупреждений | пишется после этапа 5 |
 
 Порядок 2 ↔ 3 можно поменять. **Решение пользователя (2026-10-26): этап 3
@@ -29,11 +30,13 @@ in-tree зависимость (спека это разрешает).
   `docs/superpowers/ledgers/`.
 - Этап 2 — выполнен и слит в `pothos2` (PR #2, merge `bd369e9b`): собственный
   вычислитель `lib/Util/Expr/`, muparserx удалён.
-- Этап 4 — выполнен на ветке `phase4-network-asio` (план
-  `2026-10-27-phase4-network-asio.md`): сетевой слой `lib/Net/` на standalone
-  Asio (`third_party/asio`), Remote и syslog без Poco, Poco Net не собирается.
-  PR в `pothos2` — после ревью.
-- Следующий — этап 5 (PothosUtil без Poco::Util, удаление Poco).
+- Этап 4 — выполнен и слит в `pothos2` (PR #3, merge `34ea844e`): сетевой слой
+  `lib/Net/` на standalone Asio (`third_party/asio`), Remote и syslog без Poco,
+  Poco Net не собирается.
+- Этап 5 — план `2026-10-27-phase5-remove-poco.md`, ветка
+  `phase5-pothosutil-without-poco`.
+- Этап 5a (решение пользователя, 2026-10-27): libsimdpp заменяется на xsimd
+  (копия в `third_party/xsimd`, не Highway — тулкиты уже используют xsimd).
 
 ## Заметки для плана этапа 2 (собраны при разведке)
 
