@@ -139,3 +139,18 @@ POTHOS_TEST_BLOCK("/net/tests", test_net_syslog_udp)
         POTHOS_TEST_TRUE(received.records.back().level == LogLevel::Error);
     }
 }
+
+POTHOS_TEST_BLOCK("/net/tests", test_net_syslog_timestamp_range)
+{
+    //timestamps outside the clock range fall back to the receive time (no overflow)
+    for (const std::string ts : {"9999-01-01T00:00:00Z", "0001-01-01T00:00:00Z", "2262-04-12T00:00:00Z"})
+    {
+        const auto r = parseSyslog("<13>1 " + ts + " h app - - - x");
+        POTHOS_TEST_TRUE(bool(r));
+        const auto age = std::chrono::system_clock::now() - r->time;
+        POTHOS_TEST_TRUE(age < std::chrono::minutes(1) and age > -std::chrono::minutes(1));
+    }
+    const auto r = parseSyslog("<13>1 2003-10-11T22:14:15.003Z h app - - - x");
+    POTHOS_TEST_TRUE(bool(r));
+    POTHOS_TEST_TRUE(r->time == std::chrono::system_clock::time_point(std::chrono::sys_days(std::chrono::year(2003)/10/11).time_since_epoch()) + 22h + 14min + 15s + 3ms);
+}

@@ -7,6 +7,8 @@
 #include "Net/TcpServer.hpp"
 #include "Net/Address.hpp"
 #include <atomic>
+#include <condition_variable>
+#include <stdexcept>
 #include <chrono>
 #include <mutex>
 #include <optional>
@@ -201,4 +203,91 @@ POTHOS_TEST_BLOCK("/net/tests", test_net_connect_timeout)
     start = std::chrono::steady_clock::now();
     POTHOS_TEST_THROWS(TcpStream::connect("10.255.255.1", 9, 200ms), Pothos::Exception);
     POTHOS_TEST_TRUE(std::chrono::steady_clock::now() - start < 1200ms);
+}
+
+POTHOS_TEST_BLOCK("/net/tests", test_net_tcp_count_ordering)
+{
+    //the last count delivered after concurrent closes is always 0
+    for (int iter = 0; iter < 30; iter++)
+    {
+        auto last = std::make_shared<std::atomic<std::size_t>>(99);
+        TcpServer server("127.0.0.1", 0, echoLines, [last](const std::size_t active){*last = active;});
+        std::vector<std::unique_ptr<TcpStream>> clients;
+        for (int i = 0; i < 16; i++)
+        {
+            clients.push_back(TcpStream::connect("127.0.0.1", server.port(), 1s));
+            *clients.back() << "x" << std::endl;
+            std::string reply;
+            std::getline(*clients.back(), reply);
+        }
+        std::vector<std::thread> closers;
+        for (auto &client : clients) closers.emplace_back([&client]{client.reset();});
+        for (auto &t : closers) t.join();
+        const auto deadline = std::chrono::steady_clock::now() + 2s;
+        while (*last != 0 and std::chrono::steady_clock::now() < deadline) std::this_thread::sleep_for(5ms);
+        std::this_thread::sleep_for(20ms); //a stale late delivery would land here
+        POTHOS_TEST_EQUAL(last->load(), 0);
+    }
+}
+
+POTHOS_TEST_BLOCK("/net/tests", test_net_tcp_localhost_to_ipv4_server)
+{
+    //"localhost" reaches a server bound to IPv4 only, whatever order the resolver returns
+    TcpServer server("0.0.0.0", 0, echoLines);
+    auto client = TcpStream::connect("localhost", server.port(), 2s);
+    *client << "v4" << std::endl;
+    std::string reply;
+    POTHOS_TEST_TRUE(bool(std::getline(*client, reply)));
+    POTHOS_TEST_EQUAL(reply, "v4");
+    POTHOS_TEST_TRUE(resolveHost("localhost", 1s).is_v4());
+}
+
+POTHOS_TEST_BLOCK("/net/tests", test_net_tcp_callback_exception)
+{
+    //an exception from a callback on the io_context thread does not end the process
+    auto calls = std::make_shared<std::atomic<int>>(0);
+    TcpServer server("127.0.0.1", 0, echoLines, [calls](const std::size_t)
+    {
+        if ((*calls)++ == 0) throw std::runtime_error("callback failure");
+    });
+    for (int i = 0; i < 2; i++)
+    {
+        auto client = TcpStream::connect("127.0.0.1", server.port(), 1s);
+        *client << "still alive" << std::endl;
+        std::string reply;
+        POTHOS_TEST_TRUE(bool(std::getline(*client, reply)));
+        POTHOS_TEST_EQUAL(reply, "still alive");
+    }
+}
+
+POTHOS_TEST_BLOCK("/net/tests", test_net_tcp_server_stuck_handler)
+{
+    //a handler stuck outside of socket I/O does not hang the server destructor forever
+    struct Gate
+    {
+        std::mutex mutex;
+        std::condition_variable cond;
+        bool open = false, entered = false;
+    };
+    auto gate = std::make_shared<Gate>();
+    auto server = std::make_unique<TcpServer>("127.0.0.1", 0, [gate](TcpStream &)
+    {
+        std::unique_lock<std::mutex> lock(gate->mutex);
+        gate->entered = true;
+        gate->cond.notify_all();
+        gate->cond.wait(lock, [&]{return gate->open;});
+    });
+    auto client = TcpStream::connect("127.0.0.1", server->port(), 1s);
+    {
+        std::unique_lock<std::mutex> lock(gate->mutex);
+        POTHOS_TEST_TRUE(gate->cond.wait_for(lock, 2s, [&]{return gate->entered;}));
+    }
+    const auto start = std::chrono::steady_clock::now();
+    server.reset();
+    POTHOS_TEST_TRUE(std::chrono::steady_clock::now() - start < TcpServer::ShutdownGrace + 1s);
+
+    //let the detached handler finish
+    std::lock_guard<std::mutex> lock(gate->mutex);
+    gate->open = true;
+    gate->cond.notify_all();
 }

@@ -7,7 +7,11 @@
 #include <Pothos/Exception.hpp>
 #include <asio/ip/tcp.hpp>
 #include <asio/ip/udp.hpp>
+#include <algorithm>
 #include <future>
+#include <map>
+#include <mutex>
+#include <thread>
 #include <memory>
 
 Pothos::Net::HostPort Pothos::Net::parseHostPort(const std::string_view s, const std::uint16_t defaultPort)
@@ -51,29 +55,74 @@ bool Pothos::Net::ipv6Supported(void)
     return supported;
 }
 
-asio::ip::address Pothos::Net::resolveHost(const std::string &host, const std::chrono::microseconds timeout)
+namespace {
+
+using Addresses = std::vector<asio::ip::address>;
+
+//! The blocking lookup, run on its own thread
+Addresses lookup(const std::string &host)
+{
+    asio::io_context context;
+    asio::ip::tcp::resolver resolver(context);
+    asio::error_code ec;
+    const auto results = resolver.resolve(host, "", ec);
+    if (ec) throw Pothos::IOException("resolve '" + host + "'", ec.message());
+    Addresses addrs;
+    for (const auto &entry : results)
+    {
+        const auto addr = entry.endpoint().address();
+        if (std::ranges::find(addrs, addr) == addrs.end()) addrs.push_back(addr);
+    }
+    if (addrs.empty()) throw Pothos::IOException("resolve '" + host + "'", "no addresses");
+    std::ranges::stable_partition(addrs, [](const asio::ip::address &addr){return addr.is_v4();});
+    return addrs;
+}
+
+//! Lookups in flight by host name: a slow name does not block the others
+std::mutex lookupMutex;
+std::map<std::string, std::shared_future<Addresses>> lookups;
+
+} //namespace
+
+std::vector<asio::ip::address> Pothos::Net::resolveHostAll(const std::string &host, const std::chrono::microseconds timeout)
 {
     asio::error_code ec;
     const auto literal = asio::ip::make_address(host, ec);
-    if (not ec) return literal;
+    if (not ec) return {literal};
 
-    //the resolver and the result outlive this call when it times out
-    auto resolver = std::make_shared<asio::ip::tcp::resolver>(ioContext());
-    auto promise = std::make_shared<std::promise<asio::ip::address>>();
-    auto future = promise->get_future();
-    resolver->async_resolve(host, "", [resolver, promise, host](const asio::error_code &error, const asio::ip::tcp::resolver::results_type &results)
+    std::shared_future<Addresses> future;
     {
-        if (error or results.empty())
+        std::lock_guard<std::mutex> lock(lookupMutex);
+        auto &entry = lookups[host];
+        if (not entry.valid())
         {
-            const auto why = error? error.message() : std::string("no addresses");
-            promise->set_exception(std::make_exception_ptr(Pothos::IOException("resolve '" + host + "'", why)));
+            auto promise = std::make_shared<std::promise<Addresses>>();
+            entry = promise->get_future().share();
+            std::thread([promise, host]
+            {
+                try {promise->set_value(lookup(host));}
+                catch (...) {promise->set_exception(std::current_exception());}
+            }).detach();
         }
-        else promise->set_value(results.begin()->endpoint().address());
-    });
+        future = entry;
+    }
+
     if (future.wait_for(timeout) != std::future_status::ready)
     {
-        asio::post(ioContext(), [resolver]{resolver->cancel();});
         throw Pothos::TimeoutException("resolve '" + host + "'", "timed out");
     }
+    {
+        std::lock_guard<std::mutex> lock(lookupMutex);
+        const auto it = lookups.find(host);
+        if (it != lookups.end() and it->second.valid() and it->second.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
+        {
+            lookups.erase(it); //done: the next call looks the name up again
+        }
+    }
     return future.get();
+}
+
+asio::ip::address Pothos::Net::resolveHost(const std::string &host, const std::chrono::microseconds timeout)
+{
+    return resolveHostAll(host, timeout).front();
 }

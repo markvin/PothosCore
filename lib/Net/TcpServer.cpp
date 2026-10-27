@@ -6,8 +6,11 @@
 #include "Net/Address.hpp"
 #include "Net/IoContext.hpp"
 #include <Pothos/Exception.hpp>
+#include <Pothos/System/Logger.hpp>
 #include <asio/ip/v6_only.hpp>
 #include <asio/post.hpp>
+#include <asio/steady_timer.hpp>
+#include <condition_variable>
 #include <future>
 #include <list>
 #include <mutex>
@@ -24,12 +27,16 @@ struct Connection
     bool done = false;
 };
 
+//! Pause before accepting again after an accept error (EMFILE...): no busy loop
+constexpr auto AcceptRetryDelay = std::chrono::milliseconds(100);
+
 } //namespace
 
 struct TcpServer::Impl : std::enable_shared_from_this<TcpServer::Impl>
 {
     Impl(Handler handler, CountHandler onCountChange):
         acceptor(ioContext()),
+        retryTimer(ioContext()),
         handler(std::move(handler)),
         onCountChange(std::move(onCountChange))
     {
@@ -48,42 +55,68 @@ struct TcpServer::Impl : std::enable_shared_from_this<TcpServer::Impl>
                 self->reapFinished();
                 if (not ec) self->start(std::move(socket));
             }
-            self->accept();
+            if (not ec) return self->accept();
+            self->retryTimer.expires_after(AcceptRetryDelay);
+            self->retryTimer.async_wait([self](const asio::error_code &timerEc)
+            {
+                if (not timerEc) self->accept();
+            });
         });
     }
 
-    //! Called with the mutex held
+    //! Called with the mutex held; a connection that cannot be started is closed
     void start(asio::ip::tcp::socket &&socket)
     {
-        asio::error_code ec;
-        socket.set_option(asio::ip::tcp::no_delay(true), ec);
-        auto conn = std::make_shared<Connection>();
-        conn->stream = std::make_unique<TcpStream>(std::make_unique<TcpStream::Impl>(std::move(socket)));
-        connections.push_back(conn);
-        const auto active = ++this->active;
-        this->notify(active);
-        auto self = this->shared_from_this();
-        conn->thread = std::thread([self, conn]
+        std::shared_ptr<Connection> conn;
+        try
         {
-            try {self->handler(*conn->stream);}
-            catch (...) {} //a failing connection must not take the server down
-            std::size_t active = 0;
-            {
-                std::lock_guard<std::mutex> lock(self->mutex);
-                conn->stream->flush();
-                conn->stream->close();
-                conn->done = true;
-                active = --self->active;
-            }
-            self->notify(active);
-        });
+            asio::error_code ec;
+            socket.set_option(asio::ip::tcp::no_delay(true), ec);
+            conn = std::make_shared<Connection>();
+            conn->stream = std::make_unique<TcpStream>(std::make_unique<TcpStream::Impl>(std::move(socket)));
+
+            //the thread waits for the mutex before it can finish: count it after it exists
+            auto self = this->shared_from_this();
+            conn->thread = std::thread([self, conn]{self->run(conn);});
+        }
+        catch (const std::exception &ex)
+        {
+            POTHOS_LOG_ERROR("Pothos.Net.TcpServer", "cannot start a connection: {}", ex.what());
+            if (conn and conn->stream) conn->stream->close();
+            return;
+        }
+        connections.push_back(conn);
+        this->notify(++active);
     }
 
-    void notify(const std::size_t active)
+    //! The connection thread
+    void run(const std::shared_ptr<Connection> &conn)
+    {
+        try {handler(*conn->stream);}
+        catch (...) {} //a failing connection must not take the server down
+        conn->stream->flush(); //may block on a slow peer: not under the mutex
+
+        //counts are delivered under the mutex: in order, the last one is current
+        std::lock_guard<std::mutex> lock(mutex);
+        conn->stream->close();
+        conn->done = true;
+        this->notify(--active);
+        doneCond.notify_all();
+    }
+
+    //! Called with the mutex held: deliveries stay in order
+    void notify(const std::size_t count)
     {
         if (not onCountChange) return;
-        std::lock_guard<std::mutex> lock(notifyMutex);
-        onCountChange(active);
+        try {onCountChange(count);}
+        catch (const std::exception &ex)
+        {
+            POTHOS_LOG_ERROR("Pothos.Net.TcpServer", "connection count callback failed: {}", ex.what());
+        }
+        catch (...)
+        {
+            POTHOS_LOG_ERROR("Pothos.Net.TcpServer", "connection count callback failed");
+        }
     }
 
     //! Join the threads of finished connections (mutex held)
@@ -98,9 +131,11 @@ struct TcpServer::Impl : std::enable_shared_from_this<TcpServer::Impl>
     }
 
     asio::ip::tcp::acceptor acceptor;
+    asio::steady_timer retryTimer;
     const Handler handler;
     const CountHandler onCountChange;
-    std::mutex mutex, notifyMutex;
+    std::mutex mutex;
+    std::condition_variable doneCond;
     std::list<std::shared_ptr<Connection>> connections;
     std::size_t active = 0;
     bool stopping = false;
@@ -156,25 +191,35 @@ TcpServer::~TcpServer(void)
         {
             asio::error_code ec;
             impl->acceptor.close(ec);
+            impl->retryTimer.cancel();
             closed->set_value();
         });
         closedThere = done.wait_for(std::chrono::seconds(5)) == std::future_status::ready;
     }
-    if (not closedThere)
+    if (not closedThere and ioContext().stopped())
     {
         asio::error_code ec;
         impl->acceptor.close(ec);
+        impl->retryTimer.cancel();
     }
+    //otherwise the io_context thread is stuck in a callback: the acceptor stays
+    //open until it gets there, and the stopping flag ends the accept loop
 
-    std::list<std::shared_ptr<Connection>> connections;
+    //wait a bounded time for the handlers: a handler stuck outside of socket
+    //I/O (a long remote call) is detached instead of hanging the caller
+    std::unique_lock<std::mutex> lock(impl->mutex);
+    impl->doneCond.wait_for(lock, ShutdownGrace, [&impl]
     {
-        std::lock_guard<std::mutex> lock(impl->mutex);
-        connections.swap(impl->connections);
-    }
-    for (auto &conn : connections)
+        for (const auto &conn : impl->connections) if (not conn->done) return false;
+        return true;
+    });
+    for (auto &conn : impl->connections)
     {
-        if (conn->thread.joinable()) conn->thread.join();
+        if (not conn->thread.joinable()) continue;
+        if (conn->done) conn->thread.join(); //it only has to return
+        else conn->thread.detach(); //it keeps the connection and the server state alive
     }
+    impl->connections.clear();
 }
 
 std::string TcpServer::host(void) const

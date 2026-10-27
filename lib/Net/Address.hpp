@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace Pothos {
 namespace Net {
@@ -38,10 +39,16 @@ std::string loopbackFor(std::string_view wildcardHost);
 bool ipv6Supported(void);
 
 /*!
- * Resolve a host name or address literal to an address.
+ * Resolve a host name or address literal to its addresses, IPv4 first (in
+ * resolver order otherwise), like Poco did. Every name is looked up on its
+ * own thread and a lookup that outlives the timeout keeps running: the next
+ * call for the same name waits for it instead of starting over.
  * \throws Pothos::TimeoutException when the lookup takes longer than timeout
  * \throws Pothos::IOException when the name cannot be resolved
  */
+std::vector<asio::ip::address> resolveHostAll(const std::string &host, std::chrono::microseconds timeout);
+
+//! The first address of resolveHostAll() (IPv4 when there is one)
 asio::ip::address resolveHost(const std::string &host, std::chrono::microseconds timeout);
 
 } //namespace Net

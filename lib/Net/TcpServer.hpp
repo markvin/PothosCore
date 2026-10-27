@@ -5,6 +5,7 @@
 
 #pragma once
 #include "Net/TcpStream.hpp"
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -27,6 +28,9 @@ public:
     //! Called with the number of open connections after each open and close
     using CountHandler = std::function<void(std::size_t active)>;
 
+    //! How long the destructor waits for handlers before detaching their threads
+    static constexpr std::chrono::seconds ShutdownGrace{2};
+
     /*!
      * Bind and listen. Port 0 picks a free port. The IPv6 wildcard "::" also
      * accepts IPv4 connections where the platform allows it.
@@ -34,7 +38,10 @@ public:
      */
     TcpServer(const std::string &host, std::uint16_t port, Handler handler, CountHandler onCountChange = {});
 
-    //! Stop accepting, close open connections and wait for their handlers
+    /*!
+     * Stop accepting, close open connections and wait for their handlers;
+     * handlers still running after ShutdownGrace are detached.
+     */
     ~TcpServer(void);
 
     TcpServer(const TcpServer &) = delete;

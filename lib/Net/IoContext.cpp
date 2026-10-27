@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include "Net/IoContext.hpp"
+#include <Pothos/System/Logger.hpp>
 #include <asio/executor_work_guard.hpp>
 #include <mutex>
 #include <thread>
@@ -12,9 +13,30 @@ struct Service
 {
     Service(void):
         work(asio::make_work_guard(context)),
-        thread([this]{context.run();})
+        thread([this]{this->run();})
     {
         return;
+    }
+
+    //! Keep serving after an exception escapes a handler (it would otherwise end the process)
+    void run(void)
+    {
+        while (true)
+        {
+            try
+            {
+                context.run();
+                return; //stopped
+            }
+            catch (const std::exception &ex)
+            {
+                POTHOS_LOG_ERROR("Pothos.Net", "uncaught exception in a network handler: {}", ex.what());
+            }
+            catch (...)
+            {
+                POTHOS_LOG_ERROR("Pothos.Net", "uncaught exception in a network handler");
+            }
+        }
     }
 
     void stop(void)

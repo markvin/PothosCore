@@ -117,25 +117,32 @@ void TcpStream::close(void)
 
 std::unique_ptr<TcpStream> TcpStream::connect(const std::string &host, const std::uint16_t port, const std::chrono::microseconds timeout)
 {
-    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    //like the Poco client: the timeout bounds the lookup and the connect separately
     const auto where = "connect " + formatHostPort(host, port);
-    const auto addr = resolveHost(host, timeout);
+    const auto addrs = resolveHostAll(host, timeout);
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
 
-    asio::ip::tcp::socket socket(ioContext());
-    std::promise<asio::error_code> done;
-    auto result = done.get_future();
-    socket.async_connect(asio::ip::tcp::endpoint(addr, port), [&done](const asio::error_code &ec){done.set_value(ec);});
-    if (result.wait_until(deadline) != std::future_status::ready)
+    //try the addresses in order (IPv4 first) until one accepts
+    asio::error_code lastError;
+    for (const auto &addr : addrs)
     {
-        //abort on the io_context thread, then wait for the handler before the socket goes away
-        asio::post(ioContext(), [&socket]{asio::error_code ec; socket.close(ec);});
-        result.wait();
-        throw Pothos::TimeoutException(where, "timed out");
-    }
-    const auto ec = result.get();
-    if (ec) throw Pothos::IOException(where, ec.message());
+        asio::ip::tcp::socket socket(ioContext());
+        auto done = std::make_shared<std::promise<asio::error_code>>();
+        auto result = done->get_future();
+        socket.async_connect(asio::ip::tcp::endpoint(addr, port), [done](const asio::error_code &ec){done->set_value(ec);});
+        if (result.wait_until(deadline) != std::future_status::ready)
+        {
+            //abort on the io_context thread, then wait for the handler before the socket goes away
+            asio::post(ioContext(), [&socket]{asio::error_code ec; socket.close(ec);});
+            result.wait();
+            throw Pothos::TimeoutException(where, "timed out");
+        }
+        lastError = result.get();
+        if (lastError) continue;
 
-    asio::error_code optEc;
-    socket.set_option(asio::ip::tcp::no_delay(true), optEc);
-    return std::make_unique<TcpStream>(std::make_unique<TcpStream::Impl>(std::move(socket)));
+        asio::error_code optEc;
+        socket.set_option(asio::ip::tcp::no_delay(true), optEc);
+        return std::make_unique<TcpStream>(std::make_unique<TcpStream::Impl>(std::move(socket)));
+    }
+    throw Pothos::IOException(where, lastError.message());
 }

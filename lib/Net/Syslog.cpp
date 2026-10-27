@@ -124,6 +124,7 @@ std::optional<std::chrono::system_clock::time_point> parseTimestamp(std::string_
     if (not parseNumber(s.substr(0, 4), y) or not parseNumber(s.substr(5, 2), mo) or not parseNumber(s.substr(8, 2), d) or
         not parseNumber(s.substr(11, 2), h) or not parseNumber(s.substr(14, 2), mi) or not parseNumber(s.substr(17, 2), se)) return std::nullopt;
     if (mo < 1 or mo > 12 or d < 1 or d > 31 or h > 23 or mi > 59 or se > 60) return std::nullopt;
+    if (y < 1970 or y > 2200) return std::nullopt; //within the range of system_clock everywhere
     s.remove_prefix(19);
 
     std::chrono::microseconds frac(0);
@@ -441,11 +442,9 @@ SyslogListener::~SyslogListener(void)
         impl->socket.close(ec);
         closed->set_value();
     });
-    if (done.wait_for(std::chrono::seconds(5)) != std::future_status::ready)
-    {
-        asio::error_code ec; //the io_context is not running (process exit)
-        impl->socket.close(ec);
-    }
+    //a timed out wait means the io_context thread is stuck in a callback: the close
+    //runs when it gets there, closing here would race with its use of the socket
+    done.wait_for(std::chrono::seconds(5));
 }
 
 std::uint16_t SyslogListener::port(void) const
