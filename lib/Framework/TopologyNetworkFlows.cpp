@@ -5,7 +5,7 @@
 #include <Pothos/System/HostInfo.hpp>
 #include <Pothos/Remote.hpp>
 #include <Poco/Net/SocketAddress.h>
-#include <Poco/URI.h>
+#include "Net/Uri.hpp"
 #include <future>
 #include <functional>
 
@@ -36,13 +36,11 @@ std::pair<Pothos::Proxy, Pothos::Proxy> createNetworkFlow(const Flow &flow)
     //create the bind and connect source and sink blocks
     auto bindIp = Pothos::RemoteClient::lookupIpFromNodeId(bindEnv->getNodeId());
     assert(not bindIp.empty());
-    Poco::URI uri;
-    uri.setScheme("tcp");
-    uri.setHost(bindIp);
-    netBind = bindEnv->findProxy("Pothos/BlockRegistry").call(netBindPath, uri.toString(), "BIND");
+    Pothos::Net::Uri uri{"tcp", bindIp, 0};
+    netBind = bindEnv->findProxy("Pothos/BlockRegistry").call(netBindPath, Pothos::Net::toString(uri), "BIND");
     const std::string connectPort = netBind.call("getActualPort");
-    uri.setPort(std::stoi(connectPort));
-    netConn = connEnv->findProxy("Pothos/BlockRegistry").call(netConnPath, uri.toString(), "CONNECT");
+    uri.port = static_cast<std::uint16_t>(std::stoi(connectPort));
+    netConn = connEnv->findProxy("Pothos/BlockRegistry").call(netConnPath, Pothos::Net::toString(uri), "CONNECT");
 
     //return the pair of network blocks
     const auto name = flow.src.obj.call<std::string>("getName")+"["+flow.src.name+"]";

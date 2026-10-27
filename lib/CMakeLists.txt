@@ -157,6 +157,10 @@ add_library(Pothos SHARED
     Util/Expr/Builtins.cpp
     Util/Expr/Convert.cpp
 
+    Net/IoContext.cpp
+    Net/Uri.cpp
+    Net/Address.cpp
+
     Util/Builtin/BlockEval.cpp
     Util/Builtin/DeviceInfoUtils.cpp
     Util/Builtin/DocUtils.cpp
@@ -173,6 +177,7 @@ add_library(Pothos SHARED
     Platform/Builtin/TestEnvironment.cpp
     Platform/Builtin/TestDynamicLibrary.cpp
     Platform/Builtin/TestProcess.cpp
+    Net/Builtin/TestNetAddress.cpp
     Util/Builtin/TestSIMDDispatcherUtils.cpp
 
     Archive/ArchiveEntry.cpp
@@ -240,6 +245,7 @@ endif(MSVC)
 #Poco is a transitional private dependency
 target_link_libraries(Pothos PRIVATE
     PocoFoundation PocoUtil PocoNet
+    pothos_asio
     pothos_json)
 
 #C++23 is required by the public headers

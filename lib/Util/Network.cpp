@@ -1,26 +1,13 @@
 // Copyright (c) 2015-2015 Josh Blum
+//                    2026 Pothos contributors
 // SPDX-License-Identifier: BSL-1.0
 
 #include <Pothos/Util/Network.hpp>
-#include <Poco/Net/SocketAddress.h>
-
-static bool __isIPv6Supported(void)
-{
-    try
-    {
-        Poco::Net::SocketAddress("::", 0);
-    }
-    catch (const Poco::Exception &)
-    {
-        return false;
-    }
-    return true;
-}
+#include "Net/Address.hpp"
 
 bool Pothos::Util::isIPv6Supported(void)
 {
-    static bool supported = __isIPv6Supported();
-    return supported;
+    return Pothos::Net::ipv6Supported();
 }
 
 std::string Pothos::Util::getWildcardAddr(const std::string &service)
