@@ -35,7 +35,6 @@ target_link_libraries(PothosUtil PRIVATE
     pothos_platform
     pothos_net
     pothos_app
-    PocoFoundation PocoUtil #transitional
     pothos_json)
 install(TARGETS PothosUtil
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT pothos_runtime

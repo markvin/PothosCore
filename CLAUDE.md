@@ -10,7 +10,7 @@ Restore / update the project so it builds and works on a modern toolchain.
 ## Repository layout
 
 - `lib/`, `include/` — core framework
-- Git submodules: spuce, poco, plotters, widgets, flow, soapy,
+- Git submodules: spuce, plotters, widgets, flow, soapy,
   blocks, python, audio, comms, libsimdpp
 
 ## Build
@@ -19,7 +19,7 @@ Design and plans: `docs/superpowers/specs/2026-10-26-core-modernization-design.m
 `docs/superpowers/plans/` (roadmap + per-phase plans).
 
 Only the core is built (toolkit submodules are not part of the build).
-Core submodules: `git submodule update --init poco libsimdpp`.
+Core submodules: `git submodule update --init libsimdpp`.
 
 ```sh
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
@@ -29,9 +29,9 @@ ctest --test-dir build --output-on-failure
 
 - C++23, CMake >= 3.25 (works on 4.x). No network access during the build;
   `third_party/` holds vendored code (nlohmann/json, standalone Asio).
-- Poco is a transitional, PRIVATE, in-tree dependency; it must
-  never appear in the exported `Pothos::Pothos` target (checked by
-  `pothos.consumer`).
+- Internal dependencies (nlohmann/json, Asio, libsimdpp) are PRIVATE; they
+  must never appear in the exported `Pothos::Pothos` target (checked by
+  `pothos.consumer`). Poco is gone (phase 5): do not reintroduce it.
 - `Pothos::init()` requires an installed layout, so CTest first runs
   `pothos.stage` (`cmake --install` into `build/stage`), then
   `pothos.selftests` runs `stage/bin/PothosUtil --self-tests` with
@@ -43,11 +43,6 @@ ctest --test-dir build --output-on-failure
 
 ## Conventions (modernization)
 
-- Poco is confined by a ratchet: `cmake/poco-allowlist.txt` lists the only
-  files allowed to use Poco (`pothos.poco_allowlist` test). Remove a line as
-  soon as a file stops using Poco; never add one. After phase 4 only
-  Poco::Util users remain (PothosUtil CLI/server, `PropertyFileConfiguration`);
-  Poco Net is not built.
 - Networking goes through the internal layer `lib/Net/` (namespace
   `Pothos::Net`, standalone Asio from `third_party/asio`): `ioContext()` (one
   shared io_context + background thread), `Uri`/`HostPort` parsing,
@@ -96,5 +91,4 @@ ctest --test-dir build --output-on-failure
   renamed and the repo is no longer public. The recorded commit `ad08df7` is
   available in the fork https://github.com/hayguen/spuce.git (one-off clone:
   `git -c submodule.spuce.url=https://github.com/hayguen/spuce.git submodule update --init spuce`).
-- Nested submodules poco/gradle and poco/openssl are not initialized (not needed
-  for a Linux build); plotters/qwt6 is initialized.
+- plotters/qwt6 (nested submodule) is initialized.

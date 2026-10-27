@@ -292,10 +292,7 @@ endif(MSVC)
 ########################################################################
 # Link feature dependencies
 ########################################################################
-#Poco is a transitional private dependency
-target_link_libraries(Pothos PRIVATE
-    PocoFoundation PocoUtil
-    pothos_json)
+target_link_libraries(Pothos PRIVATE pothos_json)
 
 #C++23 is required by the public headers
 target_compile_features(Pothos PUBLIC cxx_std_23)

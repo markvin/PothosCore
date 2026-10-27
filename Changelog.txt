@@ -15,6 +15,17 @@ Expressions (EvalEnvironment):
 - Decimal integer literals beyond 64 bits (JSON uint64 numbers) are floats
 - Duplicate dict keys: the last value wins
 
+PothosUtil and dependencies:
+
+- Poco removed: PothosUtil has its own command line parser, termination
+  handling, daemon mode and Windows service support
+- Command line: --opt=value and --opt value; options are parsed first and
+  commands run in command line order (option order no longer matters)
+- Unix: --daemon, --umask, --pidfile; Windows: --register-service[=NAME],
+  --unregister-service[=NAME], --display-name, --description, --startup
+  (the service keeps the other options of the registering command line)
+- The Windows termination event of PothosUtil is PothosUtilTerminate<pid>
+
 Networking:
 
 - Remote client/server, the PothosUtil proxy server and syslog forwarding
