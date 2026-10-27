@@ -193,11 +193,17 @@ POTHOS_TEST_BLOCK("/net/tests", test_net_tcp_server_shutdown)
 
 POTHOS_TEST_BLOCK("/net/tests", test_net_connect_timeout)
 {
-    //refused: fails fast with an IO error
+    //refused: fails fast with an IO error; Windows retries a refused SYN for
+    //about 2 s, so there the timeout may expire first
     const auto port = closedPort();
     auto start = std::chrono::steady_clock::now();
+    #ifdef _WIN32
+    POTHOS_TEST_THROWS(TcpStream::connect("127.0.0.1", port, 500ms), Pothos::Exception);
+    POTHOS_TEST_TRUE(std::chrono::steady_clock::now() - start < 1500ms);
+    #else
     POTHOS_TEST_THROWS(TcpStream::connect("127.0.0.1", port, 2s), Pothos::IOException);
     POTHOS_TEST_TRUE(std::chrono::steady_clock::now() - start < 1s);
+    #endif
 
     //unroutable: fails no later than the timeout (+ slack), timeout or network error
     start = std::chrono::steady_clock::now();

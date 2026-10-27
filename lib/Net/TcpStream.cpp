@@ -113,6 +113,11 @@ void TcpStream::close(void)
 {
     asio::error_code ec;
     _impl->socket.shutdown(asio::ip::tcp::socket::shutdown_both, ec);
+    #ifdef _WIN32
+    //on Windows shutdown() does not wake a recv() blocked in another thread,
+    //only closesocket() does; the reader then sees an error and ends the stream
+    _impl->socket.close(ec);
+    #endif
 }
 
 std::unique_ptr<TcpStream> TcpStream::connect(const std::string &host, const std::uint16_t port, const std::chrono::microseconds timeout)

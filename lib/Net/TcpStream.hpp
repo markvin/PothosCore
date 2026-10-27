@@ -34,7 +34,8 @@ public:
 
     /*!
      * Shut the connection down in both directions: a read blocked in another
-     * thread returns end of stream. The socket is released by the destructor.
+     * thread returns end of stream. The socket is released by the destructor
+     * (on Windows it is closed here, the only way to wake that read).
      */
     void close(void);
 

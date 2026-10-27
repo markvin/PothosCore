@@ -28,3 +28,5 @@ Final: minor (deferred): M-8 whole datagram size not capped (long source; macOS 
 Final: minor (deferred): M-9 SyslogSender resolves once at construction (Poco retried lazily)
 Final: minor (deferred): M-10 read errors set eof/fail, not badbit (plan text says badbit)
 Final: minor (deferred): M-11 RFC 3164 TAG may contain spaces; December messages received in January get the new year
+CI #1 on PR #3: Linux and macOS green; Windows failed test_net_tcp_server_shutdown (shutdown() does not wake a recv blocked in another thread on Windows, the destructor waited the 2 s grace) and test_net_connect_timeout (Windows retries a refused SYN for ~2 s, the 2 s timeout fired first)
+CI: Ruling: on Windows TcpStream::close() also closes the socket (closesocket is the only way to wake that recv; formally a concurrent use of the Asio socket, the reader only sees an error) — cost if wrong: a rare spurious error on a connection being torn down; refused-connect test accepts any Pothos::Exception within 1.5 s on Windows
