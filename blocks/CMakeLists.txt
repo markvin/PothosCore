@@ -33,6 +33,7 @@ endfunction()
 
 add_subdirectory(event)
 add_subdirectory(file)
+add_subdirectory(network)
 add_subdirectory(packet)
 add_subdirectory(serialize)
 add_subdirectory(stream)

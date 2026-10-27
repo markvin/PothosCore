@@ -1,10 +1,13 @@
 // Copyright (c) 2016-2017 Josh Blum
 // SPDX-License-Identifier: BSL-1.0
 
+#include "AsioWait.hpp"
+#include "Net/Address.hpp"
+#include "Net/Uri.hpp"
 #include <Pothos/Framework.hpp>
-#include <Poco/URI.h>
-#include <Poco/Logger.h>
-#include <Poco/Net/DatagramSocket.h>
+#include <Pothos/System/Logger.hpp>
+#include <asio/ip/udp.hpp>
+#include <chrono>
 #include <algorithm> //min/max
 #include <iostream>
 
@@ -107,7 +110,7 @@ public:
     }
 
     DatagramIO(const Pothos::DType &dtype):
-        _logger(Poco::Logger::get("DatagramIO")),
+        _sock(_context),
         _packetMode(false),
         _timeoutUs(10),
         _mtu(1472)
@@ -123,23 +126,34 @@ public:
 
     ~DatagramIO(void)
     {
-        _sock.close();
+        asio::error_code ec;
+        _sock.close(ec);
     }
 
     void setupSocket(const std::string &uri, const std::string &opt)
     {
         try
         {
-            Poco::URI uriObj(uri);
-            const Poco::Net::SocketAddress addr(uriObj.getHost(), uriObj.getPort());
+            const auto uriObj = Pothos::Net::parseUri(uri);
+            asio::error_code ec;
+            auto host = asio::ip::make_address(uriObj.host, ec);
+            if (ec) host = Pothos::Net::resolveHost(uriObj.host, std::chrono::seconds(10));
+            const asio::ip::udp::endpoint addr(host, uriObj.port);
+            if (opt != "CONNECT" and opt != "BIND") throw Pothos::FileException("DatagramIO::setupSocket("+uri+" -> "+opt+")", "unknown option");
+            _sock.close(ec);
+            _sock.open(addr.protocol());
             if (opt == "CONNECT") _sock.connect(addr);
-            else if (opt == "BIND") _sock.bind(addr, true/*reuse*/);
-            else throw Pothos::FileException("DatagramIO::setupSocket("+uri+" -> "+opt+")", "unknown option");
+            else
+            {
+                _sock.set_option(asio::ip::udp::socket::reuse_address(true));
+                _sock.bind(addr);
+            }
         }
-        catch (const Poco::Exception &ex)
+        catch (const std::system_error &ex)
         {
-            throw Pothos::InvalidArgumentException("DatagramIO::setupSocket("+uri+" -> "+opt+")", ex.displayText());
+            throw Pothos::InvalidArgumentException("DatagramIO::setupSocket("+uri+" -> "+opt+")", ex.what());
         }
+        this->applyBufferSizes();
         _socketConnected = (opt == "CONNECT");
     }
 
@@ -168,30 +182,9 @@ public:
 
     void setBufferSize(const size_t recvSize, const size_t sendSize)
     {
-        if (recvSize != 0)
-        {
-            _sock.setReceiveBufferSize(recvSize);
-            const int actualSize = _sock.getReceiveBufferSize();
-            if (actualSize < int(recvSize))
-            {
-                poco_warning_f2(_logger,
-                    "Attempted to set the socket receive buffer to %d bytes.\n"
-                    "The actual size was %d bytes. System limits may require reconfiguration.",
-                    int(recvSize), actualSize);
-            }
-        }
-        if (sendSize != 0)
-        {
-            _sock.setSendBufferSize(sendSize);
-            const int actualSize = _sock.getSendBufferSize();
-            if (actualSize < int(sendSize))
-            {
-                poco_warning_f2(_logger,
-                    "Attempted to set the socket send buffer to %d bytes.\n"
-                    "The actual size was %d bytes. System limits may require reconfiguration.",
-                    int(sendSize), actualSize);
-            }
-        }
+        _recvBuffSize = recvSize;
+        _sendBuffSize = sendSize;
+        this->applyBufferSizes();
     }
 
     void work(void)
@@ -205,7 +198,7 @@ public:
             const auto msg = inPort->popMessage();
             if (msg.type() != typeid(Pothos::Packet))
             {
-                poco_error_f1(_logger, "Dropped input message of type %s; only Pothos::Packet supported", msg.getTypeString());
+                Pothos::System::log(Pothos::System::LogLevel::Error, "DatagramIO", "Dropped input message of type {}; only Pothos::Packet supported", msg.getTypeString());
             }
             const auto &pkt = msg.extract<Pothos::Packet>();
             this->sendBuffer(pkt.payload);
@@ -229,55 +222,53 @@ public:
         }
 
         //small polling sleep if nothing happened and there is nothing to recv
-        if (not hadEvent and _sock.available() == 0)
+        asio::error_code ec;
+        if (not hadEvent and _sock.is_open() and _sock.available(ec) == 0)
         {
-            const auto pollTimeUs = std::min<Poco::Timespan::TimeDiff>(_timeoutUs, this->workInfo().maxTimeoutNs/1000);
-            _sock.poll(Poco::Timespan(pollTimeUs), Poco::Net::Socket::SELECT_READ);
+            const auto pollTimeUs = std::min<long long>(_timeoutUs, this->workInfo().maxTimeoutNs/1000);
+            waitReadable(_context, _sock, std::chrono::microseconds(pollTimeUs));
         }
 
         //incoming UDP datagram
-        if (_sock.available() != 0)
+        if (_sock.is_open() and _sock.available(ec) != 0)
         {
             auto outPort = this->output(0);
             auto outBuff = outPort->buffer();
-            try
+            asio::ip::udp::endpoint recvAddr;
+            const auto ret = _sock.receive_from(asio::buffer(outBuff.as<void *>(), outBuff.length), recvAddr, 0, ec);
+            if (ec)
             {
-                Poco::Net::SocketAddress recvAddr;
-                int ret = _sock.receiveFrom(outBuff.as<void *>(), outBuff.length, recvAddr);
-                if (ret > 0)
+                Pothos::System::log(Pothos::System::LogLevel::Error, "DatagramIO", "Socket recv {} bytes failed: {}", outBuff.length, ec.message());
+            }
+            else if (ret > 0)
+            {
+                if ((ret % outBuff.dtype.size()) != 0)
                 {
-                    if ((ret % outBuff.dtype.size()) != 0)
-                    {
-                        poco_warning_f2(_logger,
-                            "Received %d bytes is not a multiple of the output size: %s.\n"
-                            "Until the sender is fixed, expect possible truncation of data.",
-                            ret, outBuff.dtype.toString());
-                    }
+                    Pothos::System::log(Pothos::System::LogLevel::Warning, "DatagramIO",
+                        "Received {} bytes is not a multiple of the output size: {}.\n"
+                        "Until the sender is fixed, expect possible truncation of data.",
+                        ret, outBuff.dtype.toString());
+                }
 
-                    outBuff.length = ret;
-                    if (_packetMode)
-                    {
-                        Pothos::Packet pkt;
-                        pkt.payload = std::move(outBuff);
-                        outPort->popElements(pkt.payload.elements());
-                        outPort->postMessage(std::move(pkt));
-                    }
-                    else
-                    {
-                        outPort->produce(outBuff.elements());
-                    }
-
-                    //the new send-to address for bound sockets
-                    if (not _socketConnected) _sendAddr = recvAddr;
+                outBuff.length = ret;
+                if (_packetMode)
+                {
+                    Pothos::Packet pkt;
+                    pkt.payload = std::move(outBuff);
+                    outPort->popElements(pkt.payload.elements());
+                    outPort->postMessage(std::move(pkt));
                 }
                 else
                 {
-                    poco_error_f2(_logger, "Socket recv %d bytes failed: ret = %d", int(outBuff.length), ret);
+                    outPort->produce(outBuff.elements());
                 }
-            }
-            catch (const Poco::Exception &ex)
-            {
-                poco_error_f2(_logger, "Socket recv %d bytes failed: %s", int(outBuff.length), ex.displayText());
+
+                //the new send-to address for bound sockets
+                if (not _socketConnected)
+                {
+                    _sendAddr = recvAddr;
+                    _hasSendAddr = true;
+                }
             }
         }
 
@@ -288,39 +279,60 @@ private:
 
     void sendBuffer(const Pothos::BufferChunk &buff)
     {
-        try
+        if (not _socketConnected and not _hasSendAddr)
         {
-            int ret = 0;
-            if (_socketConnected) ret = _sock.sendBytes(buff.as<const void *>(), buff.length);
-            else ret = _sock.sendTo(buff.as<const void *>(), buff.length, _sendAddr);
-
-            if (ret != int(buff.length))
-            {
-                poco_error_f2(_logger, "Socket send %d bytes failed: ret = %d", int(buff.length), ret);
-            }
+            Pothos::System::log(Pothos::System::LogLevel::Error, "DatagramIO", "A bound socket cannot send until it has received!");
+            return;
         }
-        catch (const Poco::Exception &ex)
+        asio::error_code ec;
+        const auto data = asio::buffer(buff.as<const void *>(), buff.length);
+        const auto ret = _socketConnected? _sock.send(data, 0, ec) : _sock.send_to(data, _sendAddr, 0, ec);
+        if (ec or ret != buff.length)
         {
-            if (not _socketConnected and _sendAddr == Poco::Net::SocketAddress())
-            {
-                poco_error(_logger, "A bound socket cannot send until it has received!");
-            }
-            else
-            {
-                poco_error_f2(_logger, "Socket send %d bytes failed: %s", int(buff.length), ex.displayText());
-            }
+            Pothos::System::log(Pothos::System::LogLevel::Error, "DatagramIO", "Socket send {} bytes failed: {}",
+                buff.length, ec? ec.message() : "sent "+std::to_string(ret));
         }
     }
 
-    Poco::Logger &_logger;
-    Poco::Net::DatagramSocket _sock;
+    //! Apply the requested socket buffer sizes once the socket is open
+    void applyBufferSizes(void)
+    {
+        if (not _sock.is_open()) return;
+        asio::error_code ec;
+        if (_recvBuffSize != 0)
+        {
+            _sock.set_option(asio::socket_base::receive_buffer_size(int(_recvBuffSize)), ec);
+            asio::socket_base::receive_buffer_size actual;
+            _sock.get_option(actual, ec);
+            if (actual.value() < int(_recvBuffSize)) Pothos::System::log(Pothos::System::LogLevel::Warning, "DatagramIO",
+                "Attempted to set the socket receive buffer to {} bytes.\n"
+                "The actual size was {} bytes. System limits may require reconfiguration.",
+                _recvBuffSize, actual.value());
+        }
+        if (_sendBuffSize != 0)
+        {
+            _sock.set_option(asio::socket_base::send_buffer_size(int(_sendBuffSize)), ec);
+            asio::socket_base::send_buffer_size actual;
+            _sock.get_option(actual, ec);
+            if (actual.value() < int(_sendBuffSize)) Pothos::System::log(Pothos::System::LogLevel::Warning, "DatagramIO",
+                "Attempted to set the socket send buffer to {} bytes.\n"
+                "The actual size was {} bytes. System limits may require reconfiguration.",
+                _sendBuffSize, actual.value());
+        }
+    }
+
+    asio::io_context _context;
+    asio::ip::udp::socket _sock;
     bool _packetMode;
     long _timeoutUs;
     size_t _mtu;
+    size_t _recvBuffSize = 0;
+    size_t _sendBuffSize = 0;
 
     //bound sockets only send to the last received address
-    bool _socketConnected;
-    Poco::Net::SocketAddress _sendAddr;
+    bool _socketConnected = false;
+    bool _hasSendAddr = false;
+    asio::ip::udp::endpoint _sendAddr;
 };
 
 static Pothos::BlockRegistry registerDatagramIO(

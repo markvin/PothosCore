@@ -7,7 +7,7 @@
 #include <Pothos/Remote.hpp>
 #include <Pothos/Util/Network.hpp>
 #include <iostream>
-#include <json.hpp>
+#include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
 

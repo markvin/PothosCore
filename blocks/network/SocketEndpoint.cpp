@@ -2,14 +2,16 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include "SocketEndpoint.hpp"
+#include "AsioWait.hpp"
+#include "common/ByteOrder.hpp"
+#include "Net/Address.hpp"
+#include "Net/Uri.hpp"
 #include <Pothos/Exception.hpp>
-#include <Poco/Foundation.h>
-#include <Poco/URI.h>
-#include <Poco/Format.h>
-#include <Poco/Net/StreamSocket.h>
-#include <Poco/Net/ServerSocket.h>
-#include <Poco/ByteOrder.h>
-#include <Poco/SingletonHolder.h>
+#include <asio/connect.hpp>
+#include <asio/ip/tcp.hpp>
+#include <asio/ip/v6_only.hpp>
+#include <asio/read.hpp>
+#include <asio/write.hpp>
 #include <mutex>
 #include <cassert>
 #include <iostream>
@@ -24,93 +26,124 @@
 /***********************************************************************
  * Ensure that the MSG_MORE flag exists:
  * MSG_MORE hints to send that there is guaranteed additional data.
+ * (no hint on Windows: MSG_PARTIAL is not for stream sockets)
  **********************************************************************/
-#ifdef _MSC_VER
-#define MSG_MORE MSG_PARTIAL
-#endif
-
-#ifndef MSG_MORE
+#if defined(_WIN32) || !defined(MSG_MORE)
+#undef MSG_MORE
 #define MSG_MORE 0
 #endif
 
 /***********************************************************************
- * Socket interface abstraction
+ * Timeouts of the socket operations: a connection attempt, and the rest
+ * of a header or payload that has started to arrive (a stalled peer)
  **********************************************************************/
-struct PothosPacketSocketEndpointInterface
-{
-    virtual ~PothosPacketSocketEndpointInterface(void){}
-
-    virtual std::string getPort(void) const = 0;
-
-    virtual bool isRecvReady(const std::chrono::high_resolution_clock::duration &timeout) = 0;
-
-    virtual int send(const void *buff, const size_t length, const int flags = 0) = 0;
-
-    virtual int recv(void *buff, const size_t length, const int flags = 0) = 0;
-};
+static const auto ConnectTimeout = std::chrono::seconds(10);
+static const auto StallTimeout = std::chrono::seconds(5);
 
 /***********************************************************************
- * TCP implementation of interface
+ * TCP socket of the endpoint: one client on a bound endpoint
  **********************************************************************/
-struct PothosPacketSocketEndpointInterfaceTcp : PothosPacketSocketEndpointInterface
+struct PothosPacketSocketEndpointTcp
 {
-    PothosPacketSocketEndpointInterfaceTcp(const Poco::Net::SocketAddress &addr, const bool server):
+    PothosPacketSocketEndpointTcp(const std::string &host, const std::uint16_t port, const bool server):
         server(server),
-        connected(false)
+        connected(false),
+        acceptor(context),
+        socket(context)
     {
+        const asio::ip::tcp::endpoint endpoint(hostAddress(host), port);
         if (server)
         {
-            this->serverSock = Poco::Net::ServerSocket(addr, 1/*only one client expected*/);
+            acceptor.open(endpoint.protocol());
+            asio::error_code ec;
+            if (endpoint.address().is_v6() and endpoint.address().is_unspecified())
+            {
+                acceptor.set_option(asio::ip::v6_only(false), ec); //dual stack wildcard
+            }
+            acceptor.set_option(asio::ip::tcp::acceptor::reuse_address(true));
+            acceptor.bind(endpoint);
+            acceptor.listen(1/*only one client expected*/);
         }
         else
         {
-            this->clientSock = Poco::Net::StreamSocket(addr);
-            this->clientSock.setNoDelay(true);
-            this->connected = true;
+            asio::error_code ec = asio::error::timed_out;
+            socket.async_connect(endpoint, [&](const asio::error_code &e){ec = e;});
+            runFor(context, socket, ConnectTimeout);
+            if (ec) throw asio::system_error(ec, "connect");
+            socket.set_option(asio::ip::tcp::no_delay(true));
+            connected = true;
         }
     }
 
-    ~PothosPacketSocketEndpointInterfaceTcp(void)
+    static asio::ip::address hostAddress(const std::string &host)
     {
-        this->clientSock.close();
-        if (server) this->serverSock.close();
+        asio::error_code ec;
+        const auto addr = asio::ip::make_address(host, ec);
+        if (not ec) return addr;
+        return Pothos::Net::resolveHost(host, ConnectTimeout);
     }
 
     std::string getPort(void) const
     {
-        if (server) return std::to_string(serverSock.address().port());
-        return std::to_string(clientSock.address().port());
+        if (server) return std::to_string(acceptor.local_endpoint().port());
+        return std::to_string(socket.local_endpoint().port());
     }
 
     bool isRecvReady(const std::chrono::high_resolution_clock::duration &timeout)
     {
         if (not connected)
         {
-            const auto micros = std::chrono::duration_cast<std::chrono::microseconds>(timeout).count();
-            const auto tspan = Poco::Timespan(Poco::Timespan::TimeDiff(micros));
-            if (not this->serverSock.poll(tspan, Poco::Net::Socket::SELECT_READ)) return false;
-            this->clientSock = this->serverSock.acceptConnection();
-            this->clientSock.setNoDelay(true);
+            if (not waitReadable(context, acceptor, timeout)) return false;
+            acceptor.accept(socket);
+            socket.set_option(asio::ip::tcp::no_delay(true));
             connected = true;
             return false;
         }
-        return clientSock.poll(Poco::Timespan(Poco::Timespan::TimeDiff(1e6*0.05)), Poco::Net::Socket::SELECT_READ);
+        return waitReadable(context, socket, std::chrono::milliseconds(50));
     }
 
-    int send(const void *buff, const size_t length, const int flags)
+    void sendAll(const void *buff, const size_t length, const int flags)
     {
-        return clientSock.sendBytes(buff, int(length), flags);
+        size_t sent = 0;
+        while (sent < length)
+        {
+            asio::error_code ec;
+            sent += socket.send(asio::buffer(static_cast<const char *>(buff)+sent, length-sent), flags, ec);
+            if (ec) throw Pothos::IOException("PothosPacketSocketEndpoint::send()", ec.message());
+        }
     }
 
-    int recv(void *buff, const size_t length, const int flags)
+    static std::string recvError(const asio::error_code &ec)
     {
-        return clientSock.receiveBytes(buff, int(length), flags);
+        if (ec == asio::error::operation_aborted) return "the peer stalled (no data for 5 s)";
+        return ec.message();
     }
 
-    bool server;
+    //! Receive exactly length bytes (the peer has started to send them)
+    void recvAll(void *buff, const size_t length)
+    {
+        asio::error_code ec = asio::error::timed_out;
+        asio::async_read(socket, asio::buffer(buff, length), [&](const asio::error_code &e, size_t){ec = e;});
+        runFor(context, socket, StallTimeout);
+        if (ec) throw Pothos::IOException("PothosPacketSocketEndpoint::recv()", recvError(ec));
+    }
+
+    //! Receive what is available, at least one byte
+    size_t recvSome(void *buff, const size_t length)
+    {
+        asio::error_code ec = asio::error::timed_out;
+        size_t n = 0;
+        socket.async_read_some(asio::buffer(buff, length), [&](const asio::error_code &e, size_t r){ec = e; n = r;});
+        runFor(context, socket, StallTimeout);
+        if (ec) throw Pothos::IOException("PothosPacketSocketEndpoint::recv()", recvError(ec));
+        return n;
+    }
+
+    const bool server;
     bool connected;
-    Poco::Net::ServerSocket serverSock;
-    Poco::Net::StreamSocket clientSock;
+    asio::io_context context;
+    asio::ip::tcp::acceptor acceptor;
+    asio::ip::tcp::socket socket;
 };
 
 /***********************************************************************
@@ -179,13 +212,12 @@ struct PothosPacketSocketEndpoint::Impl
     uint32_t nextRecvPacketCount;
     size_t bytesLeftInStream;
     uint16_t lastType;
-    Poco::Net::SocketAddress actualAddr;
     uint64_t totalBytesRecv;
     uint64_t totalBytesSent;
     uint64_t lastFlowMsgRecv;
     uint64_t lastFlowMsgSent;
 
-    PothosPacketSocketEndpointInterface *iface;
+    PothosPacketSocketEndpointTcp *iface;
 
     void unpackHeader(const PothosPacketHeader &header, const size_t recvBytes, uint16_t &flags, uint16_t &type, size_t &payloadBytes);
     void handleState(const uint16_t &flags);
@@ -213,27 +245,20 @@ PothosPacketSocketEndpoint::PothosPacketSocketEndpoint(const std::string &uri, c
     if (opt == "DISCONNECT") return;
     if (opt == "BIND") _impl->state = EP_STATE_LISTEN;
     if (opt == "CONNECT") _impl->state = EP_STATE_CLOSED;
+    const auto uriObj = Pothos::Net::parseUri(uri);
+    if (uriObj.scheme != "tcp" or (opt != "BIND" and opt != "CONNECT"))
+    {
+        throw Pothos::InvalidArgumentException("PothosPacketSocketEndpoint("+uri+" -> "+opt+")",
+            "unknown URI scheme + opt combo, expects tcp, CONNECT/BIND");
+    }
     try
     {
-        Poco::URI uriObj(uri);
-        const Poco::Net::SocketAddress addr(uriObj.getHost(), uriObj.getPort());
-        if (uriObj.getScheme() == "tcp" and opt == "BIND")
-        {
-            _impl->iface = new PothosPacketSocketEndpointInterfaceTcp(addr, true);
-        }
-        else if (uriObj.getScheme() == "tcp" and opt == "CONNECT")
-        {
-            _impl->iface = new PothosPacketSocketEndpointInterfaceTcp(addr, false);
-        }
-        else
-        {
-            throw Pothos::InvalidArgumentException("PothosPacketSocketEndpoint("+uri+" -> "+opt+")",
-                "unknown URI scheme + opt combo, expects tcp/udp, CONNECT/BIND");
-        }
+        _impl->iface = new PothosPacketSocketEndpointTcp(uriObj.host, uriObj.port, opt == "BIND");
     }
-    catch (const Poco::Exception &ex)
+    catch (const std::system_error &ex)
     {
-        throw Pothos::RuntimeException("PothosPacketSocketEndpoint("+uri+" -> "+opt+")", ex.displayText());
+        delete _impl;
+        throw Pothos::RuntimeException("PothosPacketSocketEndpoint("+uri+" -> "+opt+")", ex.what());
     }
 }
 
@@ -446,16 +471,16 @@ void PothosPacketSocketEndpoint::Impl::unpackHeader(const PothosPacketHeader &he
         throw Pothos::Exception("PothosPacketSocketEndpoint::unpackHeader()", "incomplete header");
     }
 
-    if (Poco::ByteOrder::fromNetwork(header.headerWord) != PothosPacketHeaderWord)
+    if (BlocksByteOrder::fromNetwork(header.headerWord) != PothosPacketHeaderWord)
     {
         throw Pothos::Exception("PothosPacketSocketEndpoint::unpackHeader()", "headerWord fail");
     }
 
     //extract header fields
-    flags = Poco::ByteOrder::fromNetwork(header.flags);
-    const uint32_t recvPacketCount = Poco::ByteOrder::fromNetwork(header.packetCount);
-    payloadBytes = Poco::ByteOrder::fromNetwork(header.payloadBytes);
-    type = Poco::ByteOrder::fromNetwork(header.type);
+    flags = BlocksByteOrder::fromNetwork(header.flags);
+    const uint32_t recvPacketCount = BlocksByteOrder::fromNetwork(header.packetCount);
+    payloadBytes = BlocksByteOrder::fromNetwork(header.payloadBytes);
+    type = BlocksByteOrder::fromNetwork(header.type);
 
     //when the sender is telling us to use a new sequence number
     if ((flags & PothosPacketFlagSyn) != 0) this->nextRecvPacketCount = recvPacketCount;
@@ -492,22 +517,17 @@ void PothosPacketSocketEndpoint::Impl::recv(uint16_t &flags, uint16_t &type, Pot
 
     if (not this->iface->isRecvReady(timeout)) return;
 
-    int ret;
     PothosPacketHeader header;
 
     //no bytes left in stream, receive a new header
     if (this->bytesLeftInStream == 0)
     {
         //receive the header
-        ret = this->iface->recv(&header, sizeof(header), MSG_WAITALL);
-        if (ret <= 0)
-        {
-            throw Pothos::Exception("PothosPacketSocketEndpoint::recv(header)", std::to_string(ret));
-        }
-        this->totalBytesRecv += ret;
+        this->iface->recvAll(&header, sizeof(header));
+        this->totalBytesRecv += sizeof(header);
 
         //extract header fields
-        this->unpackHeader(header, size_t(ret), flags, type, this->bytesLeftInStream);
+        this->unpackHeader(header, sizeof(header), flags, type, this->bytesLeftInStream);
 
         //create a new buffer of the required length if need be
         //partial receives are always ok with packet buffer type
@@ -529,13 +549,9 @@ void PothosPacketSocketEndpoint::Impl::recv(uint16_t &flags, uint16_t &type, Pot
     buffer.length = std::min(buffer.length, this->bytesLeftInStream);
     while (buffer.length > bytesRecvd)
     {
-        ret = this->iface->recv((buffer.as<char *>() + bytesRecvd), buffer.length-bytesRecvd);
-        if (ret <= 0)
-        {
-            throw Pothos::Exception("PothosPacketSocketEndpoint::recv(payload)", std::to_string(ret));
-        }
+        const auto ret = this->iface->recvSome((buffer.as<char *>() + bytesRecvd), buffer.length-bytesRecvd);
         this->totalBytesRecv += ret;
-        bytesRecvd += size_t(ret);
+        bytesRecvd += ret;
     }
 
     this->bytesLeftInStream -= buffer.length;
@@ -544,13 +560,13 @@ void PothosPacketSocketEndpoint::Impl::recv(uint16_t &flags, uint16_t &type, Pot
     if ((flags & PothosPacketFlagFlo) != 0 and buffer.length >= sizeof(uint64_t))
     {
         const uint64_t totalN = buffer.as<const uint64_t *>()[0];
-        this->lastFlowMsgRecv = Poco::ByteOrder::fromNetwork(Poco::UInt64(totalN));
+        this->lastFlowMsgRecv = BlocksByteOrder::fromNetwork(uint64_t(totalN));
     }
 
     //deal with flow control (outgoing)
     if (this->totalBytesRecv > this->lastFlowMsgSent + this->flowControlWindowBytes()/8)
     {
-        const uint64_t totalN = Poco::ByteOrder::toNetwork(Poco::UInt64(this->totalBytesRecv));
+        const uint64_t totalN = BlocksByteOrder::toNetwork(uint64_t(this->totalBytesRecv));
         this->send(PothosPacketFlagFlo, 0, &totalN, sizeof(totalN));
         this->lastFlowMsgSent = this->totalBytesRecv;
     }
@@ -568,23 +584,18 @@ void PothosPacketSocketEndpoint::Impl::send(const uint16_t flags, const uint16_t
 {
     std::unique_lock<std::mutex> lock(this->sendMutex);
 
-    int ret;
     bool hasMore;
     PothosPacketHeader header;
-    header.headerWord = Poco::ByteOrder::toNetwork(PothosPacketHeaderWord);
-    header.flags = Poco::ByteOrder::toNetwork(flags);
-    header.payloadBytes = Poco::ByteOrder::toNetwork(uint32_t(numBytes));
-    header.packetCount = Poco::ByteOrder::toNetwork(uint32_t(this->lastSentPacketCount++));
-    header.type = Poco::ByteOrder::toNetwork(type);
+    header.headerWord = BlocksByteOrder::toNetwork(PothosPacketHeaderWord);
+    header.flags = BlocksByteOrder::toNetwork(flags);
+    header.payloadBytes = BlocksByteOrder::toNetwork(uint32_t(numBytes));
+    header.packetCount = BlocksByteOrder::toNetwork(uint32_t(this->lastSentPacketCount++));
+    header.type = BlocksByteOrder::toNetwork(type);
 
     //send the header
     hasMore = (numBytes != 0) or more;
-    ret = this->iface->send(&header, sizeof(header), hasMore?MSG_MORE:0);
-    if (ret != int(sizeof(header)))
-    {
-        throw Pothos::Exception("PothosPacketSocketEndpoint::send(header)", std::to_string(ret));
-    }
-    this->totalBytesSent += ret;
+    this->iface->sendAll(&header, sizeof(header), hasMore?MSG_MORE:0);
+    this->totalBytesSent += sizeof(header);
 
     //send all of the available buffer
     size_t bytesLeft = numBytes;
@@ -592,12 +603,8 @@ void PothosPacketSocketEndpoint::Impl::send(const uint16_t flags, const uint16_t
     {
         const size_t bytesToSend = std::min<size_t>(bytesLeft, SEND_MTU);
         hasMore = (bytesToSend != bytesLeft) or more;
-        ret = this->iface->send((const void *)(size_t(buff)+numBytes-bytesLeft), bytesToSend, hasMore?MSG_MORE:0);
-        if (ret <= 0)
-        {
-            throw Pothos::Exception("PothosPacketSocketEndpoint::send(payload)", std::to_string(ret));
-        }
-        this->totalBytesSent += ret;
-        bytesLeft -= size_t(ret);
+        this->iface->sendAll(static_cast<const char *>(buff)+numBytes-bytesLeft, bytesToSend, hasMore?MSG_MORE:0);
+        this->totalBytesSent += bytesToSend;
+        bytesLeft -= bytesToSend;
     }
 }
