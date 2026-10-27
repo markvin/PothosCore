@@ -159,6 +159,20 @@ if(POTHOS_BUILD_TESTS)
             -P ${PROJECT_SOURCE_DIR}/cmake/PothosConsumerTest.cmake)
     set_tests_properties(pothos.consumer PROPERTIES FIXTURES_REQUIRED pothos_stage)
 
+    #sources written against the old API still build (source compatibility)
+    add_test(NAME pothos.api_compat
+        COMMAND ${CMAKE_COMMAND}
+            -DPREFIX=${POTHOS_STAGE_DIR}
+            -DSRC=${PROJECT_SOURCE_DIR}/tests/api_compat
+            -DWORK=${PROJECT_BINARY_DIR}/api_compat
+            -DEXE=api_compat
+            -DGENERATOR=${CMAKE_GENERATOR}
+            -DCONFIG=$<CONFIG>
+            -DBINDIR=${CMAKE_INSTALL_BINDIR}
+            -DLIBDIR=${CMAKE_INSTALL_LIBDIR}
+            -P ${PROJECT_SOURCE_DIR}/cmake/PothosConsumerTest.cmake)
+    set_tests_properties(pothos.api_compat PROPERTIES FIXTURES_REQUIRED pothos_stage)
+
     #the core inside a parent project (not again from inside such a parent)
     if(PROJECT_IS_TOP_LEVEL)
         add_test(NAME pothos.subproject

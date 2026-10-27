@@ -15,6 +15,7 @@
 #include <Pothos/Framework/DType.hpp>
 #include <Pothos/Framework/SharedBuffer.hpp>
 #include <Pothos/Framework/ManagedBuffer.hpp>
+#include <span>
 #include <utility> //move
 
 namespace Pothos {
@@ -161,6 +162,19 @@ public:
      */
     template <typename ElementType>
     operator ElementType(void) const;
+
+    /*!
+     * View the buffer as a span of elements of the specified type.
+     * The number of elements is length / sizeof(ElementType);
+     * trailing bytes that do not make a whole element are left out.
+     * \code
+     * auto in = buffer.asSpan<const float>();
+     * \endcode
+     * \tparam ElementType the element type, const for a read-only view
+     * \return a span over the front of the buffer
+     */
+    template <typename ElementType>
+    std::span<ElementType> asSpan(void) const;
 
     /*!
      * Is the reference to the shared buffer unique?
@@ -420,6 +434,12 @@ template <typename ElementType>
 ElementType Pothos::BufferChunk::as(void) const
 {
     return reinterpret_cast<ElementType>(address);
+}
+
+template <typename ElementType>
+std::span<ElementType> Pothos::BufferChunk::asSpan(void) const
+{
+    return {reinterpret_cast<ElementType *>(address), length/sizeof(ElementType)};
 }
 
 template <typename ElementType>

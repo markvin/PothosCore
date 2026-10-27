@@ -85,6 +85,7 @@ add_library(Pothos SHARED
     Framework/Builtin/TestBufferChunkSerialization.cpp
     Framework/Builtin/TestToString.cpp
     Framework/Builtin/TestBufferConvert.cpp
+    Framework/Builtin/TestBufferChunkSpan.cpp
     Framework/Builtin/TestDoesBlockExist.cpp
     Framework/Builtin/TestDType.cpp
     Framework/Builtin/TestAutomaticPorts.cpp
