@@ -3,14 +3,14 @@
 
 #include <Pothos/Plugin/Module.hpp>
 #include <Pothos/Plugin/Plugin.hpp>
-#include <Pothos/Util/SpinLockRW.hpp>
+#include <shared_mutex>
 #include <unordered_map>
 #include <mutex>
 #include <algorithm>
 
-static Pothos::Util::SpinLockRW &getModulePathsMutex(void)
+static std::shared_mutex &getModulePathsMutex(void)
 {
-    static Pothos::Util::SpinLockRW lock;
+    static std::shared_mutex lock;
     return lock;
 }
 
@@ -23,13 +23,13 @@ static ModulePathsMap &getModulePathsMap(void)
 
 std::vector<std::string> getPluginPaths(const Pothos::PluginModule &module)
 {
-    Pothos::Util::SpinLockRW::SharedLock lock(getModulePathsMutex());
+    std::shared_lock<std::shared_mutex> lock(getModulePathsMutex());
     return getModulePathsMap()[module.getFilePath()];
 }
 
 void updatePluginAssociation(const std::string &action, const Pothos::Plugin &plugin)
 {
-    std::lock_guard<Pothos::Util::SpinLockRW> lock(getModulePathsMutex());
+    std::lock_guard<std::shared_mutex> lock(getModulePathsMutex());
     auto &v = getModulePathsMap()[plugin.getModule().getFilePath()];
     const auto &path = plugin.getPath().toString();
     if (action == "add")

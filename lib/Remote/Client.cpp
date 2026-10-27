@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include <Pothos/Remote.hpp>
-#include <Pothos/Util/SpinLockRW.hpp>
+#include <shared_mutex>
 #include "Net/Address.hpp"
 #include "Net/TcpStream.hpp"
 #include "Net/Uri.hpp"
@@ -14,9 +14,9 @@
 /***********************************************************************
  * lookupIpFromNodeId implementation
  **********************************************************************/
-static Pothos::Util::SpinLockRW &getLookupMutex(void)
+static std::shared_mutex &getLookupMutex(void)
 {
-    static Pothos::Util::SpinLockRW lock;
+    static std::shared_mutex lock;
     return lock;
 }
 
@@ -28,7 +28,7 @@ static std::map<std::string, std::string> &getNodeIdTable(void)
 
 std::string Pothos::RemoteClient::lookupIpFromNodeId(const std::string nodeId)
 {
-    Pothos::Util::SpinLockRW::SharedLock lock(getLookupMutex());
+    std::shared_lock<std::shared_mutex> lock(getLookupMutex());
     auto it = getNodeIdTable().find(nodeId);
     if (it == getNodeIdTable().end()) return "";
     return it->second;
@@ -36,7 +36,7 @@ std::string Pothos::RemoteClient::lookupIpFromNodeId(const std::string nodeId)
 
 static void updateNodeIdTable(const Pothos::ProxyEnvironment::Sptr &env, const std::string &ipAddr)
 {
-    std::lock_guard<Pothos::Util::SpinLockRW> lock(getLookupMutex());
+    std::lock_guard<std::shared_mutex> lock(getLookupMutex());
     getNodeIdTable()[env->getNodeId()] = ipAddr;
 }
 

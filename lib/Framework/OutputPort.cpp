@@ -50,7 +50,7 @@ Pothos::BufferChunk Pothos::OutputPort::getBuffer(const DType &dtype, const size
         _buffer.length = numBytes;
         if (_bufferFromManager)
         {
-            std::lock_guard<Util::SpinLock> lock(_bufferManagerLock);
+            std::lock_guard<std::mutex> lock(_bufferManagerLock);
             _bufferManager->pop(_buffer.length);
         }
         return std::move(_buffer);
@@ -81,10 +81,10 @@ void Pothos::OutputPort::_postMessage(const Object &async)
     _workEvents++;
 }
 
-void Pothos::OutputPort::bufferManagerPush(Pothos::Util::SpinLock *mutex, const Pothos::ManagedBuffer &buff)
+void Pothos::OutputPort::bufferManagerPush(std::mutex *mutex, const Pothos::ManagedBuffer &buff)
 {
     {
-        std::lock_guard<Pothos::Util::SpinLock> lock(*mutex);
+        std::lock_guard<std::mutex> lock(*mutex);
         buff.getBufferManager()->push(buff);
     }
     assert(_actor != nullptr);
@@ -93,7 +93,7 @@ void Pothos::OutputPort::bufferManagerPush(Pothos::Util::SpinLock *mutex, const 
 
 void Pothos::OutputPort::bufferManagerSetup(const Pothos::BufferManager::Sptr &manager)
 {
-    std::lock_guard<Util::SpinLock> lock(_bufferManagerLock);
+    std::lock_guard<std::mutex> lock(_bufferManagerLock);
     _bufferManager = manager;
     if (manager) manager->setCallback(std::bind(
         &Pothos::OutputPort::bufferManagerPush, this, &_bufferManagerLock, std::placeholders::_1));

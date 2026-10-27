@@ -107,7 +107,7 @@ private:
      * Only one thread may hold the lock,
      * either a worker thread or an external caller.
      */
-    Pothos::Util::SpinLock _extCallLock;
+    Pothos::Util::SpinLock _extCallLock; //try_lock/unlock only; not std::mutex: no owner-thread rule
 
     /*!
      * Mutex and CV used for waiting and notifying

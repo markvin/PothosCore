@@ -1,7 +1,7 @@
 ///
 /// \file Util/SpinLock.hpp
 ///
-/// A simple C++11 spin lock implementation.
+/// A lightweight lock: a short spin, then it sleeps until unlocked.
 ///
 /// \copyright
 /// Copyright (c) 2014-2017 Josh Blum
@@ -17,10 +17,10 @@ namespace Pothos {
 namespace Util {
 
 /*!
- * A generic spin lock implementation using std::atomic.
- *
- * There are no embedded back-off or sleep conditions in this lock,
- * therefore only use this lock to protect very brief code sections.
+ * A lightweight lock on std::atomic_flag: lock() spins briefly, then waits
+ * with std::atomic_flag::wait until unlock() notifies, so a contended lock
+ * does not burn CPU time. The core itself uses std::mutex; this class stays
+ * for code that already uses it.
  *
  * This lock can be used with std::lock_guard<Pothos::Util::SpinLock>
  */
@@ -59,10 +59,16 @@ inline bool Pothos::Util::SpinLock::try_lock(void) noexcept
 
 inline void Pothos::Util::SpinLock::lock(void) noexcept
 {
-    while (not this->try_lock()){}
+    //a short spin for the common brief hold, then sleep until unlocked
+    for (int i = 0; i < 64; i++)
+    {
+        if (this->try_lock()) return;
+    }
+    while (not this->try_lock()) _lock.wait(true, std::memory_order_relaxed);
 }
 
 inline void Pothos::Util::SpinLock::unlock(void) noexcept
 {
     _lock.clear(std::memory_order_release);
+    _lock.notify_one();
 }

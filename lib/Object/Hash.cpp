@@ -3,7 +3,7 @@
 
 #include <Pothos/Object/Object.hpp>
 #include <Pothos/Object/Exception.hpp>
-#include <Pothos/Util/SpinLockRW.hpp>
+#include <shared_mutex>
 #include <Pothos/Callable.hpp>
 #include <Pothos/Plugin.hpp>
 #include <Pothos/System/Logger.hpp>
@@ -13,9 +13,9 @@
 /***********************************************************************
  * Global map structure for comparisons
  **********************************************************************/
-static Pothos::Util::SpinLockRW &getMapMutex(void)
+static std::shared_mutex &getMapMutex(void)
 {
-    static Pothos::Util::SpinLockRW lock;
+    static std::shared_mutex lock;
     return lock;
 }
 
@@ -41,7 +41,7 @@ static void handleHashFcnPluginEvent(const Pothos::Plugin &plugin, const std::st
         if (call.type(-1) != typeid(size_t)) return;
         if (call.getNumArgs() != 1) return;
 
-        std::lock_guard<Pothos::Util::SpinLockRW> lock(getMapMutex());
+        std::lock_guard<std::shared_mutex> lock(getMapMutex());
         if (event == "add")
         {
             getHashFcnMap()[call.type(0).hash_code()] = plugin;
@@ -71,7 +71,7 @@ pothos_static_block(pothosObjectHashFcnRegister)
 size_t Pothos::Object::hashCode(void) const
 {
     //find the plugin in the map, it will be null if not found
-    Pothos::Util::SpinLockRW::SharedLock lock(getMapMutex());
+    std::shared_lock<std::shared_mutex> lock(getMapMutex());
     auto it = getHashFcnMap().find(this->type().hash_code());
 
     //return the address when no hash function found

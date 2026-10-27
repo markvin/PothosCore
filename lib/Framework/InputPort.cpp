@@ -78,7 +78,7 @@ void Pothos::InputPort::clear(void)
 void Pothos::InputPort::asyncMessagesPush(const Pothos::Object &message, const Pothos::BufferChunk &token)
 {
     {
-        std::lock_guard<Util::SpinLock> lock(_asyncMessagesLock);
+        std::lock_guard<std::mutex> lock(_asyncMessagesLock);
         if (_asyncMessages.full())
         {
             if (_asyncMessages.size() >= MaxQueueCapacity)
@@ -98,14 +98,14 @@ void Pothos::InputPort::asyncMessagesPush(const Pothos::Object &message, const P
 
 void Pothos::InputPort::asyncMessagesClear(void)
 {
-    std::lock_guard<Util::SpinLock> lock(_asyncMessagesLock);
+    std::lock_guard<std::mutex> lock(_asyncMessagesLock);
     _asyncMessages.clear();
 }
 
 void Pothos::InputPort::slotCallsPush(const Pothos::Object &args, const Pothos::BufferChunk &token)
 {
     {
-        std::lock_guard<Util::SpinLock> lock(_slotCallsLock);
+        std::lock_guard<std::mutex> lock(_slotCallsLock);
         if (_slotCalls.full())
         {
             if (_slotCalls.size() >= MaxQueueCapacity)
@@ -125,13 +125,13 @@ void Pothos::InputPort::slotCallsPush(const Pothos::Object &args, const Pothos::
 
 bool Pothos::InputPort::slotCallsEmpty(void)
 {
-    std::lock_guard<Util::SpinLock> lock(_slotCallsLock);
+    std::lock_guard<std::mutex> lock(_slotCallsLock);
     return _slotCalls.empty();
 }
 
 Pothos::Object Pothos::InputPort::slotCallsPop(void)
 {
-    std::lock_guard<Util::SpinLock> lock(_slotCallsLock);
+    std::lock_guard<std::mutex> lock(_slotCallsLock);
     assert(not _slotCalls.empty());
     auto args = std::move(_slotCalls.front().first);
     _slotCalls.pop_front();
@@ -140,7 +140,7 @@ Pothos::Object Pothos::InputPort::slotCallsPop(void)
 
 void Pothos::InputPort::slotCallsClear(void)
 {
-    std::lock_guard<Util::SpinLock> lock(_slotCallsLock);
+    std::lock_guard<std::mutex> lock(_slotCallsLock);
     _slotCalls.clear();
 }
 
@@ -163,7 +163,7 @@ void Pothos::InputPort::bufferAccumulatorPushNoLock(BufferChunk &&buffer)
 
 void Pothos::InputPort::bufferAccumulatorPop(const size_t numBytes)
 {
-    std::lock_guard<Util::SpinLock> lock(_bufferAccumulatorLock);
+    std::lock_guard<std::mutex> lock(_bufferAccumulatorLock);
 
     if (numBytes > _bufferAccumulator.getTotalBytesAvailable())
     {
@@ -189,7 +189,7 @@ void Pothos::InputPort::bufferLabelPush(
     Pothos::Util::RingDeque<Pothos::BufferChunk> &postedBuffers)
 {
     {
-        std::lock_guard<Util::SpinLock> lock(_bufferAccumulatorLock);
+        std::lock_guard<std::mutex> lock(_bufferAccumulatorLock);
 
         const size_t currentBytes = _bufferAccumulator.getTotalBytesAvailable();
         const size_t requiredLabelSize = _inputInlineMessages.size() + postedLabels.size();

@@ -125,13 +125,13 @@ inline void Pothos::InputPort::setReserve(const size_t numElements)
 
 inline bool Pothos::InputPort::asyncMessagesEmpty(void)
 {
-    std::lock_guard<Util::SpinLock> lock(_asyncMessagesLock);
+    std::lock_guard<std::mutex> lock(_asyncMessagesLock);
     return _asyncMessages.empty();
 }
 
 inline Pothos::Object Pothos::InputPort::asyncMessagesPop(void)
 {
-    std::lock_guard<Util::SpinLock> lock(_asyncMessagesLock);
+    std::lock_guard<std::mutex> lock(_asyncMessagesLock);
     if (_asyncMessages.empty()) return Pothos::Object();
     auto msg = std::move(_asyncMessages.front().first);
     _asyncMessages.pop_front();
@@ -140,28 +140,28 @@ inline Pothos::Object Pothos::InputPort::asyncMessagesPop(void)
 
 inline Pothos::Object Pothos::InputPort::asyncMessagesPeek(void)
 {
-    std::lock_guard<Util::SpinLock> lock(_asyncMessagesLock);
+    std::lock_guard<std::mutex> lock(_asyncMessagesLock);
     if (_asyncMessages.empty()) return Pothos::Object();
     return _asyncMessages.front().first;
 }
 
 inline void Pothos::InputPort::inlineMessagesPush(const Pothos::Label &label)
 {
-    std::lock_guard<Util::SpinLock> lock(_bufferAccumulatorLock);
+    std::lock_guard<std::mutex> lock(_bufferAccumulatorLock);
     if (_inputInlineMessages.full()) _inputInlineMessages.set_capacity(_inputInlineMessages.capacity()*2);
     _inputInlineMessages.push_back(label);
 }
 
 inline void Pothos::InputPort::inlineMessagesClear(void)
 {
-    std::lock_guard<Util::SpinLock> lock(_bufferAccumulatorLock);
+    std::lock_guard<std::mutex> lock(_bufferAccumulatorLock);
     _inputInlineMessages.clear();
     _inlineMessages.clear();
 }
 
 inline void Pothos::InputPort::bufferAccumulatorFront(Pothos::BufferChunk &buff)
 {
-    std::lock_guard<Util::SpinLock> lock(_bufferAccumulatorLock);
+    std::lock_guard<std::mutex> lock(_bufferAccumulatorLock);
     while (not _inputInlineMessages.empty())
     {
         _inlineMessages.push_back(std::move(_inputInlineMessages.front()));
@@ -173,18 +173,18 @@ inline void Pothos::InputPort::bufferAccumulatorFront(Pothos::BufferChunk &buff)
 
 inline void Pothos::InputPort::bufferAccumulatorPush(const BufferChunk &buffer)
 {
-    std::lock_guard<Util::SpinLock> lock(_bufferAccumulatorLock);
+    std::lock_guard<std::mutex> lock(_bufferAccumulatorLock);
     this->bufferAccumulatorPushNoLock(BufferChunk(buffer));
 }
 
 inline void Pothos::InputPort::bufferAccumulatorRequire(const size_t numBytes)
 {
-    std::lock_guard<Util::SpinLock> lock(_bufferAccumulatorLock);
+    std::lock_guard<std::mutex> lock(_bufferAccumulatorLock);
     _bufferAccumulator.require(numBytes);
 }
 
 inline void Pothos::InputPort::bufferAccumulatorClear(void)
 {
-    std::lock_guard<Util::SpinLock> lock(_bufferAccumulatorLock);
+    std::lock_guard<std::mutex> lock(_bufferAccumulatorLock);
     _bufferAccumulator = BufferAccumulator();
 }

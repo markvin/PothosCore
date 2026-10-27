@@ -7,7 +7,7 @@
 #include <Pothos/Framework/DType.hpp>
 #include <Pothos/Callable.hpp>
 #include <Pothos/Plugin.hpp>
-#include <Pothos/Util/SpinLockRW.hpp>
+#include <shared_mutex>
 
 #include <Pothos/System/Logger.hpp>
 #include <format>
@@ -21,9 +21,9 @@
 /***********************************************************************
  * Global map structure for comparisons
  **********************************************************************/
-static Pothos::Util::SpinLockRW &getMapMutex(void)
+static std::shared_mutex &getMapMutex(void)
 {
-    static Pothos::Util::SpinLockRW lock;
+    static std::shared_mutex lock;
     return lock;
 }
 
@@ -52,7 +52,7 @@ static void handleToStringPluginEvent(const Pothos::Plugin &plugin, const std::s
         //extract type info used for map lookup
         const std::type_info &t = call.type(0);
 
-        std::lock_guard<Pothos::Util::SpinLockRW> lock(getMapMutex());
+        std::lock_guard<std::shared_mutex> lock(getMapMutex());
         if (event == "add")
         {
             getToStringMap()[t.hash_code()] = plugin;
@@ -154,7 +154,7 @@ std::string Pothos::Object::toString(void) const
     catch (...) {}
 
     //check for a registered toString(), it will be null if not found
-    Pothos::Util::SpinLockRW::SharedLock lock(getMapMutex());
+    std::shared_lock<std::shared_mutex> lock(getMapMutex());
     auto it = getToStringMap().find(this->type().hash_code());
     if(getToStringMap().end() != it)
     {

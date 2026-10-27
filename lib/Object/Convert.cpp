@@ -4,7 +4,7 @@
 #include "TypesHashCombine.hpp"
 #include <Pothos/Object/ObjectImpl.hpp>
 #include <Pothos/Object/Exception.hpp>
-#include <Pothos/Util/SpinLockRW.hpp>
+#include <shared_mutex>
 #include <Pothos/Util/TypeInfo.hpp>
 #include <Pothos/Callable.hpp>
 #include <Pothos/Plugin.hpp>
@@ -17,9 +17,9 @@
 /***********************************************************************
  * Global map structure for conversions
  **********************************************************************/
-static Pothos::Util::SpinLockRW &getMapMutex(void)
+static std::shared_mutex &getMapMutex(void)
 {
-    static Pothos::Util::SpinLockRW lock;
+    static std::shared_mutex lock;
     return lock;
 }
 
@@ -56,7 +56,7 @@ static void handleConvertPluginEvent(const Pothos::Plugin &plugin, const std::st
         const std::type_info &inputType = call.type(0);
         const std::type_info &outputType = call.type(-1);
 
-        std::lock_guard<Pothos::Util::SpinLockRW> lock(getMapMutex());
+        std::lock_guard<std::shared_mutex> lock(getMapMutex());
         if (event == "add")
         {
             getConvertMap()[typesHashCombine(inputType, outputType)] = plugin;
@@ -88,7 +88,7 @@ pothos_static_block(pothosObjectConvertRegister)
 static Pothos::Object convertObject(const Pothos::Object &inputObj, const std::type_info &outputType)
 {
     //find the plugin in the map, it will be null if not found
-    Pothos::Util::SpinLockRW::SharedLock lock(getMapMutex());
+    std::shared_lock<std::shared_mutex> lock(getMapMutex());
     auto it = getConvertMap().find(typesHashCombine(inputObj.type(), outputType));
 
     //try an intermediate conversion
@@ -136,7 +136,7 @@ bool Pothos::Object::canConvert(const std::type_info &type) const
 bool Pothos::Object::canConvert(const std::type_info &srcType, const std::type_info &dstType)
 {
     if (srcType == dstType) return true;
-    Pothos::Util::SpinLockRW::SharedLock lock(getMapMutex());
+    std::shared_lock<std::shared_mutex> lock(getMapMutex());
     auto it = getConvertMap().find(typesHashCombine(srcType, dstType));
 
     //try an intermediate conversion
