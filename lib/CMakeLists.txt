@@ -156,6 +156,7 @@ add_library(Pothos SHARED
     Util/Expr/Eval.cpp
     Util/Expr/Builtins.cpp
     Util/Expr/Convert.cpp
+    Util/PropertyFile.cpp
 
 
     Util/Builtin/BlockEval.cpp
@@ -166,6 +167,7 @@ add_library(Pothos SHARED
     Util/Builtin/TestErrorCodeHandling.cpp
     Util/Builtin/TestEvalExpression.cpp
     Util/Builtin/TestExpr.cpp
+    Util/Builtin/TestPropertyFile.cpp
     Util/Builtin/TestRingDeque.cpp
     Util/Builtin/TestStringUtils.cpp
     Util/Builtin/TestTempFile.cpp

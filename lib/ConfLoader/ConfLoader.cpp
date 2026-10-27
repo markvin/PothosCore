@@ -9,7 +9,7 @@
 #include <filesystem>
 #include <system_error>
 #include <format>
-#include <Poco/Util/PropertyFileConfiguration.h>
+#include "Util/PropertyFile.hpp"
 #include <future>
 #include <map>
 
@@ -23,21 +23,16 @@ static std::vector<Pothos::PluginPath> loadConfFile(const std::string &path)
 {
     POTHOS_LOG_DEBUG("Pothos.ConfLoader", "loading {}", path);
 
-    //parse the configuration file with the INI parser
-    Poco::AutoPtr<Poco::Util::PropertyFileConfiguration> conf;
+    //parse the configuration file (key = value properties)
+    std::map<std::string, std::string> configMap;
     try
     {
-        conf = new Poco::Util::PropertyFileConfiguration(path);
+        configMap = Pothos::Util::Detail::loadPropertyFile(path);
     }
-    catch (const Poco::Exception &ex)
+    catch (const Pothos::Exception &ex)
     {
         throw Pothos::Exception("ConfLoader("+path+")", ex.displayText());
     }
-
-    //store then config into a map structure
-    std::map<std::string, std::string> configMap;
-    Poco::Util::AbstractConfiguration::Keys keys; conf->keys(keys);
-    for (const auto &key : keys) configMap[key] = conf->getString(key);
 
     //and other config file parameters
     configMap["confFilePath"] = path;
@@ -46,9 +41,10 @@ static std::vector<Pothos::PluginPath> loadConfFile(const std::string &path)
     POTHOS_EXCEPTION_TRY
     {
         //get the loader
-        if (not conf->hasProperty("loader")) throw Pothos::Exception(
+        const auto loaderIt = configMap.find("loader");
+        if (loaderIt == configMap.end()) throw Pothos::Exception(
             std::format("{} does not specify a loader", path));
-        const std::string loader(conf->getString("loader"));
+        const std::string loader(loaderIt->second);
         const auto loaderPath = Pothos::PluginPath("/framework/conf_loader").join(loader);
         if (not Pothos::PluginRegistry::exists(loaderPath)) throw Pothos::Exception(
             std::format("{} loader {} does not exist", path, loader));
