@@ -246,6 +246,17 @@ private:
     //unary := ('-'|'+'|'~') unary | power
     NodePtr unary(void)
     {
+        //-9223372036854775808 folds into one literal, its operand alone does not fit in int64
+        const auto &next = _toks[_i+1 < _toks.size()? _i+1 : _i];
+        const bool nextIsPower = _i+2 < _toks.size() and _toks[_i+2].kind == Tok::Op and _toks[_i+2].text == "**";
+        if (isOp("-") and next.kind == Tok::Int and next.needsMinus and not nextIsPower)
+        {
+            auto node = this->make(Node::Kind::Literal, cur().pos);
+            node->literal = next.literal;
+            _i += 2;
+            return node;
+        }
+
         if (not isAnyOp({"-", "+", "~"})) return this->power();
         Nest nest(*this);
         const auto pos = cur().pos;
@@ -318,6 +329,8 @@ private:
         switch (tok.kind)
         {
         case Tok::Int:
+            if (tok.needsMinus) fail("integer literal is too large", pos);
+            [[fallthrough]];
         case Tok::Float:
         case Tok::Imag:
         case Tok::String:

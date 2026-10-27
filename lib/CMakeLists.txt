@@ -148,7 +148,6 @@ add_library(Pothos SHARED
     Util/Compiler.cpp
     Util/Network.cpp
     Util/EvalEnvironment.cpp
-    Util/EvalEnvironmentListParsers.cpp
     Util/BlockDescription.cpp
     Util/Expr/Value.cpp
     Util/Expr/Lexer.cpp
@@ -156,11 +155,11 @@ add_library(Pothos SHARED
     Util/Expr/Ops.cpp
     Util/Expr/Eval.cpp
     Util/Expr/Builtins.cpp
+    Util/Expr/Convert.cpp
 
     Util/Builtin/BlockEval.cpp
     Util/Builtin/DeviceInfoUtils.cpp
     Util/Builtin/DocUtils.cpp
-    Util/Builtin/MupOctalValReader.cpp
     Util/Builtin/SIMDDispatcherUtils.cpp
     Util/Builtin/TestDocUtils.cpp
     Util/Builtin/TestErrorCodeHandling.cpp
@@ -238,10 +237,9 @@ endif(MSVC)
 ########################################################################
 # Link feature dependencies
 ########################################################################
-#Poco and muparserx are transitional private dependencies
+#Poco is a transitional private dependency
 target_link_libraries(Pothos PRIVATE
     PocoFoundation PocoUtil PocoNet
-    pothos_muparserx
     pothos_json)
 
 #C++23 is required by the public headers

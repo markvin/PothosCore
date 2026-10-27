@@ -83,7 +83,11 @@ POTHOS_TEST_BLOCK("/util/tests", test_expr_lex_numbers)
     POTHOS_TEST_TRUE(std::get<std::complex<double>>(tok.literal.data) == std::complex<double>(0.0, 1.5));
 
     POTHOS_TEST_EQUAL(std::get<std::int64_t>(lexOne("9223372036854775807").literal.data), INT64_MAX);
-    POTHOS_TEST_EQUAL(errorPos([]{tokenize("9223372036854775808");}), 0);
+    //2**63 only exists as the operand of a unary minus: the lexer marks it, the parser checks
+    tok = lexOne("9223372036854775808");
+    POTHOS_TEST_TRUE(tok.kind == Tok::Int and tok.needsMinus);
+    POTHOS_TEST_TRUE(not lexOne("9223372036854775807").needsMinus);
+    POTHOS_TEST_EQUAL(errorPos([]{tokenize("9223372036854775809");}), 0);
     POTHOS_TEST_EQUAL(errorPos([]{tokenize("0x10000000000000000");}), 0);
     POTHOS_TEST_EQUAL(errorPos([]{tokenize("1 + 0315");}), 4);
     POTHOS_TEST_EQUAL(errorPos([]{tokenize("0x");}), 0);
@@ -397,6 +401,13 @@ POTHOS_TEST_BLOCK("/util/tests", test_expr_int_overflow)
     POTHOS_TEST_TRUE(same(ev("1<<62"), Value(std::int64_t(1) << 62)));
     POTHOS_TEST_TRUE(same(ev("-1<<63"), Value(INT64_MIN)));
     POTHOS_TEST_TRUE(same(ev("-9223372036854775807-1"), Value(INT64_MIN)));
+    POTHOS_TEST_TRUE(same(ev("-9223372036854775808"), Value(INT64_MIN)));
+    POTHOS_TEST_TRUE(same(ev("[1, - 9223372036854775808]"), Value(List{Value(1), Value(INT64_MIN)})));
+    POTHOS_TEST_TRUE(same(ev("-9223372036854775808 + 1"), Value(INT64_MIN+1)));
+    POTHOS_TEST_EQUAL(errorPos([]{ev("9223372036854775808");}), 0);
+    POTHOS_TEST_EQUAL(errorPos([]{ev("1 - 9223372036854775808");}), 4);
+    POTHOS_TEST_EQUAL(errorPos([]{ev("-9223372036854775808**1");}), 1);
+    POTHOS_TEST_TRUE(errorMessage("--9223372036854775808").find("integer overflow") != std::string::npos);
     POTHOS_TEST_TRUE(same(ev("(-9223372036854775807-1)%-1"), Value(0)));
     POTHOS_TEST_TRUE(same(ev("(-2)**63"), Value(INT64_MIN)));
     POTHOS_TEST_TRUE(same(ev("3037000499*3037000499"), Value(INT64_C(9223372030926249001))));

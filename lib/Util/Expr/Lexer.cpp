@@ -183,9 +183,14 @@ private:
         }
         std::int64_t value = 0;
         const auto result = std::from_chars(intPart.data(), intPart.data()+intPart.size(), value);
-        if (result.ec != std::errc()) fail("integer literal is too large", start);
         tok.kind = Tok::Int;
-        tok.literal = Value(value);
+        if (result.ec == std::errc()) tok.literal = Value(value);
+        else if (intPart == "9223372036854775808") //-9223372036854775808 is printed for INT64_MIN (JSON)
+        {
+            tok.literal = Value(std::numeric_limits<std::int64_t>::min());
+            tok.needsMinus = true;
+        }
+        else fail("integer literal is too large", start);
     }
 
     static void appendUtf8(std::string &out, const std::uint32_t cp)
