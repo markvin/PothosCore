@@ -12,7 +12,7 @@ using namespace Pothos::Util::Detail;
 
 POTHOS_TEST_BLOCK("/util/tests", test_property_file_poco_compat)
 {
-    //the grammar of Poco::Util::PropertyFileConfiguration
+    //the grammar of the Poco PropertyFileConfiguration class
     std::istringstream is(
         "# comment\r\n"
         "! also a comment\n"

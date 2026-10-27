@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Pothos contributors
 // SPDX-License-Identifier: BSL-1.0
 
-//Property files in the format of Poco::Util::PropertyFileConfiguration
+//Property files in the format of the Poco PropertyFileConfiguration class
 //(.conf files, the module loader cache). Internal, not installed.
 
 #pragma once
