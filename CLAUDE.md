@@ -54,13 +54,16 @@ ctest --test-dir build --output-on-failure
   `resolveHost`, `TcpStream` (blocking `std::iostream`), `TcpServer` (thread
   per connection, protocol agnostic), syslog (`formatSyslog`/`parseSyslog`,
   `SyslogSender`, `SyslogListener`; RFC 5424 with `[pothos@32473 ...]`).
-  Asio is included only from `lib/Net/` and never from `include/`. Its sources
-  are also compiled into PothosUtil (`POTHOS_NET_SOURCES`). Tests: `/net/tests`.
+  Asio is included only from `lib/Net/` and never from `include/`. Built as the
+  internal static library `pothos_net`. Tests: `/net/tests`.
 - OS-specific code goes into the internal platform layer `lib/Platform/`
   (namespace `Pothos::Platform`: environment, host info, `DynamicLibrary`,
-  `Process`/`Pipe`). Its sources are compiled into both libPothos and
-  PothosUtil (`POTHOS_PLATFORM_SOURCES`) because libPothos exports no
-  internal symbols.
+  `Process`/`Pipe`), built as the internal static library `pothos_platform`.
+- `pothos_platform` and `pothos_net` (`pothos_internal_library()` in
+  `lib/CMakeLists.txt`) are compiled once and linked into both libPothos and
+  PothosUtil, because libPothos exports no internal symbols. They are PIC,
+  hidden visibility, use the Pothos API as clients (no `POTHOS_DLL_EXPORTS`)
+  and are never installed. Their self-tests stay in libPothos (`Builtin/`).
 - Internal helpers: `lib/Util/StringUtils.hpp`, `FileSystem.hpp`,
   `TempFile.hpp` (namespace `Pothos::Util::Detail`). Not installed.
 - Logging: `POTHOS_LOG_ERROR("My.Source", "fmt {}", value)` etc. from
