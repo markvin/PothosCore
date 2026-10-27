@@ -7,6 +7,10 @@
 #include "Util/Expr/Value.hpp"
 #include "Util/Expr/Lexer.hpp"
 #include "Util/Expr/Parser.hpp"
+#include "Util/Expr/Eval.hpp"
+#include <cmath>
+#include <limits>
+#include <map>
 #include <complex>
 #include <cstdint>
 #include <stdexcept>
@@ -297,4 +301,182 @@ POTHOS_TEST_BLOCK("/util/tests", test_expr_depth_limit)
     std::string flat("[");
     for (std::size_t i = 0; i < n; i++) flat += "1,";
     POTHOS_TEST_TRUE(parse(flat + "]")->children.size() == n);
+}
+
+namespace {
+
+Value ev(const std::string &expr, const std::map<std::string, Value, std::less<>> &names = {})
+{
+    return evaluate(expr, [&names](const std::string_view name) -> const Value *
+    {
+        const auto it = names.find(name);
+        return (it == names.end())? nullptr : &it->second;
+    });
+}
+
+//! Value equality plus the same type name
+bool same(const Value &a, const Value &b)
+{
+    return a == b and a.typeName() == b.typeName();
+}
+
+std::string errorMessage(const std::string &expr)
+{
+    try
+    {
+        ev(expr);
+    }
+    catch (const ExprError &ex)
+    {
+        return ex.what();
+    }
+    throw std::runtime_error("no ExprError thrown: " + expr);
+}
+
+using C = std::complex<double>;
+
+} //namespace
+
+POTHOS_TEST_BLOCK("/util/tests", test_expr_arith)
+{
+    POTHOS_TEST_TRUE(same(ev("1+2*3"), Value(7)));
+    POTHOS_TEST_TRUE(same(ev("7/2"), Value(3.5)));
+    POTHOS_TEST_TRUE(same(ev("6/2"), Value(3.0)));
+    POTHOS_TEST_TRUE(same(ev("7//2"), Value(3)));
+    POTHOS_TEST_TRUE(same(ev("-7//2"), Value(-4)));
+    POTHOS_TEST_TRUE(same(ev("-7%3"), Value(2)));
+    POTHOS_TEST_TRUE(same(ev("7%-3"), Value(-2)));
+    POTHOS_TEST_TRUE(same(ev("7.5//2"), Value(3.0)));
+    POTHOS_TEST_TRUE(same(ev("-7.5//2"), Value(-4.0)));
+    POTHOS_TEST_TRUE(same(ev("-7.5%2"), Value(0.5)));
+    POTHOS_TEST_TRUE(same(ev("1.5*2"), Value(3.0)));
+    POTHOS_TEST_TRUE(same(ev("2**10"), Value(1024)));
+    POTHOS_TEST_TRUE(same(ev("(-2)**3"), Value(-8)));
+    POTHOS_TEST_TRUE(same(ev("0**0"), Value(1)));
+    POTHOS_TEST_TRUE(same(ev("2**-1"), Value(0.5)));
+    POTHOS_TEST_TRUE(same(ev("4**0.5"), Value(2.0)));
+    const auto cubeRoot = ev("(-8)**(1/3)");
+    POTHOS_TEST_EQUAL(cubeRoot.typeName(), "complex");
+    POTHOS_TEST_CLOSE(std::get<C>(cubeRoot.data).real(), 1.0, 1e-9);
+    POTHOS_TEST_CLOSE(std::get<C>(cubeRoot.data).imag(), std::sqrt(3.0), 1e-9);
+    POTHOS_TEST_TRUE(same(ev("(1+2j)+1"), Value(C(2.0, 2.0))));
+    POTHOS_TEST_TRUE(same(ev("(1+2j)*(3-1j)"), Value(C(5.0, 5.0))));
+    POTHOS_TEST_TRUE(same(ev("1j**2"), Value(C(-1.0, 0.0))));
+    POTHOS_TEST_TRUE(same(ev("(1+1j)/2"), Value(C(0.5, 0.5))));
+    POTHOS_TEST_TRUE(same(ev("True+True"), Value(2)));
+    POTHOS_TEST_TRUE(same(ev("+True"), Value(1)));
+    POTHOS_TEST_TRUE(same(ev("-(3)"), Value(-3)));
+    POTHOS_TEST_TRUE(same(ev("-1.5"), Value(-1.5)));
+    POTHOS_TEST_TRUE(same(ev("'ab'+\"cd\""), Value("abcd")));
+    POTHOS_TEST_TRUE(same(ev("1/0.0"), Value(std::numeric_limits<double>::infinity())));
+    POTHOS_TEST_TRUE(std::isnan(std::get<double>(ev("0.0/0.0").data)));
+
+    POTHOS_TEST_EQUAL(errorPos([]{ev("1/0");}), 1);
+    POTHOS_TEST_EQUAL(errorPos([]{ev("5 % 0");}), 2);
+    POTHOS_TEST_EQUAL(errorPos([]{ev("5 // 0");}), 2);
+    POTHOS_TEST_TRUE(errorMessage("1/0").find("division by zero") != std::string::npos);
+    POTHOS_TEST_EQUAL(errorPos([]{ev("'a' * 2");}), 4);
+    POTHOS_TEST_TRUE(errorMessage("'a' - 1").find("unsupported operand types for -: 'str' and 'int'") != std::string::npos);
+    POTHOS_TEST_EQUAL(errorPos([]{ev("1j // 2");}), 3);
+    POTHOS_TEST_EQUAL(errorPos([]{ev("1j % 2");}), 3);
+    POTHOS_TEST_EQUAL(errorPos([]{ev("-'a'");}), 0);
+    POTHOS_TEST_EQUAL(errorPos([]{ev("None + 1");}), 5);
+}
+
+POTHOS_TEST_BLOCK("/util/tests", test_expr_int_overflow)
+{
+    for (const auto expr : {
+        "9223372036854775807+1", "-9223372036854775807-2", "2**63", "3037000500*3037000500",
+        "1<<64", "1<<63", "-(-9223372036854775807-1)", "(-9223372036854775807-1)//-1",
+        "2**62*2", "3**40", "(-9223372036854775807-1)*-1", "-1*(-9223372036854775807-1)",
+        "9223372036854775807--1", "~0<<63<<1"})
+    {
+        POTHOS_TEST_THROWS(ev(expr), ExprError);
+        POTHOS_TEST_TRUE(errorMessage(expr).find("integer overflow") != std::string::npos);
+    }
+    POTHOS_TEST_TRUE(same(ev("1<<62"), Value(std::int64_t(1) << 62)));
+    POTHOS_TEST_TRUE(same(ev("-1<<63"), Value(INT64_MIN)));
+    POTHOS_TEST_TRUE(same(ev("-9223372036854775807-1"), Value(INT64_MIN)));
+    POTHOS_TEST_TRUE(same(ev("(-9223372036854775807-1)%-1"), Value(0)));
+    POTHOS_TEST_TRUE(same(ev("(-2)**63"), Value(INT64_MIN)));
+    POTHOS_TEST_TRUE(same(ev("3037000499*3037000499"), Value(INT64_C(9223372030926249001))));
+    POTHOS_TEST_TRUE(same(ev("1**100000"), Value(1)));
+    POTHOS_TEST_TRUE(same(ev("(-1)**100001"), Value(-1)));
+}
+
+POTHOS_TEST_BLOCK("/util/tests", test_expr_bitwise)
+{
+    POTHOS_TEST_TRUE(same(ev("6&3"), Value(2)));
+    POTHOS_TEST_TRUE(same(ev("6|3"), Value(7)));
+    POTHOS_TEST_TRUE(same(ev("6^3"), Value(5)));
+    POTHOS_TEST_TRUE(same(ev("~5"), Value(-6)));
+    POTHOS_TEST_TRUE(same(ev("1<<4"), Value(16)));
+    POTHOS_TEST_TRUE(same(ev("-16>>2"), Value(-4)));
+    POTHOS_TEST_TRUE(same(ev("-1>>100"), Value(-1)));
+    POTHOS_TEST_TRUE(same(ev("5>>64"), Value(0)));
+    POTHOS_TEST_TRUE(same(ev("0<<1000"), Value(0)));
+    POTHOS_TEST_EQUAL(errorPos([]{ev("1.0&1");}), 3);
+    POTHOS_TEST_TRUE(errorMessage("1.0&1").find("unsupported operand types") != std::string::npos);
+    POTHOS_TEST_EQUAL(errorPos([]{ev("1 << -1");}), 2);
+    POTHOS_TEST_EQUAL(errorPos([]{ev("~1.5");}), 0);
+}
+
+POTHOS_TEST_BLOCK("/util/tests", test_expr_compare_logic)
+{
+    POTHOS_TEST_TRUE(same(ev("1<2<3"), Value(true)));
+    POTHOS_TEST_TRUE(same(ev("3>2>2"), Value(false)));
+    POTHOS_TEST_TRUE(same(ev("1==1.0"), Value(true)));
+    POTHOS_TEST_TRUE(same(ev("1!=1.0"), Value(false)));
+    POTHOS_TEST_TRUE(same(ev("1<2.5"), Value(true)));
+    POTHOS_TEST_TRUE(same(ev("True<2"), Value(true)));
+    POTHOS_TEST_TRUE(same(ev("9007199254740993 > 9007199254740992.0"), Value(true)));
+    POTHOS_TEST_TRUE(same(ev("9223372036854775807 < 9223372036854775808.0"), Value(true)));
+    POTHOS_TEST_TRUE(same(ev("nan == nan"), Value(false)));
+    POTHOS_TEST_TRUE(same(ev("nan < 1 or nan >= 1"), Value(false)));
+    POTHOS_TEST_TRUE(same(ev("'a'<'b'"), Value(true)));
+    POTHOS_TEST_TRUE(same(ev("'abc'<='abc'"), Value(true)));
+    POTHOS_TEST_TRUE(same(ev("1=='a'"), Value(false)));
+    POTHOS_TEST_TRUE(same(ev("None==None"), Value(true)));
+    POTHOS_TEST_TRUE(same(ev("None==0"), Value(false)));
+    POTHOS_TEST_TRUE(same(ev("1j==1j"), Value(true)));
+    POTHOS_TEST_EQUAL(errorPos([]{ev("1<'a'");}), 1);
+    POTHOS_TEST_EQUAL(errorPos([]{ev("1+2j < 3");}), 5);
+    POTHOS_TEST_EQUAL(errorPos([]{ev("None < 1");}), 5);
+    POTHOS_TEST_TRUE(errorMessage("1<'a'").find("'<' not supported between 'int' and 'str'") != std::string::npos);
+
+    POTHOS_TEST_TRUE(same(ev("0 or 5"), Value(5)));
+    POTHOS_TEST_TRUE(same(ev("3 or 5"), Value(3)));
+    POTHOS_TEST_TRUE(same(ev("2 and 0"), Value(0)));
+    POTHOS_TEST_TRUE(same(ev("2 and 'x'"), Value("x")));
+    POTHOS_TEST_TRUE(same(ev("not ''"), Value(true)));
+    POTHOS_TEST_TRUE(same(ev("not 2"), Value(false)));
+    POTHOS_TEST_TRUE(same(ev("0 and undefined_name"), Value(0)));
+    POTHOS_TEST_TRUE(same(ev("1 or undefined_name"), Value(1)));
+    POTHOS_TEST_TRUE(same(ev("1 if 0 else 2"), Value(2)));
+    POTHOS_TEST_TRUE(same(ev("1 if 'x' else undefined_name"), Value(1)));
+    POTHOS_TEST_TRUE(same(ev("5 < 3 < undefined_name"), Value(false)));
+    POTHOS_TEST_THROWS(ev("1 and undefined_name"), ExprError);
+}
+
+POTHOS_TEST_BLOCK("/util/tests", test_expr_names)
+{
+    POTHOS_TEST_TRUE(same(ev("x+1", {{"x", Value(41)}}), Value(42)));
+    POTHOS_TEST_EQUAL(errorPos([]{ev("1 + foo");}), 4);
+    POTHOS_TEST_TRUE(errorMessage("foo").find("unknown name 'foo'") != std::string::npos);
+    POTHOS_TEST_THROWS(ev("int32"), ExprError);
+    POTHOS_TEST_THROWS(ev("hello"), ExprError);
+
+    POTHOS_TEST_TRUE(same(ev("True"), Value(true)));
+    POTHOS_TEST_TRUE(same(ev("true"), Value(true)));
+    POTHOS_TEST_TRUE(same(ev("False"), Value(false)));
+    POTHOS_TEST_TRUE(same(ev("false"), Value(false)));
+    POTHOS_TEST_TRUE(ev("None").isNone());
+    POTHOS_TEST_TRUE(ev("null").isNone());
+    POTHOS_TEST_CLOSE(std::get<double>(ev("pi").data), 3.141592653589793, 1e-15);
+    POTHOS_TEST_CLOSE(std::get<double>(ev("e").data), 2.718281828459045, 1e-15);
+    POTHOS_TEST_TRUE(std::isinf(std::get<double>(ev("-inf").data)));
+    POTHOS_TEST_TRUE(std::isnan(std::get<double>(ev("nan").data)));
+    POTHOS_TEST_TRUE(same(ev("j*j"), Value(C(-1.0, 0.0))));
+    POTHOS_TEST_TRUE(same(ev("j", {{"j", Value(5)}}), Value(5)));
+    POTHOS_TEST_TRUE(same(ev("pi", {{"pi", Value("x")}}), Value("x")));
 }
