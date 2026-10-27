@@ -57,6 +57,14 @@ in-tree зависимость (спека это разрешает).
   `pothos.api_compat`. Этап 6 выполнен; следующий — этап 7 (чистка репозитория).
   Известное вне этапа: гонки TSan в `ThreadEnvironment::_waitModeEnabled`
   (обычный `bool`) и в тестах `TestTopology.cpp`.
+- Этап 6b — слит в `pothos2` (PR #8, merge `0d8e51e1`).
+- Этап 7 (решения пользователя, 2026-10-27: только удалить сабмодули; copier и
+  network-блоки остаются в PothosBlocks — понятная ошибка и документация;
+  `debian/` удалить) — выполнен на ветке `phase7-repo-cleanup` (план
+  `2026-10-27-phase7-repo-cleanup.md`): в репозитории только ядро, сабмодулей
+  нет, `find_package(Pothos)` находит ядро-подпроект (redirect в
+  `CMAKE_FIND_PACKAGE_REDIRECTS_DIR`). Все этапы roadmap выполнены; дальше —
+  перенос тулкитов на API pothos2 в их репозиториях.
 - Этап 5a (решение пользователя, 2026-10-27): libsimdpp заменяется на xsimd
   (копия в `third_party/xsimd`, не Highway — тулкиты уже используют xsimd).
 

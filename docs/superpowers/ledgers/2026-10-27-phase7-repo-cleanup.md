@@ -1,0 +1,13 @@
+# SDD ledger — plan: docs/superpowers/plans/2026-10-27-phase7-repo-cleanup.md
+Plan approved by the user 2026-10-27 as written.
+Pre-flight: T2 (topology error) and T3 (CMake redirect) share nothing; T1 removes dirs that T4 documents. No conflicts.
+Task 1: clean build from git archive of the index (no submodules): configure+build+ctest 6/6; remaining references only in README/CLAUDE.md (Task 4) and harmless mentions (GetGitRevisionDescription submodule handling, PothosUtil.cmake example path, api_compat comment).
+Task 1: complete (commits 5225d7e..264546e, tests: ctest --test-dir build → Total Test time (real) =  43.63 sec)
+Task 2: RED — commit() threw "Proxy Exception Message: Plugin Registry Error: PluginRegistry::get(/blocks/blocks/copier): plugin path not found"; GREEN — TopologyConnectError "A connection between incompatible port domains needs the block /blocks/copier from the blocks toolkit (PothosBlocks), which is not installed in the managed environment".
+Task 2: Ruling: makeToolkitBlock checks BlockRegistry::doesBlockExist (through the environment's proxy) before the call instead of catching the registry error — a factory error of an installed block keeps its own message — cost if wrong: one extra proxy call per inserted block at commit time.
+Task 2: Ruling: the test removes the plugin at /blocks/blocks/copier (BlockRegistry prefixes /blocks), the plan said /blocks/copier — plan typo — cost if wrong: none.
+Task 2: complete (commits 264546e..9e133dc, tests: ctest --test-dir build → Total Test time (real) =  43.92 sec)
+Task 3: RED — pothos.subproject: Could not find a package configuration file provided by "Pothos" (sibling toolkit); GREEN after the redirect (PothosConfig.cmake + PothosConfigVersion.cmake in CMAKE_FIND_PACKAGE_REDIRECTS_DIR when not top level). Manual check: the parent with the sibling builds libSiblingModule.so and its docs (POTHOS_MODULE_UTIL ENABLE_DOCS through the in-tree PothosUtil wrapper); standalone build: pkgRedirects is empty.
+Task 3: Ruling: the redirect lives in cmake/Modules/CMakeLists.txt next to the version file (plan said the root CMakeLists) and reuses PothosConfigVersion.cmake (AnyNewerVersion, as installed) instead of a SameMajorVersion file — same compatibility as the installed package — cost if wrong: none.
+Task 3: Ruling: pothos.subproject only configures (as before); building the sibling would build the whole core inside the test (minutes on CI) — checked manually once — cost if wrong: a link-time-only regression of the in-tree config would not be caught by ctest.
+Task 3: complete (commits 9e133dc..9cfbf8d, tests: ctest --test-dir build → Total Test time (real) =  43.05 sec)
