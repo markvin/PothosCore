@@ -46,7 +46,7 @@ jobs:
       # only the submodules the core needs; pinned commits are not branch tips,
       # so no shallow clone
       - name: Submodules
-        run: git submodule update --init poco muparserx libsimdpp
+        run: git submodule update --init poco libsimdpp
 
       # the build must never download anything
       - name: No network access in the build

@@ -2,10 +2,6 @@
 	path = spuce
 	url = https://github.com/audiofilter/spuce.git
 	branch = master
-[submodule "muparserx"]
-	path = muparserx
-	url = https://github.com/beltoforion/muparserx.git
-	branch = master
 [submodule "poco"]
 	path = poco
 	url = https://github.com/pocoproject/poco.git

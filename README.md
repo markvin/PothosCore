@@ -20,7 +20,6 @@ is built from the source tree and kept private to the library.
 
 * poco C++ utility library (transitional submodule, being removed;
   only its Net and Util libraries are still used)
-* muparserx expression parser (transitional submodule, being replaced)
 * libsimdpp SIMD library (submodule, header only)
 * nlohmann/json (vendored in third_party/)
 * spuce filter design library (toolkit dependency, not used by the framework)
@@ -48,7 +47,7 @@ compiler (GCC 13+, Clang 17+, Xcode 15+, Visual Studio 2022 17.8+).
 The build needs no network access and no system libraries.
 
 ```sh
-git submodule update --init poco muparserx libsimdpp
+git submodule update --init poco libsimdpp
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ctest --test-dir build --output-on-failure
@@ -96,14 +95,6 @@ however are available under a permissive compatible software license.
 * License: https://github.com/itdaniher/kissfft/blob/master/COPYING
 * Usage: Pothos comms FFT transform blocks
 * Source: comms/fft/ (embedded copy)
-
-### muparserX
-
-* Description: C++ mathematical expression evaluator library
-* Homepage: http://articles.beltoforion.de/article.php?a=muparserx
-* License: http://opensource.org/licenses/BSD-3-Clause
-* Usage: Pothos util tookit expression parser support
-* Source: muparserx/ (top level submodule)
 
 ### Qwt
 
