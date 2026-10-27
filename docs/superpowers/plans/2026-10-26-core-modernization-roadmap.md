@@ -48,7 +48,15 @@ in-tree зависимость (спека это разрешает).
   пользуются блоки, не ломаются). Пространство имён `Pothos::` сохраняется.
 - Этап 6a — выполнен на ветке `phase6-api-cmake`: ядро работает как CMake-подпроект
   (опции `POTHOS_*`, глобальное — только на верхнем уровне, тест `pothos.subproject`).
-  PR в `pothos2` — после ревью. Следующий — 6b (публичный API), затем 7.
+  Слит в `pothos2` (PR #7, merge `e9ebc24d`).
+- Этап 6b — выполнен на ветке `phase6b-public-api` (план
+  `2026-10-27-phase6b-public-api.md`): стандартные блокировки (`SpinLockRW`
+  удалён, `SpinLock` ждёт), алиасы `std::` в `Util/Templates.hpp`, `using`
+  вместо `typedef`, `BufferChunk::asSpan`, строки в `POTHOS_TEST_*`,
+  ядро без предупреждений (`POTHOS_WARNINGS_AS_ERRORS` в Linux CI), тест
+  `pothos.api_compat`. Этап 6 выполнен; следующий — этап 7 (чистка репозитория).
+  Известное вне этапа: гонки TSan в `ThreadEnvironment::_waitModeEnabled`
+  (обычный `bool`) и в тестах `TestTopology.cpp`.
 - Этап 5a (решение пользователя, 2026-10-27): libsimdpp заменяется на xsimd
   (копия в `third_party/xsimd`, не Highway — тулкиты уже используют xsimd).
 
