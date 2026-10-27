@@ -4,6 +4,7 @@
 #include "Platform/Process.hpp"
 #include <Pothos/Exception.hpp>
 #include <algorithm>
+#include <cstdlib>
 #include <cwctype>
 #include <mutex>
 #include <windows.h>
@@ -246,4 +247,17 @@ void Pothos::Platform::Process::requestTermination(void)
 void Pothos::Platform::Process::kill(void)
 {
     if (not this->tryWait()) TerminateProcess(_impl->process, 1);
+}
+
+void Pothos::Platform::requestSelfTermination(void)
+{
+    const auto name = terminationEventName(int(GetCurrentProcessId()));
+    const HANDLE event = OpenEventW(EVENT_MODIFY_STATE, FALSE, name.c_str());
+    if (event != nullptr)
+    {
+        SetEvent(event);
+        CloseHandle(event);
+        return;
+    }
+    std::_Exit(1); //no termination handler is waiting
 }

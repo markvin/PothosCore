@@ -157,11 +157,6 @@ add_library(Pothos SHARED
     Util/Expr/Builtins.cpp
     Util/Expr/Convert.cpp
 
-    Net/IoContext.cpp
-    Net/Uri.cpp
-    Net/Address.cpp
-    Net/TcpStream.cpp
-    Net/TcpServer.cpp
 
     Util/Builtin/BlockEval.cpp
     Util/Builtin/DeviceInfoUtils.cpp
@@ -212,6 +207,17 @@ set(POTHOS_PLATFORM_SOURCES ${platform_sources} CACHE INTERNAL "")
 set(POTHOS_PLATFORM_LIBRARIES ${platform_libraries} CACHE INTERNAL "")
 target_sources(Pothos PRIVATE ${POTHOS_PLATFORM_SOURCES})
 target_link_libraries(Pothos PRIVATE ${POTHOS_PLATFORM_LIBRARIES})
+
+########################################################################
+# Internal network layer (lib/Net, standalone Asio). Also compiled into
+# PothosUtil (proxy server) for the same reason as the platform layer.
+########################################################################
+set(net_sources)
+foreach(name IoContext Uri Address TcpStream TcpServer)
+    list(APPEND net_sources ${CMAKE_CURRENT_SOURCE_DIR}/Net/${name}.cpp)
+endforeach()
+set(POTHOS_NET_SOURCES ${net_sources} CACHE INTERNAL "")
+target_sources(Pothos PRIVATE ${POTHOS_NET_SOURCES})
 
 if(WIN32)
     target_sources(Pothos PRIVATE WindowsDelayLoadedSymbols.cpp)

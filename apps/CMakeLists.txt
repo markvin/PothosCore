@@ -27,13 +27,14 @@ add_executable(PothosUtil
     PothosUtilGenerateSIMDDispatchers.cpp
     PothosUtilListTypeConversions.cpp
 )
-#internal helpers shared with the library (lib/Util, lib/Platform)
+#internal helpers shared with the library (lib/Util, lib/Platform, lib/Net)
 target_include_directories(PothosUtil PRIVATE ${PROJECT_SOURCE_DIR}/lib)
-target_sources(PothosUtil PRIVATE ${POTHOS_PLATFORM_SOURCES})
+target_sources(PothosUtil PRIVATE ${POTHOS_PLATFORM_SOURCES} ${POTHOS_NET_SOURCES})
 target_link_libraries(PothosUtil PRIVATE ${POTHOS_PLATFORM_LIBRARIES})
 target_link_libraries(PothosUtil PRIVATE
     Pothos
     PocoFoundation PocoUtil PocoNet #transitional
+    pothos_asio
     pothos_json)
 install(TARGETS PothosUtil
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT pothos_runtime

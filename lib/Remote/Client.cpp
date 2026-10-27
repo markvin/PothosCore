@@ -3,10 +3,10 @@
 
 #include <Pothos/Remote.hpp>
 #include <Pothos/Util/SpinLockRW.hpp>
-#include <Poco/Net/StreamSocket.h>
-#include <Poco/Net/SocketStream.h>
-#include <Poco/URI.h>
-#include <future>
+#include "Net/Address.hpp"
+#include "Net/TcpStream.hpp"
+#include "Net/Uri.hpp"
+#include <chrono>
 #include <mutex>
 #include <map>
 #include <cassert>
@@ -20,9 +20,9 @@ static Pothos::Util::SpinLockRW &getLookupMutex(void)
     return lock;
 }
 
-static std::map<std::string, Poco::Net::IPAddress> &getNodeIdTable(void)
+static std::map<std::string, std::string> &getNodeIdTable(void)
 {
-    static std::map<std::string, Poco::Net::IPAddress> map;
+    static std::map<std::string, std::string> map;
     return map;
 }
 
@@ -31,65 +31,13 @@ std::string Pothos::RemoteClient::lookupIpFromNodeId(const std::string nodeId)
     Pothos::Util::SpinLockRW::SharedLock lock(getLookupMutex());
     auto it = getNodeIdTable().find(nodeId);
     if (it == getNodeIdTable().end()) return "";
-    return it->second.toString();
+    return it->second;
 }
 
-static void updateNodeIdTable(const Pothos::ProxyEnvironment::Sptr &env, const Poco::Net::IPAddress &ipAddr)
+static void updateNodeIdTable(const Pothos::ProxyEnvironment::Sptr &env, const std::string &ipAddr)
 {
     std::lock_guard<Pothos::Util::SpinLockRW> lock(getLookupMutex());
     getNodeIdTable()[env->getNodeId()] = ipAddr;
-}
-
-/***********************************************************************
- * lookupIpFromNodeId implementation
- **********************************************************************/
-static std::mutex &getDNSLookupMutex(void)
-{
-    static std::mutex mutex;
-    return mutex;
-}
-
-static std::map<std::string, std::shared_future<Poco::Net::IPAddress>> &getDNSFutures(void)
-{
-    static std::map<std::string, std::shared_future<Poco::Net::IPAddress>> map;
-    return map;
-}
-
-//! The blocking DNS lookup routine -- performed by an async future
-static Poco::Net::IPAddress dnsLookupBlocking(const std::string &host)
-{
-    return Poco::Net::SocketAddress(host, 0).host();
-}
-
-//! Perform a DNS lookup with a timeout - throws Poco::Exception
-static Poco::Net::IPAddress dnsLookup(const std::string &host, const long timeoutUs)
-{
-    //create a future or get an existing one
-    std::shared_future<Poco::Net::IPAddress> dnsFuture;
-    {
-        std::lock_guard<std::mutex> l(getDNSLookupMutex());
-        if (getDNSFutures().count(host) == 0)
-        {
-            getDNSFutures()[host] = std::async(std::launch::async, &dnsLookupBlocking, host);
-        }
-        dnsFuture = getDNSFutures().at(host);
-    }
-
-    //wait with a timeout for the future to complete
-    if (dnsFuture.wait_for(std::chrono::microseconds(timeoutUs)) != std::future_status::ready)
-    {
-        throw Poco::TimeoutException("DNS lookup for "+host);
-    }
-
-    //get the future, may throw exceptions from SocketAddress
-    const auto ipAddr = dnsFuture.get();
-
-    //remove the completed future from the map
-    {
-        std::lock_guard<std::mutex> l(getDNSLookupMutex());
-        getDNSFutures().erase(host);
-    }
-    return ipAddr;
 }
 
 /***********************************************************************
@@ -98,51 +46,26 @@ static Poco::Net::IPAddress dnsLookup(const std::string &host, const long timeou
 struct Pothos::RemoteClient::Impl
 {
     Impl(const std::string &uriStr, const long timeoutUs):
-        socketStream(clientSocket),
         uriStr(uriStr)
     {
-        //validate the URI
-        POTHOS_EXCEPTION_TRY
-        {
-            Poco::URI uri(uriStr);
-            if (uri.getScheme() != "tcp") throw InvalidArgumentException("unsupported URI scheme");
-        }
-        POTHOS_EXCEPTION_CATCH(const Exception &ex)
-        {
-            throw RemoteClientError("Pothos::RemoteClient("+uriStr+")", ex);
-        }
-
-        //extract port, for unspecified port -- use the default locator port
-        Poco::URI uri(uriStr);
-        auto port = uri.getPort();
-        if (port == 0) port = std::stoi(RemoteServer::getLocatorPort());
-
-        //perform the dns lookup
         try
         {
-            this->sa = Poco::Net::SocketAddress(dnsLookup(uri.getHost(), timeoutUs), port);
+            const auto uri = Pothos::Net::parseUri(uriStr);
+            if (uri.scheme != "tcp") throw InvalidArgumentException("unsupported URI scheme", uri.scheme);
+
+            //for unspecified port -- use the default locator port
+            const auto port = (uri.port == 0)? std::uint16_t(std::stoi(RemoteServer::getLocatorPort())) : uri.port;
+            stream = Pothos::Net::TcpStream::connect(uri.host, port, std::chrono::microseconds(timeoutUs));
+            peerHost = stream->peerHost();
         }
-        catch (const Poco::Exception &ex)
+        catch (const Exception &ex)
         {
             throw RemoteClientError("Pothos::RemoteClient("+uriStr+")", ex.displayText());
         }
-
-        //try to connect to the server
-        try
-        {
-            clientSocket.connect(this->sa, Poco::Timespan(0, timeoutUs));
-        }
-        catch (const Poco::Exception &ex)
-        {
-            throw RemoteClientError("Pothos::RemoteClient("+uriStr+")", ex.displayText());
-        }
-
-        clientSocket.setNoDelay(true);
     }
-    Poco::Net::StreamSocket clientSocket;
-    Poco::Net::SocketStream socketStream;
+    std::unique_ptr<Pothos::Net::TcpStream> stream;
     const std::string uriStr;
-    Poco::Net::SocketAddress sa;
+    std::string peerHost;
 };
 
 Pothos::RemoteClient::RemoteClient(void)
@@ -170,7 +93,7 @@ Pothos::RemoteClient::operator bool(void) const
 std::iostream &Pothos::RemoteClient::getIoStream(void) const
 {
     assert(_impl);
-    return _impl->socketStream;
+    return *_impl->stream;
 }
 
 Pothos::ProxyEnvironment::Sptr Pothos::RemoteClient::makeEnvironment(const std::string &name, const ProxyEnvironmentArgs &args)
@@ -178,7 +101,7 @@ Pothos::ProxyEnvironment::Sptr Pothos::RemoteClient::makeEnvironment(const std::
     assert(_impl);
     auto env = RemoteClient::makeEnvironment(this->getIoStream(), name, args);
     env->holdRef(Object(*this));
-    updateNodeIdTable(env, _impl->sa.host()); //update the node id table with this remote host
+    updateNodeIdTable(env, _impl->peerHost); //update the node id table with this remote host
     return env;
 }
 

@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <cstdlib> //atoi
 #include <functional>
+#include <chrono>
 
 class SuperBar
 {
@@ -228,4 +229,31 @@ POTHOS_TEST_BLOCK("/proxy/remote/tests", test_multithread_safe)
     //runtime registration does not associate the module
     //therefore to be safe, we unregister these classes now
     Pothos::ManagedClass::unload("EchoTester");
+}
+
+POTHOS_TEST_BLOCK("/proxy/remote/tests", test_remote_client_errors)
+{
+    POTHOS_TEST_THROWS(Pothos::RemoteClient("udp://localhost"), Pothos::RemoteClientError);
+    POTHOS_TEST_THROWS(Pothos::RemoteClient("tcp://[::1"), Pothos::RemoteClientError);
+    POTHOS_TEST_THROWS(Pothos::RemoteClient("localhost:1234"), Pothos::RemoteClientError);
+
+    //a port where nothing listens: refused quickly
+    std::string port;
+    {
+        Pothos::RemoteServer server("tcp://127.0.0.1");
+        port = server.getActualPort();
+    }
+    const auto start = std::chrono::steady_clock::now();
+    POTHOS_TEST_THROWS(Pothos::RemoteClient("tcp://127.0.0.1:"+port), Pothos::RemoteClientError);
+    POTHOS_TEST_TRUE(std::chrono::steady_clock::now() - start < std::chrono::seconds(2));
+}
+
+POTHOS_TEST_BLOCK("/proxy/remote/tests", test_remote_ipv4_to_wildcard)
+{
+    //a server on the wildcard address accepts an IPv4 loopback client
+    Pothos::RemoteServer server("tcp://"+Pothos::Util::getWildcardAddr());
+    Pothos::RemoteClient client("tcp://127.0.0.1:"+server.getActualPort());
+    auto env = client.makeEnvironment("managed");
+    POTHOS_TEST_EQUAL(env->findProxy("Pothos/Util/EvalEnvironment")().call<Pothos::Object>("eval", "1 + 2").convert<int>(), 3);
+    POTHOS_TEST_EQUAL(Pothos::RemoteClient::lookupIpFromNodeId(env->getNodeId()), "127.0.0.1");
 }

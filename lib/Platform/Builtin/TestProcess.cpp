@@ -6,6 +6,10 @@
 #include <Pothos/System/Paths.hpp>
 #include "Platform/Process.hpp"
 #include "Platform/Environment.hpp"
+#include "Net/TcpStream.hpp"
+#include "Util/StringUtils.hpp"
+#include <chrono>
+#include <thread>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -131,4 +135,45 @@ POTHOS_TEST_BLOCK("/platform/tests", test_process_no_fd_inheritance)
 POTHOS_TEST_BLOCK("/platform/tests", test_process_launch_failure)
 {
     POTHOS_TEST_THROWS(Process::launch("/no/such/exe", ProcessOptions()), Pothos::SystemException);
+}
+
+POTHOS_TEST_BLOCK("/platform/tests", test_process_self_termination)
+{
+    //the proxy server in --require-active mode terminates itself
+    //(requestSelfTermination) once its last connection closes
+    Pipe out;
+    ProcessOptions opts;
+    opts.args = {"--require-active", "--proxy-server=tcp://127.0.0.1:0"};
+    opts.out = &out;
+    auto proc = Process::launch(Pothos::System::getPothosUtilExecutablePath(), opts);
+
+    std::string port;
+    PipeInputStream is(out);
+    std::string line;
+    while (port.empty() and std::getline(is, line))
+    {
+        const auto tok = Pothos::Util::Detail::split(line, " ", true, false);
+        if (tok.size() >= 2 and tok[0] == "Port:") port = tok[1];
+    }
+    POTHOS_TEST_TRUE(not port.empty());
+
+    {
+        auto client = Pothos::Net::TcpStream::connect("127.0.0.1", std::uint16_t(std::stoi(port)), std::chrono::seconds(2));
+    }
+
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    std::optional<int> code;
+    while (not (code = proc.tryWait()) and std::chrono::steady_clock::now() < deadline)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+    if (not code) proc.kill();
+    POTHOS_TEST_TRUE(bool(code));
+}
+
+POTHOS_TEST_BLOCK("/platform/tests", test_self_termination_declared)
+{
+    //compile check: available to the proxy server on every platform
+    void (*fn)(void) = &requestSelfTermination;
+    POTHOS_TEST_TRUE(fn != nullptr);
 }

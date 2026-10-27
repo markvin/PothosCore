@@ -177,6 +177,13 @@ std::wstring buildWindowsCommandLine(const std::filesystem::path &exe, const std
  */
 std::wstring terminationEventName(const int pid);
 
+/*!
+ * Ask this process to terminate the way Process::requestTermination asks a
+ * child: SIGTERM on Unix, the named termination event on Windows (immediate
+ * exit when no one waits for it). Used by the proxy server in require-active mode.
+ */
+void requestSelfTermination(void);
+
 //! UTF-8 to wide string (UTF-16 on Windows, UTF-32 elsewhere)
 std::wstring utf8ToWide(const std::string &s);
 

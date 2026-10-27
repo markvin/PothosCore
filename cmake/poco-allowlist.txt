@@ -6,6 +6,5 @@ apps/PothosUtil.hpp
 apps/PothosUtilProxyServer.cpp
 lib/ConfLoader/ConfLoader.cpp
 lib/Plugin/ModuleSafeLoad.cpp
-lib/Remote/Client.cpp
 lib/Remote/Server.cpp
 lib/System/Logger.cpp
