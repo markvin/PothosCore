@@ -10,7 +10,7 @@
 
 using namespace Pothos::Util::Detail;
 
-POTHOS_TEST_BLOCK("/util/tests", test_property_file_poco_compat)
+POTHOS_TEST_BLOCK("/util/tests", test_property_file_compat)
 {
     //the grammar of the Poco PropertyFileConfiguration class
     std::istringstream is(
