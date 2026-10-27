@@ -19,6 +19,7 @@ write_basic_package_version_file(
 if(NOT PROJECT_IS_TOP_LEVEL)
     file(WRITE ${CMAKE_FIND_PACKAGE_REDIRECTS_DIR}/PothosConfig.cmake
         "set(POTHOS_IN_TREE_SOURCE_DIR \"${PROJECT_SOURCE_DIR}\")\n"
+        "set(POTHOS_IN_TREE_BINARY_DIR \"${PROJECT_BINARY_DIR}\")\n"
         "include(\"${PROJECT_SOURCE_DIR}/cmake/Modules/PothosConfig.cmake\")\n")
     file(COPY_FILE ${PROJECT_BINARY_DIR}/PothosConfigVersion.cmake
         ${CMAKE_FIND_PACKAGE_REDIRECTS_DIR}/PothosConfigVersion.cmake ONLY_IF_DIFFERENT)

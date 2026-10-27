@@ -71,14 +71,26 @@ if (POTHOS_IN_TREE_SOURCE_DIR)
     #a list of in-tree built libraries to generate a library path script
     set(IN_TREE_LIBRARIES Pothos)
 
-    #the PothosUtil wrapper of the in-tree build (no PothosUtil without the apps)
+    #the PothosUtil wrapper of the in-tree build (no PothosUtil without the apps):
+    #made once in the core's binary directory, every later include
+    #(the parent, the projects next to the core) only gets the variables
+    if(NOT POTHOS_IN_TREE_BINARY_DIR)
+        set(POTHOS_IN_TREE_BINARY_DIR ${PROJECT_BINARY_DIR})
+    endif()
     if(NOT DEFINED POTHOS_BUILD_APPS OR POTHOS_BUILD_APPS)
+        set(__POTHOS_UTIL_TARGET_NAME pothos_util_wrapper)
+        if(MSVC)
+            set(POTHOS_UTIL_EXE ${POTHOS_IN_TREE_BINARY_DIR}/PothosUtil.bat)
+        elseif(UNIX)
+            set(POTHOS_UTIL_EXE ${POTHOS_IN_TREE_BINARY_DIR}/PothosUtil.sh)
+        endif()
+    endif()
+    if(__POTHOS_UTIL_TARGET_NAME AND NOT TARGET ${__POTHOS_UTIL_TARGET_NAME})
         if(MSVC)
             set(built_dll_paths "%PATH%")
             foreach(target ${IN_TREE_LIBRARIES})
                 set(built_dll_paths "$<TARGET_FILE_DIR:${target}>;${built_dll_paths}")
             endforeach(target)
-            set(POTHOS_UTIL_EXE ${PROJECT_BINARY_DIR}/PothosUtil.bat)
             add_custom_command(
                 OUTPUT ${POTHOS_UTIL_EXE}
                 DEPENDS PothosUtil
@@ -95,7 +107,6 @@ if (POTHOS_IN_TREE_SOURCE_DIR)
             endforeach(target)
             find_program(POTHOS_SH_EXE sh)
             find_program(POTHOS_CHMOD_EXE chmod)
-            set(POTHOS_UTIL_EXE ${PROJECT_BINARY_DIR}/PothosUtil.sh)
             add_custom_command(
                 OUTPUT ${POTHOS_UTIL_EXE}
                 DEPENDS PothosUtil
@@ -108,7 +119,6 @@ if (POTHOS_IN_TREE_SOURCE_DIR)
             )
         endif()
 
-        set(__POTHOS_UTIL_TARGET_NAME ${PROJECT_NAME}PothosUtil)
         add_custom_target(${__POTHOS_UTIL_TARGET_NAME} DEPENDS ${POTHOS_UTIL_EXE})
     endif()
 

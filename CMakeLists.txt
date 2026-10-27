@@ -50,8 +50,8 @@ endif()
 set(POTHOS_VERSION "${POTHOS_LIBVER}-${POTHOS_EXTVER}")
 
 #set in-tree variables for PothosConfig.cmake
-set(Pothos_DIR ${PROJECT_SOURCE_DIR}/cmake/Modules)
 set(POTHOS_IN_TREE_SOURCE_DIR ${PROJECT_SOURCE_DIR})
+set(POTHOS_IN_TREE_BINARY_DIR ${PROJECT_BINARY_DIR})
 
 #POTHOS_ROOT is compiled into the library to locate the install base.
 #By default, the POTHOS_ROOT is set to the CMAKE_INSTALL_PREFIX.
@@ -110,7 +110,9 @@ add_subdirectory(third_party)
 ########################################################################
 # Build the framework library
 ########################################################################
-find_package(Pothos CONFIG REQUIRED)
+#the core's own configuration, included directly: find_package(Pothos) could
+#resolve to a parent's FetchContent redirect (OVERRIDE_FIND_PACKAGE)
+include(${PROJECT_SOURCE_DIR}/cmake/Modules/PothosConfig.cmake)
 add_subdirectory(include)
 add_subdirectory(lib)
 add_subdirectory(cmake/Modules)
