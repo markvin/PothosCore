@@ -1,5 +1,3 @@
 # Files that may still use Poco (see cmake/PothosCheckPoco.cmake).
 # Poco is being removed in phases: remove a line as soon as the file
 # stops using Poco. Public headers under include/ may never be listed.
-apps/PothosUtil.cpp
-apps/PothosUtil.hpp

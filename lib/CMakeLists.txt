@@ -180,6 +180,7 @@ add_library(Pothos SHARED
     Net/Builtin/TestNetTcp.cpp
     Net/Builtin/TestNetSyslog.cpp
     App/Builtin/TestOptions.cpp
+    App/Builtin/TestServer.cpp
     Util/Builtin/TestSIMDDispatcherUtils.cpp
 
     Archive/ArchiveEntry.cpp
@@ -240,8 +241,16 @@ pothos_internal_library(pothos_net
 target_link_libraries(pothos_net PUBLIC pothos_asio)
 
 #internal application support for PothosUtil (lib/App): command line, server modes
+if(WIN32)
+    set(app_server_source App/ServerWindows.cpp)
+else()
+    set(app_server_source App/ServerUnix.cpp)
+endif()
 pothos_internal_library(pothos_app
-    App/Options.cpp)
+    App/Options.cpp
+    App/PothosUtilOptions.cpp
+    ${app_server_source})
+target_link_libraries(pothos_app PUBLIC pothos_platform)
 
 target_link_libraries(Pothos PRIVATE pothos_platform pothos_net pothos_app)
 if(MSVC)

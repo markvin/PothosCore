@@ -4,6 +4,7 @@
 #include <Pothos/Testing.hpp>
 #include <Pothos/Exception.hpp>
 #include "App/Options.hpp"
+#include "App/PothosUtilOptions.hpp"
 #include <string>
 #include <utility>
 #include <vector>
@@ -30,21 +31,10 @@ const std::vector<OptionSpec> &testSpecs(void)
     return specs;
 }
 
-//! The options of PothosUtil used by the core and the CMake modules (until Task 3 exports the table)
+//! The real options of PothosUtil
 const std::vector<OptionSpec> &coreSpecs(void)
 {
-    static const std::vector<OptionSpec> specs{
-        {"require-active", 0, Arg::None, "", ""},
-        {"proxy-server", 0, Arg::Optional, "URI", ""},
-        {"load-module", 0, Arg::Required, "modulePath", ""},
-        {"success-code", 0, Arg::Required, "successCode", ""},
-        {"self-tests", 0, Arg::Optional, "pluginPath", ""},
-        {"self-test1", 0, Arg::Required, "pluginPath", ""},
-        {"doc-parse", 0, Arg::None, "", ""},
-        {"output", 0, Arg::Required, "outputFile", ""},
-        {"generate-simd-dispatchers", 0, Arg::Required, "inputFile", ""},
-        {"simd-arches", 0, Arg::Required, "simdArches", ""},
-    };
+    static const auto specs = pothosUtilOptions();
     return specs;
 }
 

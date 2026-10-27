@@ -47,7 +47,7 @@ void PothosUtilBase::docParse(const std::vector<std::string> &inputFilePaths)
     }
 
     //write to output (file if specified, otherwise stdout)
-    const auto outputFilePath = this->config().getString("outputFile", "");
+    const auto outputFilePath = this->config().getString("output", "");
     const size_t indentSpaces = 4;
     if (outputFilePath.empty())
     {

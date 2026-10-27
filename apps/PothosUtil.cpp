@@ -1,212 +1,38 @@
 // Copyright (c) 2013-2018 Josh Blum
 //                    2020 Nicholas Corgan
+//                    2026 Pothos contributors
 // SPDX-License-Identifier: BSL-1.0
 
 #include "PothosUtil.hpp"
-#include <Poco/Util/Application.h>
-#include <Poco/Util/ServerApplication.h>
-#include <Poco/Util/Option.h>
-#include <Poco/Util/OptionSet.h>
-#include <Poco/Util/HelpFormatter.h>
-#include <Poco/Util/IntValidator.h>
+#include "App/PothosUtilOptions.hpp"
+#include "App/Server.hpp"
 #include <Pothos/System.hpp>
 #include <Pothos/Exception.hpp>
+#include <charconv>
+#include <functional>
 #include <iostream>
+#include <map>
+#include <optional>
+#ifndef _WIN32
+#include <sys/stat.h>
+#endif
+
+//! Exit code for a bad command line or a failing command (EX_USAGE)
+static constexpr int ExitUsage = 64;
+
+void PothosUtilBase::waitForTerminationRequest(void)
+{
+    Pothos::App::waitForTerminationRequest();
+}
 
 class PothosUtil : public PothosUtilBase
 {
 public:
-    PothosUtil(int argc):
-        _helpRequested(argc <= 1),
-        _docParseRequested(false),
-        _deviceInfoRequested(false),
-        _runTopologyRequested(false),
-        _simdFeaturesRequested(false)
+    //! Parse the command line, \throws Pothos::Exception for invalid options
+    void parse(const std::vector<std::string> &args)
     {
-        this->setUnixOptions(true); //always unix style --option
-
-        //restore logging config after Poco::Util::Application::initialize() obliterates it
-        Pothos::System::Logger::setupDefaultLogging();
-    }
-
-    ~PothosUtil()
-    {
-        return;
-    }
-
-protected:
-
-    void defineOptions(Poco::Util::OptionSet &options)
-    {
-        Poco::Util::Application::defineOptions(options);
-
-        options.addOption(Poco::Util::Option("help", "h", "display argument help information")
-            .required(false)
-            .repeatable(false));
-
-        options.addOption(Poco::Util::Option("system-info", "", "display system information")
-            .required(false)
-            .repeatable(false)
-            .callback(Poco::Util::OptionCallback<PothosUtil>(this, &PothosUtil::printSystemInfo)));
-
-        options.addOption(Poco::Util::Option("module-info", "",
-            "Display a summary of loaded modules.\n"
-            "Or specify an optional module path to print the list of associated plugins."
-            "Or specify the special value of 'builtin' to see Builtin library plugins.")
-            .required(false)
-            .repeatable(false)
-            .argument("modulePath", false/*optional*/)
-            .binding("modulePath")
-            .callback(Poco::Util::OptionCallback<PothosUtil>(this, &PothosUtil::printModuleInfo)));
-
-        options.addOption(Poco::Util::Option("list-modules", "", "list all loaded modules")
-            .required(false)
-            .repeatable(false)
-            .callback(Poco::Util::OptionCallback<PothosUtil>(this, &PothosUtil::listModules)));
-
-        options.addOption(Poco::Util::Option("device-info", "", "display device information")
-            .required(false)
-            .repeatable(false)
-            .argument("deviceType", false/*optional*/)
-            .binding("deviceType"));
-
-        options.addOption(Poco::Util::Option("plugin-tree", "", "display plugin tree")
-            .required(false)
-            .repeatable(false)
-            .argument("pluginPath", false/*optional*/)
-            .callback(Poco::Util::OptionCallback<PothosUtil>(this, &PothosUtil::printPluginTree)));
-
-        options.addOption(Poco::Util::Option("proxy-server", "", "run the proxy server, tcp://bindHost:bindPort")
-            .required(false)
-            .repeatable(false)
-            .argument("URI", false/*optional*/)
-            .callback(Poco::Util::OptionCallback<PothosUtil>(this, &PothosUtil::proxyServer)));
-
-        options.addOption(Poco::Util::Option("load-module", "", "test load a library module")
-            .required(false)
-            .repeatable(false)
-            .argument("modulePath")
-            .callback(Poco::Util::OptionCallback<PothosUtil>(this, &PothosUtil::loadModule)));
-
-        options.addOption(Poco::Util::Option("run-topology", "", "run a topology from a JSON description")
-            .required(false)
-            .repeatable(false)
-            .argument("inputFile")
-            .binding("inputFile"));
-
-        options.addOption(Poco::Util::Option("run-duration", "", "run the topology for the duration in seconds")
-            .required(false)
-            .repeatable(false)
-            .argument("runDuration")
-            .binding("runDuration"));
-
-        options.addOption(Poco::Util::Option("idle-time", "",
-            "The maximum allowed idle time in seconds.\n"
-            "The topology will exit after all flows remain idle for the specified time in seconds. "
-            "Use this option with --run-duration to specify a timeout to wait for idle to occur. "
-            "PothosUtil will return an error code if the timeout is reached before idle occurs.")
-            .required(false)
-            .repeatable(false)
-            .argument("idleTime")
-            .binding("idleTime"));
-
-        options.addOption(Poco::Util::Option("var", "",
-            "Specify an arbitrary keyword + value variable\n"
-            "using the format --var=name:value\n"
-            "Multiple instances of --var are possible.\n"
-            "Use with --run-topology to overload globals.")
-            .required(false)
-            .repeatable(true)
-            .argument("variable")
-            .binding("variable"));
-
-        options.addOption(Poco::Util::Option("self-tests", "", "run all plugin self tests")
-            .required(false)
-            .repeatable(false)
-            .argument("pluginPath", false/*optional*/)
-            .callback(Poco::Util::OptionCallback<PothosUtil>(this, &PothosUtil::selfTests)));
-
-        options.addOption(Poco::Util::Option("self-test1", "", "run a particular plugin self test")
-            .required(false)
-            .repeatable(false)
-            .argument("pluginPath")
-            .callback(Poco::Util::OptionCallback<PothosUtil>(this, &PothosUtil::selfTestOne)));
-
-        options.addOption(Poco::Util::Option("num-trials", "", "how many times to run each self test")
-            .required(false)
-            .repeatable(false)
-            .argument("numTrials")
-            .validator(new Poco::Util::IntValidator(1, 255))
-            .binding("numTrials"));
-
-        options.addOption(Poco::Util::Option("success-code", "", "the success status return code (default 0)")
-            .required(false)
-            .repeatable(false)
-            .argument("successCode")
-            .validator(new Poco::Util::IntValidator(0, 255))
-            .binding("successCode"));
-
-        options.addOption(Poco::Util::Option("require-active", "", "proxy server shuts off without active clients")
-            .required(false)
-            .repeatable(false)
-            .binding("requireActive"));
-
-        options.addOption(Poco::Util::Option("output", "",
-            "Specify an output file (used by various options)\n"
-            "Use with --run-topology to dump JSON statistics.")
-            .required(false)
-            .repeatable(false)
-            .argument("outputFile")
-            .binding("outputFile"));
-
-        options.addOption(Poco::Util::Option("doc-parse", "", "parse specified files for documentation markup")
-            .required(false)
-            .repeatable(false));
-
-        options.addOption(Poco::Util::Option("proxy-environment-info", "", "display information for a given proxy environment")
-            .required(false)
-            .repeatable(false)
-            .argument("proxyEnvName", false/*optional*/)
-            .binding("proxyEnvName")
-            .callback(Poco::Util::OptionCallback<PothosUtil>(this, &PothosUtil::printProxyEnvironmentInfo)));
-
-        options.addOption(Poco::Util::Option("simd-features", "", "print available SIMD features")
-            .required(false)
-            .repeatable(false));
-
-        options.addOption(Poco::Util::Option("generate-simd-dispatchers", "", "Generate SIMD dispatchers based on a given JSON file")
-            .required(false)
-            .repeatable(false)
-            .argument("inputFile")
-            .binding("inputFile")
-            .callback(Poco::Util::OptionCallback<PothosUtil>(this, &PothosUtil::generateSIMDDispatchers)));
-
-        options.addOption(Poco::Util::Option("simd-arches", "", "A comma-delimited list of SIMD arches, as generated at CMake-time")
-            .required(false)
-            .repeatable(false)
-            .argument("simdArches")
-            .binding("simdArches"));
-
-        options.addOption(Poco::Util::Option("type-conversions", "", "Print types convertible to and from a given type")
-            .required(false)
-            .repeatable(false)
-            .argument("type", false /*optional*/)
-            .binding("type")
-            .callback(Poco::Util::OptionCallback<PothosUtil>(this, &PothosUtil::printTypeConversions)));
-    }
-
-    void handleOption(const std::string &name, const std::string &value)
-    {
-        ServerApplication::handleOption(name, value);
-        if (name == "help") _helpRequested = true;
-        if (name == "doc-parse") _docParseRequested = true;
-        if (name == "device-info") _deviceInfoRequested = true;
-        if (name == "run-topology") _runTopologyRequested = true;
-        if (name == "simd-features") _simdFeaturesRequested = true;
-        if (name == "help") this->stopOptionsProcessing();
-
-        //store --var options into the ordered vars map
-        if (name == "var")
+        _config = Pothos::App::parseCommandLine(Pothos::App::pothosUtilOptions(), args);
+        for (const auto &value : _config.getAll("var"))
         {
             const auto pos = value.find(":");
             if (pos == std::string::npos) throw Pothos::InvalidArgumentException(
@@ -217,58 +43,97 @@ protected:
 
     void displayHelp(void)
     {
-        Poco::Util::HelpFormatter helpFormatter(this->options());
-        helpFormatter.setUnixStyle(true); //always unix style --option
-        helpFormatter.setCommand(commandName());
-        helpFormatter.setUsage("OPTIONS");
-        helpFormatter.setHeader("\n"
+        std::cout << Pothos::App::formatHelp(Pothos::App::pothosUtilOptions(), "PothosUtil OPTIONS",
             "PothosUtil is a helper executable for the Pothos Library; "
             "used both internally by the library, and externally by the user. "
             "The util provides a command-line interface for the self-tests, "
-            "and can spawn servers and daemons for remote interfaces. ");
-        helpFormatter.format(std::cout);
+            "and can spawn servers and daemons for remote interfaces.");
     }
 
-    int main(const std::vector<std::string> &args)
+    //! Run the commands: those with a value in command line order, then the first flag command
+    void runCommands(void)
     {
-        try
+        using Command = void (PothosUtilBase::*)(const std::string &, const std::string &);
+        static const std::map<std::string, Command> commands{
+            {"system-info", &PothosUtilBase::printSystemInfo},
+            {"module-info", &PothosUtilBase::printModuleInfo},
+            {"list-modules", &PothosUtilBase::listModules},
+            {"plugin-tree", &PothosUtilBase::printPluginTree},
+            {"proxy-server", &PothosUtilBase::proxyServer},
+            {"load-module", &PothosUtilBase::loadModule},
+            {"self-tests", &PothosUtilBase::selfTests},
+            {"self-test1", &PothosUtilBase::selfTestOne},
+            {"proxy-environment-info", &PothosUtilBase::printProxyEnvironmentInfo},
+            {"generate-simd-dispatchers", &PothosUtilBase::generateSIMDDispatchers},
+            {"type-conversions", &PothosUtilBase::printTypeConversions},
+        };
+        for (const auto &[name, value] : _config.given())
         {
-            if (_helpRequested) this->displayHelp();
-            else if (_docParseRequested) this->docParse(args);
-            else if (_deviceInfoRequested) this->printDeviceInfo();
-            else if (_runTopologyRequested) this->runTopology();
-            else if (_simdFeaturesRequested) this->printSIMDFeatures();
+            const auto it = commands.find(name);
+            if (it != commands.end()) (this->*(it->second))(name, value);
         }
-        catch(const Pothos::Exception &ex)
-        {
-            std::cerr << ex.displayText() << std::endl;
-            std::cout << std::endl;
-            throw ex;
-        }
-        return Poco::Util::Application::EXIT_OK;
-    }
 
-private:
-    bool _helpRequested;
-    bool _docParseRequested;
-    bool _deviceInfoRequested;
-    bool _runTopologyRequested;
-    bool _simdFeaturesRequested;
+        if (_config.has("doc-parse")) this->docParse(_config.positional());
+        else if (_config.has("device-info")) this->printDeviceInfo();
+        else if (_config.has("run-topology")) this->runTopology();
+        else if (_config.has("simd-features")) this->printSIMDFeatures();
+    }
 };
+
+#ifndef _WIN32
+static std::optional<unsigned> parseUmask(const Pothos::App::CommandLine &config)
+{
+    if (not config.has("umask")) return std::nullopt;
+    const auto text = config.getString("umask");
+    unsigned value = 0;
+    const auto result = std::from_chars(text.data(), text.data()+text.size(), value, 8);
+    if (text.empty() or result.ec != std::errc() or result.ptr != text.data()+text.size() or value > 0777)
+    {
+        throw Pothos::InvalidArgumentException("--umask="+text, "expected an octal mask such as 027");
+    }
+    return value;
+}
+#endif
 
 int main(int argc, char *argv[])
 {
-    POTHOS_EXCEPTION_TRY
+    PothosUtil app;
+    try
     {
-        PothosUtil app(argc);
-        const int ret = app.run(argc, argv);
-        if (ret == 0) return app.config().getInt("successCode", 0);
-        return ret;
+        app.parse(std::vector<std::string>(argv+1, argv+argc));
     }
-    POTHOS_EXCEPTION_CATCH(const Pothos::Exception &ex)
+    catch (const Pothos::Exception &ex)
+    {
+        std::cerr << ex.displayText() << std::endl;
+        return ExitUsage;
+    }
+
+    if (argc <= 1 or app.config().has("help"))
+    {
+        app.displayHelp();
+        return 0;
+    }
+
+    try
+    {
+        //server modes first: fork before Pothos starts any thread
+        std::optional<Pothos::App::PidFile> pidFile;
+        #ifndef _WIN32
+        const auto umaskValue = parseUmask(app.config());
+        if (app.config().has("daemon")) Pothos::App::becomeDaemon(umaskValue);
+        else if (umaskValue) ::umask(static_cast<mode_t>(*umaskValue));
+        if (app.config().has("pidfile")) pidFile.emplace(app.config().getString("pidfile"));
+        #endif
+        Pothos::App::installTerminationHandlers();
+
+        Pothos::System::Logger::setupDefaultLogging();
+        app.runCommands();
+        return app.config().getInt("success-code", 0);
+    }
+    catch (const Pothos::Exception &ex)
     {
         std::cerr << ex.displayText() << std::endl;
         std::cout << std::endl;
     }
-    return Poco::Util::Application::EXIT_USAGE;
+    return ExitUsage;
 }

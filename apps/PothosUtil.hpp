@@ -1,15 +1,16 @@
 // Copyright (c) 2013-2018 Josh Blum
 //                    2020 Nicholas Corgan
+//                    2026 Pothos contributors
 // SPDX-License-Identifier: BSL-1.0
 
 #pragma once
 #include <string>
 #include <Pothos/Init.hpp>
-#include <Poco/Util/ServerApplication.h>
+#include "App/Options.hpp"
 #include <utility> //pair
 #include <vector>
 
-class PothosUtilBase : public Poco::Util::ServerApplication
+class PothosUtilBase
 {
 public:
     virtual ~PothosUtilBase(void){}
@@ -29,6 +30,18 @@ public:
     void generateSIMDDispatchers(const std::string &, const std::string &);
     void printTypeConversions(const std::string &, const std::string &);
 
-    //! Variables passed in via the --vars option
+    //! The parsed command line
+    const Pothos::App::CommandLine &config(void) const
+    {
+        return _config;
+    }
+
+    //! Block until a termination request (signal, Ctrl-C, Process::requestTermination)
+    void waitForTerminationRequest(void);
+
+    //! Variables passed in via the --var option
     std::vector<std::pair<std::string, std::string>> _vars;
+
+protected:
+    Pothos::App::CommandLine _config;
 };

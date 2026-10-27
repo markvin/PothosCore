@@ -124,7 +124,7 @@ void PothosUtilBase::printProxyEnvironmentInfo(const std::string&, const std::st
 {
     Pothos::ScopedInit init;
 
-    const auto proxyEnvName = this->config().getString("proxyEnvName");
+    const auto proxyEnvName = this->config().getString("proxy-environment-info");
     if (proxyEnvName.empty())
     {
         std::cout << ">>> Specify --proxy-environment-info=proxyEnvName for more information..." << std::endl;
