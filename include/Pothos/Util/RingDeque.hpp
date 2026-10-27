@@ -109,9 +109,9 @@ public:
     //! Empty the contents of this queue
     void clear(void);
 
-    typedef T value_type; //!< The element type
+    using value_type = T; //!< The element type
 
-    typedef Allocator allocator_type; //!< The allocator type
+    using allocator_type = Allocator; //!< The allocator type
 
 private:
     Allocator _allocator;

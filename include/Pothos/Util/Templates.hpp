@@ -12,110 +12,62 @@
 #pragma once
 #include <Pothos/Config.hpp>
 #include <complex> // std::complex
-#include <type_traits> //std::decay
+#include <type_traits> //std::decay, std::unwrap_ref_decay_t
 #include <functional> //std::reference_wrapper
+#include <utility> //std::index_sequence
 
 namespace Pothos {
 namespace Util {
 
 /*!*********************************************************************
- * \defgroup unwrapref Implementation for unwrap_refwrapper and special_decay_t
+ * \defgroup unwrapref special_decay_t
  * special_decay_t = decay + unwrapping a reference wrapper
- * \see http://en.cppreference.com/w/cpp/utility/tuple/make_tuple
  * \{
  **********************************************************************/
 
 /*!
- * Template base implementation to extract the type of non-reference wrappers
+ * Extract the type held within a reference wrapper (T& for std::reference_wrapper<T>, else T).
+ * Same as std::unwrap_reference, kept for toolkits.
  * \tparam T the input type to the template
  */
 template <typename T>
-struct unwrap_refwrapper
-{
-    using type = T; //!< the input type of non-reference wrappers
-};
-
-/*!
- * Template specialization to extract the type held within a reference wrapper
- * \tparam T the input type to the template
- */
-template <typename T>
-struct unwrap_refwrapper<std::reference_wrapper<T>>
-{
-    using type = T&; //!< the type held within a reference wrapper
-};
+using unwrap_refwrapper = std::unwrap_reference<T>;
 
 /*!
  * Strip const and reference from a type, and remove optional reference wrapper.
+ * Same as std::unwrap_ref_decay_t, kept for toolkits.
  * \tparam T the input type to the template
  */
 template <typename T>
-using special_decay_t = typename unwrap_refwrapper<typename std::decay<T>::type>::type;
+using special_decay_t = std::unwrap_ref_decay_t<T>;
 //! \}
 
 /*!*********************************************************************
- * \defgroup intseq Integer sequence implementation for C++11
- * This can be removed when C++14 is required.
+ * \defgroup intseq Integer sequences
+ * Aliases of the standard integer sequences, kept for toolkits.
  * \see http://en.cppreference.com/w/cpp/utility/integer_sequence
  * \{
  **********************************************************************/
 
-/*!
- * A parameter pack of incrementing numbers 0 to N-1
- * \tparam T the integer type
- * \tparam Ints the parameter pack of integers
- */
+//! A parameter pack of incrementing numbers 0 to N-1
 template<typename T, T... Ints>
-struct integer_sequence
-{
-    typedef T value_type; //!< The type of each integer
+using integer_sequence = std::integer_sequence<T, Ints...>;
 
-    //! The size of the integer pack
-    static constexpr std::size_t size(void) noexcept
-    {
-        return sizeof...(Ints);
-    }
-};
-
-//! \cond
-template<typename T, int N, T... Ints>
-struct GenSeq : GenSeq<T, N-1, T(N-1), Ints...> {};
-
-template<typename T, T... Ints>
-struct GenSeq<T, 0, Ints...>
-{
-    typedef integer_sequence<T, Ints...> Type;
-};
-//! \endcond
-
-/*!
- * Specialize the integer sequence for size_t
- * \tparam Ints the parameter pack of integers
- */
+//! Specialize the integer sequence for size_t
 template<std::size_t... Ints>
-using index_sequence = integer_sequence<std::size_t, Ints...>;
+using index_sequence = std::index_sequence<Ints...>;
 
-/*!
- * Make an integer sequence from the length
- * \tparam T the integer type
- * \tparam N the length
- */
+//! Make an integer sequence from the length
 template<typename T, T N>
-using make_integer_sequence = typename GenSeq<T, int(N)>::Type;
+using make_integer_sequence = std::make_integer_sequence<T, N>;
 
-/*!
- * Make an index sequence from the length
- * \tparam N the length
- */
+//! Make an index sequence from the length
 template<std::size_t N>
-using make_index_sequence = make_integer_sequence<std::size_t, N>;
+using make_index_sequence = std::make_index_sequence<N>;
 
-/*!
- * Make an index sequence from a parameter pack
- * \tparam T the parameter pack
- */
+//! Make an index sequence from a parameter pack
 template<typename... T>
-using index_sequence_for = make_index_sequence<sizeof...(T)>;
+using index_sequence_for = std::index_sequence_for<T...>;
 //! \}
 
 /*!*********************************************************************

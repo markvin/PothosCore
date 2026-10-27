@@ -165,6 +165,7 @@ add_library(Pothos SHARED
     Util/Builtin/TestPropertyFile.cpp
     Util/Builtin/TestTesting.cpp
     Util/Builtin/TestSpinLock.cpp
+    Util/Builtin/TestTemplates.cpp
     Util/Builtin/TestRingDeque.cpp
     Util/Builtin/TestStringUtils.cpp
     Util/Builtin/TestTempFile.cpp

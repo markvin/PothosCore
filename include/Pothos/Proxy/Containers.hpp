@@ -16,10 +16,10 @@
 
 namespace Pothos {
 
-typedef std::vector<Proxy> ProxyVector;
+using ProxyVector = std::vector<Proxy>;
 
-typedef std::set<Proxy> ProxySet;
+using ProxySet = std::set<Proxy>;
 
-typedef std::map<Proxy, Proxy> ProxyMap;
+using ProxyMap = std::map<Proxy, Proxy>;
 
 } // namespace Pothos

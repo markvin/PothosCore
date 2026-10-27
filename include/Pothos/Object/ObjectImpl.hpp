@@ -12,8 +12,7 @@
 #include <Pothos/Config.hpp>
 #include <Pothos/Object/Object.hpp>
 #include <Pothos/Object/Exception.hpp>
-#include <Pothos/Util/Templates.hpp> //special_decay_t
-#include <type_traits> //std::decay
+#include <type_traits> //std::decay, std::unwrap_ref_decay_t
 #include <utility> //std::forward
 #include <atomic>
 
@@ -62,7 +61,7 @@ template <typename ValueType, typename... Args>
 typename std::enable_if<!std::is_same<NullObject, ValueType>::value, ObjectContainer *>::type
 makeObjectContainer(Args&&... args)
 {
-    return new ObjectContainerT<Pothos::Util::special_decay_t<ValueType>>(std::forward<Args>(args)...);
+    return new ObjectContainerT<std::unwrap_ref_decay_t<ValueType>>(std::forward<Args>(args)...);
 }
 
 template <typename ValueType, typename... Args>

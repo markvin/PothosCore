@@ -13,10 +13,9 @@
 #include <Pothos/Callable/Callable.hpp>
 #include <Pothos/Callable/CallInterfaceImpl.hpp>
 #include <Pothos/Object/ObjectImpl.hpp>
-#include <Pothos/Util/Templates.hpp> //integer_sequence
 #include <functional> //std::function
 #include <type_traits> //std::type_info, std::is_void
-#include <utility> //std::forward
+#include <utility> //std::forward, std::index_sequence
 
 namespace Pothos {
 namespace Detail {
@@ -66,7 +65,7 @@ public:
 
     Object call(const Object *args)
     {
-        return call(args, Pothos::Util::index_sequence_for<ArgsType...>{});
+        return call(args, std::index_sequence_for<ArgsType...>{});
     }
 
 private:
@@ -89,7 +88,7 @@ private:
 
     //! implement call() using a generator sequence to handle array access
     template<std::size_t ...S>
-    Object call(const Object *args, Pothos::Util::index_sequence<S...>)
+    Object call(const Object *args, std::index_sequence<S...>)
     {
         checkArgs(args); //fixes warning for 0 args case
         return CallHelper<

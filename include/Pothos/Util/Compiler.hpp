@@ -49,7 +49,7 @@ public:
 class POTHOS_API Compiler
 {
 public:
-    typedef std::shared_ptr<Compiler> Sptr;
+    using Sptr = std::shared_ptr<Compiler>;
 
     //! Compiler destructor
     virtual ~Compiler(void);

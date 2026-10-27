@@ -58,7 +58,7 @@ class POTHOS_API BufferManager
 {
 public:
 
-    typedef std::shared_ptr<BufferManager> Sptr;
+    using Sptr = std::shared_ptr<BufferManager>;
 
     using AllocateFcn = std::function<SharedBuffer(const BufferManagerArgs& args)>;
 

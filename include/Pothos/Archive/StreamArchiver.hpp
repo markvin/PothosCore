@@ -30,7 +30,7 @@ public:
     OStreamArchiver(std::ostream &os);
 
     //! Tell the invoker that this archiver saves
-    typedef std::true_type isSave;
+    using isSave = std::true_type;
 
     /*!
      * Serialize value with the & operator
@@ -70,7 +70,7 @@ public:
     IStreamArchiver(std::istream &is);
 
     //! Tell the invoker that this archiver loads
-    typedef std::false_type isSave;
+    using isSave = std::false_type;
 
     /*!
      * Deserialize value with the & operator

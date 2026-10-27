@@ -101,7 +101,7 @@ class POTHOS_API LabelIteratorRange
 public:
 
     //! Const Label iterator type
-    typedef const Label* const_iterator;
+    using const_iterator = const Label*;
 
     //! Create an empty/invalid LabelIteratorRange
     LabelIteratorRange(void);
