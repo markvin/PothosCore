@@ -4,7 +4,7 @@
 
 **Goal:** Remote (клиент, сервер, прокси-сервер `PothosUtil`), пересылка и приём логов по syslog/UDP и `Util/Network` работают на standalone Asio; Poco Net и `Poco::URI` больше не используются, библиотека Poco Net не собирается.
 
-**Architecture:** Внутренний модуль `lib/Net/` (namespace `Pothos::Net`, заголовки не устанавливаются) — общий `io_context` с фоновым потоком, разбор URI и адресов, блокирующий `TcpStream` (`std::iostream` поверх сокета) и `TcpServer` (асинхронный accept, поток на соединение, обработчик соединения не знает о Remote), syslog-кодек RFC 5424/3164 с UDP-отправителем и слушателем. Remote сохраняет протокол (`Archive` поверх `std::iostream`), меняется только транспорт. Asio — git-сабмодуль, подключается как PRIVATE INTERFACE-цель `pothos_asio`.
+**Architecture:** Внутренний модуль `lib/Net/` (namespace `Pothos::Net`, заголовки не устанавливаются) — общий `io_context` с фоновым потоком, разбор URI и адресов, блокирующий `TcpStream` (`std::iostream` поверх сокета) и `TcpServer` (асинхронный accept, поток на соединение, обработчик соединения не знает о Remote), syslog-кодек RFC 5424/3164 с UDP-отправителем и слушателем. Remote сохраняет протокол (`Archive` поверх `std::iostream`), меняется только транспорт. Asio — копия заголовков в `third_party/asio` (решение пользователя), подключается как PRIVATE INTERFACE-цель `pothos_asio`.
 
 **Tech Stack:** C++23, standalone Asio 1.38.2 (`ASIO_STANDALONE`, `ASIO_NO_DEPRECATED`), CMake/CTest, самотесты `POTHOS_TEST_BLOCK`.
 
@@ -14,7 +14,7 @@
 
 - C++23; Linux GCC/Clang, macOS, Windows MSVC — все четыре CI-job зелёные; Remote-тесты (`/proxy/remote/tests`) включены на всех платформах.
 - Asio не виден в `include/Pothos/**` и не требуется потребителю через `PothosConfig.cmake` (тест `pothos.consumer`: регулярка дополняется `asio`).
-- Сборка не скачивает ничего, кроме `git submodule update`; системные библиотеки — только ОС (на Windows `ws2_32`, `mswsock`).
+- Сборка ничего не скачивает (Asio в дереве); системные библиотеки — только ОС (на Windows `ws2_32`, `mswsock`).
 - «Пересылка логов по UDP остаётся совместимой с syslog (сообщения читаются rsyslog/journald; listener принимает стандартный syslog)» (спека).
 - «Внутренний сетевой слой на Asio проектируется так, чтобы поверх него можно было добавить HTTP/WebSocket-сервер без переделки (общий io_context/потоки, абстракция соединения, не завязанная на протокол Remote)» (спека). HTTP/WebSocket не реализуется.
 - Протокол Remote менять можно, но не нужно: формат `Archive` и публичные `RemoteClient`/`RemoteServer`/`RemoteHandler`/`Util/Network.hpp` не меняются.
@@ -24,7 +24,7 @@
 
 ## Решения (на утверждение)
 
-1. **Asio — сабмодуль** `asio` в корне (как `poco`, `libsimdpp`), тег `asio-1-38-2`; заголовки из `asio/asio/include`. Альтернатива — копия в `third_party/` (~500 файлов в истории).
+1. **Asio — копия в `third_party/asio`** (решение пользователя, 2026-10-27): `include/` и `LICENSE_1_0.txt` из тега `asio-1-38-2`, версия и источник — в `third_party/asio/README.md`.
 2. **Модель исполнения:** один общий `io_context` на процесс с одним фоновым потоком (`Net::ioContext()`), запуск лениво, остановка при выгрузке библиотеки. На нём — accept, приём syslog, тайм-ауты connect/resolve. Чтение/запись Remote — блокирующие, поток на соединение (как у Poco `TCPServer`): `RemoteHandler` синхронный.
 3. **Формат syslog (отправка):** RFC 5424 поверх UDP, facility `user`:
    `<PRI>1 2026-10-27T12:00:00.123456Z HOST Pothos PID - [pothos@32473 source="..." level="trace" tid="..."] TEXT`.
@@ -45,11 +45,11 @@
 ### Task 1: Asio в дереве, URI и адреса
 
 **Files:**
-- Create: `.gitmodules` запись `asio` (URL `https://github.com/chriskohlhoff/asio.git`, тег `asio-1-38-2`); `lib/Net/Uri.hpp`, `lib/Net/Uri.cpp`, `lib/Net/Address.hpp`, `lib/Net/Address.cpp`, `lib/Net/IoContext.hpp`, `lib/Net/IoContext.cpp`, `lib/Net/Builtin/TestNetAddress.cpp`
-- Modify: `third_party/CMakeLists.txt` (цель `pothos_asio`), `lib/CMakeLists.txt` (исходники `Net/`, `pothos_asio` PRIVATE), `lib/Util/Network.cpp`, `lib/Framework/TopologyNetworkFlows.cpp`, `cmake/poco-allowlist.txt` (−2 строки), `tests/consumer/CMakeLists.txt` (регулярка `Poco|nlohmann|simdpp|asio`), `.github/workflows/ci.yml` и `README.md`, `CLAUDE.md` (`git submodule update --init poco libsimdpp asio`)
+- Create: `third_party/asio/` (`include/`, `LICENSE_1_0.txt`, `README.md` с версией), `lib/Net/Uri.hpp, `lib/Net/Uri.cpp`, `lib/Net/Address.hpp`, `lib/Net/Address.cpp`, `lib/Net/IoContext.hpp`, `lib/Net/IoContext.cpp`, `lib/Net/Builtin/TestNetAddress.cpp`
+- Modify: `third_party/CMakeLists.txt` (цель `pothos_asio`), `lib/CMakeLists.txt` (исходники `Net/`, `pothos_asio` PRIVATE), `lib/Util/Network.cpp`, `lib/Framework/TopologyNetworkFlows.cpp`, `cmake/poco-allowlist.txt` (−2 строки), `tests/consumer/CMakeLists.txt` (регулярка `Poco|nlohmann|simdpp|asio`), `README.md` и `CLAUDE.md` (Asio в списке вендоренного кода)
 
 **Interfaces (namespace `Pothos::Net`):**
-- `pothos_asio`: INTERFACE, `SYSTEM` include `asio/asio/include`, определения `ASIO_STANDALONE ASIO_NO_DEPRECATED`, на Windows `_WIN32_WINNT=0x0A00` и `ws2_32 mswsock`; FATAL_ERROR, если сабмодуль не инициализирован.
+- `pothos_asio`: INTERFACE, `SYSTEM` include `third_party/asio/include`, определения `ASIO_STANDALONE ASIO_NO_DEPRECATED`, на Windows `_WIN32_WINNT=0x0A00` и `ws2_32 mswsock`.
 - `struct Uri { std::string scheme; std::string host; std::uint16_t port = 0; };` — `host` без скобок, `port == 0` — не задан.
 - `Uri parseUri(std::string_view s);` — `scheme://host[:port][/]`; IPv6 только в скобках; ошибка — `Pothos::InvalidArgumentException` с исходной строкой.
 - `std::string toString(const Uri &uri);` — скобки для хоста с `:`, порт только если не 0.
@@ -59,7 +59,7 @@
 - `bool ipv6Supported();` — UDP-сокет на `::` открывается и привязывается.
 - `asio::ip::address resolveHost(const std::string &host, std::chrono::microseconds timeout);` — асинхронный resolve на `ioContext()`, ожидание с тайм-аутом; `Pothos::TimeoutException` / `Pothos::IOException` (текст ошибки ОС).
 
-- [ ] **Step 1: Сабмодуль и цель CMake:** `git submodule add https://github.com/chriskohlhoff/asio.git asio`, checkout тега; `pothos_asio` в `third_party/CMakeLists.txt`; CI, README, CLAUDE.md, регулярка consumer.
+- [ ] **Step 1: Копия Asio и цель CMake:** заголовки тега `asio-1-38-2` в `third_party/asio/include`; `pothos_asio` в `third_party/CMakeLists.txt`; README, CLAUDE.md, регулярка consumer.
 - [ ] **Step 2: Тесты `TestNetAddress.cpp`** (`/net/tests`):
   - `test_net_uri`: `tcp://localhost:16415` → `{tcp, localhost, 16415}`; `tcp://[::1]:80` → host `::1`; `tcp://[::]` → port 0; `toString({tcp,"::1",80}) == "tcp://[::1]:80"`; `toString({tcp,"10.0.0.1",0}) == "tcp://10.0.0.1"`; ошибки: `localhost:1`, `tcp://`, `tcp://::1:80`, `tcp://h:70000`, `tcp://h:x`, `tcp://h:1/path`.
   - `test_net_host_port`: `parseHostPort("[::1]:514", 1)` → `{::1, 514}`; `"logs.local"` → порт по умолчанию; `"1.2.3.4:9"`; ошибки как у URI; `formatHostPort("::1", 5) == "[::1]:5"`.
