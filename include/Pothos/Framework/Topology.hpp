@@ -188,8 +188,8 @@ public:
      * At this point the scheduler will call the block's work()
      * functions when the data at its inputs becomes available.
      *
-     * Some flows need blocks from the blocks toolkit (PothosBlocks),
-     * which is not part of the core library:
+     * Some flows need blocks from the blocks modules of the core
+     * (blocks/, built unless POTHOS_BUILD_BLOCKS=OFF):
      *   - a connection between incompatible port domains inserts /blocks/copier;
      *   - a connection between blocks in different processes
      *     (remote environments, on this host or another) inserts

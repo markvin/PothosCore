@@ -54,6 +54,12 @@ ctest --test-dir build --output-on-failure
   by `pothos.blocks.selftests`. Use `<nlohmann/json.hpp>`, never `<json.hpp>`;
   shared helpers go to `blocks/common/` (`Testing.hpp`, `ByteOrder.hpp`).
   A blocks test that needs blocks of another module goes in with that module.
+- SIMD: a file compiled once per architecture (`pothos_multiarch`,
+  `PothosGenerateSIMDSources`) includes `SIMD/XSIMDCopy.hpp` first (own xsimd
+  namespace per copy, AVX-512F workaround), never `<xsimd/xsimd.hpp>`
+  directly; `Pothos::Util::XSIMDTraits<T>` follows the copy's xsimd arch.
+  Blocks SIMD kernels need `POTHOS_BUILD_APPS` (PothosUtil generates the
+  dispatchers).
 - Single self-test:
   `cmake -DPREFIX=build/stage -DTEST_HOME_DIR=build/test-home -DBINDIR=bin -DLIBDIR=lib -DTEST_PATH=/framework/tests/test_mmap_shared_buffer -P cmake/PothosRunSelfTests.cmake`
 - CI: `.github/workflows/ci.yml` (Linux GCC/Clang, macOS, Windows MSVC).
@@ -85,6 +91,8 @@ ctest --test-dir build --output-on-failure
 - Child processes: `Pothos::Platform::ProcessOptions`; to ignore a child's
   output set `discardOutput` (null device). Never pass pipes and close them:
   the child dies with SIGPIPE on its first print (that broke module safe load).
+- `Pothos::Net::TcpStream`: a read never flushes the output (remote calls
+  read and write one stream from several threads); writers flush.
 - Logging: `POTHOS_LOG_ERROR("My.Source", "fmt {}", value)` etc. from
   `<Pothos/System/Logger.hpp>` (std::format, async writer, Fatal/Critical
   synchronous, `Logger::flush()`). Sinks/config internals:

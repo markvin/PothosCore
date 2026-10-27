@@ -10,9 +10,29 @@ Repository:
   debian packaging are removed; the toolkits live in their own repositories
 - find_package(Pothos) finds the core added with add_subdirectory or
   FetchContent (for the parent and the toolkits next to it)
+- The blocks toolkit moved into the core tree (blocks/, PothosBlocks history
+  merged): built with the core (POTHOS_BUILD_BLOCKS, ON) on the core's
+  vendored json, xsimd and Asio; no Poco
 - Topology::commit() throws TopologyConnectError naming the missing block
   when a domain crossing (/blocks/copier) or a flow across processes/hosts
-  (/blocks/network_*) needs PothosBlocks and it is not installed
+  (/blocks/network_*) needs the blocks modules and they are not installed
+
+Blocks:
+
+- Network blocks on Asio with timeouts: a stalled peer ends with an error
+  instead of blocking commit(); IPv6 loopback tested; datagram IO tested
+- Stream SIMD kernels on xsimd 14; results match the scalar code
+  (isnormal excludes subnormals, isnegative is signbit, minmax fixed)
+
+Fixes:
+
+- Module safe load no longer kills the child with a broken pipe (no module
+  could be safe-loaded): ProcessOptions::discardOutput
+- A read of the TCP stream no longer flushes its output: remote calls from
+  several threads on one connection got each other's replies
+- Pothos/Util/XSIMDTraits.hpp follows the xsimd 14 architecture (it reported
+  no SIMD support for every type)
+- Generated SIMD dispatchers include <cstddef> and <cstdint>
 
 Expressions (EvalEnvironment):
 

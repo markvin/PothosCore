@@ -1,23 +1,26 @@
-# A collection of core processing blocks
+# Blocks toolkit
 
-The processing blocks found in this project offer core functionality,
-and do not incur external dependencies.
-More information to come as this project fills in.
+General purpose processing blocks, built with the Pothos core
+(option `POTHOS_BUILD_BLOCKS`, ON). Formerly the separate project
+https://github.com/pothosware/PothosBlocks; its history is kept here.
 
-## Documentation
+Modules (each a directory, registered with `pothos_blocks_module()` in
+`CMakeLists.txt`): event, file, network, packet, serialize, stream, testers.
+The blocks use the core's vendored dependencies (nlohmann/json, xsimd,
+Asio through `lib/Net`) and its internal header-only helpers (`lib/`);
+`common/` holds the helpers shared by the modules.
 
-* https://github.com/pothosware/PothosBlocks/wiki
+The topology of the core inserts `/blocks/copier` (domain crossing) and
+`/blocks/network_sink` / `/blocks/network_source` (flows across processes).
 
-## Dependencies
+## Tests
 
-* Pothos library
-
-## Building and installing
-
-configure, build, and install with CMake
+Every module lists its self-tests (`TESTS`); CTest runs them one by one in
+`pothos.blocks.selftests` and with all others in `pothos.selftests`.
 
 ## Licensing information
 
 Use, modification and distribution is subject to the Boost Software
 License, Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
-http://www.boost.org/LICENSE_1_0.txt)
+http://www.boost.org/LICENSE_1_0.txt). The SIMD kernels in `stream/SIMD`
+are BSD-3-Clause, as marked in their headers.
