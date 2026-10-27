@@ -1,0 +1,19 @@
+# SDD ledger — plan: docs/superpowers/plans/2026-10-27-phase6a-cmake-subproject.md
+Plan approved by the user 2026-10-27 as written.
+Pre-flight: T1 produces the subproject test and the CMake changes; T2 compares the standalone build against pothos2 — no shared code interfaces. No conflicts.
+Task 1: Ruling: POTHOS_BUILD_DOCS defaults to PROJECT_IS_TOP_LEVEL and docs/ builds when Doxygen is found (the old ENABLE_LIBRARY_DOCS feature entry became 'Docs' on DOXYGEN_FOUND); pothos.selftests is only registered with POTHOS_BUILD_APPS; pothos.subproject only at top level (no recursion); the default Release build type moved from the in-tree PothosConfig.cmake to the top-level CMakeLists (FORCE into the cache only when empty and single-config) — cost if wrong: none for standalone builds
+Task 1: complete (commits 503f3dc..740c46d, tests: ctest --test-dir build --output-on-failure → Total Test time (real) =  29.47 sec)
+Task 2: standalone comparison (clean Debug builds of pothos2 and this branch, installed): install_manifest identical, RUNPATH $ORIGIN/../lib for PothosUtil and libPothos.so in both, ctest -N identical except the new pothos.subproject, compile_commands.json generated; clean GCC and Clang builds 5/5
+Task 2: complete (commits 740c46d..e7730b5, tests: ctest --test-dir build --output-on-failure → Total Test time (real) =  28.90 sec)
+Final review: opus reviewer, verdict "With fixes" (1 Critical, 4 Important, 7 Minor)
+Final: fixed C-1 POTHOS_BUILD_APPS=OFF failed at generate time (in-tree PothosUtil wrapper referenced the missing PothosUtil target) — wrapper only when the apps are built; pothos.subproject configures with -DPOTHOS_BUILD_APPS=OFF (RED before the fix: the run failed in the reviewer's repro; covered by the rewritten test)
+Final: fixed I-2 pothos_uninstall could not work (the install manifest is the parent's) — Ruling: no uninstall target at all inside a parent project (plan decision 2 named pothos_uninstall) — cost if wrong: subproject users uninstall through the parent; the test checks there is no pothos_uninstall
+Final: fixed I-3 generic cache names in both directions (NUMA_LIBRARIES enabled NUMA from the parent's cache; ATOMIC_LIBRARIES, RT_LIBRARIES, COREFOUNDATION_LIBRARY, SH_EXE, CHMOD_EXE, CAN_COMPILE_*/CAN_RUN_* leaked) — all prefixed POTHOS_; NUMA requires POTHOS_ENABLE_LIBNUMA; test RED (17 leaked entries listed) → GREEN
+Final: fixed I-4 docs target collided with a parent's docs target — renamed pothos_docs (feature "Pothos docs"); test configures with -DPOTHOS_BUILD_DOCS=ON and a parent docs target
+Final: fixed I-5 pothos.subproject could not fail on most checks — the parent now has enable_testing()+its own test, a cache snapshot diff (allowed: POTHOS_/Pothos/CMAKE_/FETCHCONTENT_/_ prefixes, STATIC, and the FindDoxygen entries DOXYGEN_*/FIND_PACKAGE_MESSAGE_DETAILS_* — Ruling: standard CMake module caches when the parent opts into the docs), its own NUMA_LIBRARIES/uninstall/docs, four configurations (default, tests, no apps, docs); M-6 regex paths fixed with it (string(FIND))
+Final: minor (deferred): M-7 version hash taken from a parent git repo when the core is vendored without .git
+Final: minor (deferred): M-8 an installed Pothos found by the parent plus add_subdirectory(core) fails (ALIAS Pothos::Pothos exists)
+Final: minor (deferred): M-9 find_package(Pothos) after add_subdirectory(core) does not find the config (noted in the roadmap for phase 7)
+Final: minor (deferred): M-10 INSTALL_RPATH_USE_LINK_PATH is hard-wired (packagers could turn CMAKE_INSTALL_RPATH_USE_LINK_PATH off before)
+Final: minor (deferred): M-11 pothos.subproject forwards only the generator and the compilers (no toolchain file / make program)
+Final: minor (deferred): M-12 CMP0144 policy warning from the in-tree find_package(Pothos) (also standalone)
