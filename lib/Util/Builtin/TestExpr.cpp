@@ -94,7 +94,12 @@ POTHOS_TEST_BLOCK("/util/tests", test_expr_lex_numbers)
     tok = lexOne("9223372036854775808");
     POTHOS_TEST_TRUE(tok.kind == Tok::Int and tok.needsMinus);
     POTHOS_TEST_TRUE(not lexOne("9223372036854775807").needsMinus);
-    POTHOS_TEST_EQUAL(errorPos([]{tokenize("9223372036854775809");}), 0);
+    //larger decimal literals (JSON uint64) become float
+    tok = lexOne("18446744073709551615");
+    POTHOS_TEST_TRUE(tok.kind == Tok::Float);
+    POTHOS_TEST_EQUAL(std::get<double>(tok.literal.data), 18446744073709551615.0);
+    POTHOS_TEST_TRUE(lexOne("1" + std::string(400, '0')).kind == Tok::Float);
+    POTHOS_TEST_EQUAL(errorPos([]{tokenize("0x10000000000000000");}), 0);
     POTHOS_TEST_EQUAL(errorPos([]{tokenize("0x10000000000000000");}), 0);
     POTHOS_TEST_EQUAL(errorPos([]{tokenize("1 + 0315");}), 4);
     POTHOS_TEST_EQUAL(errorPos([]{tokenize("0x");}), 0);
@@ -411,9 +416,11 @@ POTHOS_TEST_BLOCK("/util/tests", test_expr_int_overflow)
     POTHOS_TEST_TRUE(same(ev("-9223372036854775808"), Value(INT64_MIN)));
     POTHOS_TEST_TRUE(same(ev("[1, - 9223372036854775808]"), Value(List{Value(1), Value(INT64_MIN)})));
     POTHOS_TEST_TRUE(same(ev("-9223372036854775808 + 1"), Value(INT64_MIN+1)));
-    POTHOS_TEST_EQUAL(errorPos([]{ev("9223372036854775808");}), 0);
-    POTHOS_TEST_EQUAL(errorPos([]{ev("1 - 9223372036854775808");}), 4);
-    POTHOS_TEST_EQUAL(errorPos([]{ev("-9223372036854775808**1");}), 1);
+    POTHOS_TEST_TRUE(same(ev("9223372036854775808"), Value(9223372036854775808.0)));
+    POTHOS_TEST_TRUE(same(ev("1 - 9223372036854775808"), Value(1.0 - 9223372036854775808.0)));
+    POTHOS_TEST_TRUE(same(ev("-9223372036854775808**1"), Value(-9223372036854775808.0)));
+    POTHOS_TEST_TRUE(same(ev("-9223372036854775809"), Value(-9223372036854775809.0)));
+    POTHOS_TEST_TRUE(same(ev("18446744073709551615"), Value(18446744073709551615.0)));
     POTHOS_TEST_TRUE(errorMessage("--9223372036854775808").find("integer overflow") != std::string::npos);
     POTHOS_TEST_TRUE(same(ev("(-9223372036854775807-1)%-1"), Value(0)));
     POTHOS_TEST_TRUE(same(ev("(-2)**63"), Value(INT64_MIN)));

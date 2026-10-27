@@ -190,7 +190,12 @@ private:
             tok.literal = Value(std::numeric_limits<std::int64_t>::min());
             tok.needsMinus = true;
         }
-        else fail("integer literal is too large", start);
+        else
+        {
+            //larger decimal literals (JSON uint64 numbers) become float
+            tok.kind = Tok::Float;
+            tok.literal = Value(parseDecimalFloat(intPart, "", ""));
+        }
     }
 
     static void appendUtf8(std::string &out, const std::uint32_t cp)

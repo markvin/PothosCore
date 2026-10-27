@@ -30,7 +30,7 @@ struct Token
     std::string_view text; //!< source text (points into the expression)
     std::size_t pos;       //!< offset into the expression (0-based)
     Value literal;
-    bool needsMinus = false; //!< Int 2**63: valid only as the operand of a unary minus (literal holds INT64_MIN)
+    bool needsMinus = false; //!< Int 2**63: int only as the operand of a unary minus (literal holds INT64_MIN), float otherwise
 };
 
 /*!

@@ -26,7 +26,8 @@ namespace Util {
  * list ([1, 2]) and dict ({'key': value}).
  *
  * Literals: 42, 0x2A, 0o52, 0b101010, 1_000, 1.5, .5, 1e-05, 2j;
- * a decimal integer with a leading zero (0315) is an error, use 0o315.
+ * a decimal integer with a leading zero (0315) is an error, use 0o315;
+ * a decimal integer beyond the 64-bit range is a float.
  * String escapes: \" \' \\ \/ \n \t \r \b \f \0 \xHH \uXXXX.
  *
  * Operators by increasing precedence:

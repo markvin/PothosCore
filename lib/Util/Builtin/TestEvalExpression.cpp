@@ -333,6 +333,7 @@ POTHOS_TEST_BLOCK("/util/tests", test_eval_json_superset)
     const std::vector<json> values{
         json(-3), json(0), json(1e-05), json(-2.5), json(1.7976931348623157e308), json(5e-324),
         json(true), json(false), json(nullptr), json(std::numeric_limits<long long>::min()),
+        json(std::numeric_limits<long long>::max()),
         json("tab\tquote\"\xc3\xa9 back\\slash /"), json("\x01\x1f"), json(""),
         json::parse(R"([1, [2.5, "x"], {}])"),
         json::parse(R"({"a": {"b": [true, null]}, "c": "d"})"),
@@ -343,6 +344,15 @@ POTHOS_TEST_BLOCK("/util/tests", test_eval_json_superset)
         std::cout << "  " << j.dump() << std::endl;
         POTHOS_TEST_TRUE(matchesJson(env.eval(j.dump()), j));
     }
+}
+
+POTHOS_TEST_BLOCK("/util/tests", test_eval_json_uint64)
+{
+    //JSON integers above INT64_MAX evaluate to double
+    Pothos::Util::EvalEnvironment env;
+    const auto obj = env.eval(json(std::numeric_limits<std::uint64_t>::max()).dump());
+    POTHOS_TEST_TRUE(obj.type() == typeid(double));
+    POTHOS_TEST_EQUAL(obj.extract<double>(), 18446744073709551615.0);
 }
 
 POTHOS_TEST_BLOCK("/util/tests", test_eval_unknown_name_throws)

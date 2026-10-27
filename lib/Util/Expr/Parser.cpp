@@ -299,7 +299,14 @@ private:
         switch (tok.kind)
         {
         case Tok::Int:
-            if (tok.needsMinus) fail("integer literal is too large", pos);
+            if (tok.needsMinus)
+            {
+                //2**63 without a unary minus: float like the larger decimal literals
+                auto node = this->make(Node::Kind::Literal, pos);
+                node->literal = Value(9223372036854775808.0);
+                _i++;
+                return node;
+            }
             [[fallthrough]];
         case Tok::Float:
         case Tok::Imag:

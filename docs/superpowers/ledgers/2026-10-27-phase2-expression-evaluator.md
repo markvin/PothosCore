@@ -17,7 +17,7 @@ Task 8: clang++ build-clang: ctest 5/5 pass, no warnings in lib/Util/Expr, EvalE
 Final review: opus reviewer, verdict "With fixes" (0 Critical, 2 Important, 8 Minor)
 Final: fixed I-1 stack overflow on small thread stacks — test_expr_depth_small_stack (256 KiB thread) RED (SIGSEGV) → GREEN; parser uses precedence climbing + one and/or function, MaxNesting 256→100, MaxTreeDepth 1024→256 (now in Parser.hpp); suite 5/5
 Final: fixed I-2 libc++ stream fallback turned subnormals into 0 / overflow into DBL_MAX — test_expr_float_stream_fallback RED → GREEN (parseFloatStream decides from the stored value); suite 5/5
-Final: Ruling: M-3 JSON integers above INT64_MAX stay an error (approved semantics rule 2 vs. JSON-superset constraint) — surfaced to the user for a decision — cost if wrong: Topology::make fails for a uint64 JSON number
+Final: M-3 decided by the user (2026-10-27): decimal integer literals beyond int64 become float (bare 2**63 too; -9223372036854775808 stays int) — test_eval_json_uint64 and lexer/overflow tests RED → GREEN, suite 5/5
 Final: minor (deferred): M-1 from_chars out-of-range direction is decided by the exponent sign, not the magnitude ("0.000…1" with 400 zeros → inf)
 Final: minor (deferred): M-2 Value nesting depth is unbounded for values built via constants (registerConstant* chains, deep ProxyVector)
 Final: minor (deferred): M-4 user constants may shadow true/false/null/True/False/None

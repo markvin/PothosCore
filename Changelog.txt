@@ -12,6 +12,7 @@ Expressions (EvalEnvironment):
 - Incompatible: / always gives a float, // is floor division
 - Incompatible: octal literals need the 0o prefix (0315 is an error)
 - Integer overflow is an error, unknown names are always an error
+- Decimal integer literals beyond 64 bits (JSON uint64 numbers) are floats
 - Duplicate dict keys: the last value wins
 
 Release 0.8.0 (pending)
