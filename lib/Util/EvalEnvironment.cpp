@@ -1,292 +1,124 @@
 // Copyright (c) 2014-2017 Josh Blum
 //                    2020 Nicholas Corgan
+//                    2026 Pothos contributors
 // SPDX-License-Identifier: BSL-1.0
 
-#include "Builtin/MupOctalValReader.hpp"
-
-#include "mpParser.h"
-#include "mpPackageUnit.h"
-#include "mpPackageStr.h"
-#include "mpPackageCmplx.h"
-#include "mpPackageCommon.h"
-#include "mpPackageMatrix.h"
-
 #include <Pothos/Util/EvalEnvironment.hpp>
-#include <Pothos/Object.hpp>
-#include <Pothos/Framework/DType.hpp>
-#include <Pothos/Object/Containers.hpp>
-#include <Pothos/Proxy.hpp>
-#include "Util/StringUtils.hpp"
-#include <string>
-#include <vector>
+#include <Pothos/Exception.hpp>
+#include "Util/Expr/Convert.hpp"
+#include "Util/Expr/Eval.hpp"
+#include <array>
+#include <algorithm>
 #include <map>
-#include <iostream>
 #include <mutex>
+#include <shared_mutex>
+#include <string>
 
-static const std::string mapTypeId("__map__");
-static const std::string tmpTypeId("__tmp__");
+using namespace Pothos::Util;
 
-/***********************************************************************
- * convert parser value into a native object
- **********************************************************************/
-static Pothos::Object mupValueToObject(mup::IValue &val)
+namespace {
+
+//! Constant names are identifiers that are not keywords
+bool isValidName(const std::string &name)
 {
-    switch (val.GetType())
-    {
-    case 'b': return Pothos::Object(val.GetBool());
-    case 'i': return Pothos::Object(val.GetInteger());
-    case 'f': return Pothos::Object(val.GetFloat());
-    case 'c': return Pothos::Object(val.GetComplex());
-    case 's': return Pothos::Object(val.GetString());
-    case 'm': break;
-    default: Pothos::Exception("EvalEnvironment::mupValueToObject()", "unknown type " + val.AsciiDump());
-    }
-
-    assert(val.GetType() == 'm');
-    auto env = Pothos::ProxyEnvironment::make("managed");
-
-    //detect if this array is a flattened map
-    const bool isMap = (val.GetCols() % 2) == 1 and
-        val.At(0, 0).GetType() == 's' and
-        val.At(0, 0).GetString() == mapTypeId;
-
-    //support array to vector
-    Pothos::ProxyVector vec(val.GetCols());
-    for (size_t i = 0; i < vec.size(); i++)
-    {
-        const auto obj_i = mupValueToObject(val.At(0, i));
-        vec[i] = env->convertObjectToProxy(obj_i);
-    }
-    if (not isMap) return Pothos::Object(vec);
-
-    //special case map mode (array -> vector -> map)
-    Pothos::ProxyMap map;
-    for (size_t i = 0; i < vec.size()/2; i++)
-    {
-        map[vec[i*2 + 1]] = vec[i*2 + 2];
-    }
-    return Pothos::Object(map);
+    static const std::array<std::string_view, 5> keywords{"and", "or", "not", "if", "else"};
+    const auto isStart = [](const char ch){return (ch >= 'a' and ch <= 'z') or (ch >= 'A' and ch <= 'Z') or ch == '_';};
+    const auto isChar = [&isStart](const char ch){return isStart(ch) or (ch >= '0' and ch <= '9');};
+    if (name.empty() or not isStart(name.front())) return false;
+    if (not std::ranges::all_of(name, isChar)) return false;
+    return std::ranges::find(keywords, name) == keywords.end();
 }
 
-/***********************************************************************
- * convert native object into a parser value
- **********************************************************************/
-static mup::Value objectToMupValue(const Pothos::Object &obj)
+void checkName(const std::string &where, const std::string &key)
 {
-    //types that the parser library specifically typedefs
-    if (obj.type() == typeid(mup::string_type)) return mup::Value(obj.extract<mup::string_type>());
-    if (obj.type() == typeid(mup::float_type)) return mup::Value(obj.extract<mup::float_type>());
-    if (obj.type() == typeid(mup::bool_type)) return mup::Value(obj.extract<mup::bool_type>());
-    if (obj.type() == typeid(mup::int_type)) return mup::Value(obj.extract<mup::int_type>());
-    if (obj.type() == typeid(mup::cmplx_type)) return mup::Value(obj.extract<mup::cmplx_type>());
-
-    //other numeric types
-    try
-    {
-        Pothos::DType dtype(obj.type());
-        if (dtype.isComplex()) return mup::Value(obj.convert<mup::cmplx_type>());
-        if (dtype.isFloat()) return mup::Value(obj.convert<mup::float_type>());
-        //types that fit into the parser's integer type, otherwise use floating point
-        if (dtype.size() <= sizeof(mup::int_type)) return mup::Value(obj.convert<mup::int_type>());
-        else return mup::Value(obj.convert<mup::float_type>());
-    }
-    catch (...) {}
-
-    //support proxy vector to parser array
-    if (obj.canConvert(typeid(Pothos::ProxyVector)))
-    {
-        const Pothos::ProxyVector vec = obj;
-        mup::Value arr(1, vec.size(), 0.0);
-        for (size_t i = 0; i < vec.size(); i++)
-        {
-            arr.At(0, i) = objectToMupValue(vec[i].toObject());
-        }
-        return arr;
-    }
-
-    //support proxy map to parser array
-    if (obj.canConvert(typeid(Pothos::ProxyMap)))
-    {
-        const Pothos::ProxyMap map = obj;
-        mup::Value arr(1, map.size()*2+1, 0.0);
-        size_t i = 0;
-        arr.At(0, i++) = mup::Value(mapTypeId);
-        for (const auto &pair : map)
-        {
-            arr.At(0, i++) = objectToMupValue(pair.first.toObject());
-            arr.At(0, i++) = objectToMupValue(pair.second.toObject());
-        }
-        return arr;
-    }
-
-    throw Pothos::Exception("EvalEnvironment::objectToMupValue()", "unknown type " + obj.getTypeString());
+    if (not isValidName(key)) throw Pothos::Exception(where, "invalid constant name '" + key + "'");
 }
+
+} //namespace
 
 /***********************************************************************
  * Evaluator implementation
  **********************************************************************/
-struct Pothos::Util::EvalEnvironment::Impl
+struct EvalEnvironment::Impl
 {
-    Impl(void):
-        p(0)
+    //! Evaluate with the constants under a shared lock (they are copied out by the evaluator)
+    Expr::Value evaluate(const std::string &expr)
     {
-        // Note: the parser object takes ownership of this pointer and will
-        // free it on destruction.
-        p.AddValueReader(new MupOctalValReader);
-
-        // These packages must be added *after* adding our custom octal reader
-        // because of how parsing works. Octal notation requires starting with
-        // 0, but if the octal and hex parsers do not come first, the 0 will
-        // have been parsed, and the octal reader will fail.
-        p.AddPackage(mup::PackageCommon::Instance());
-        p.AddPackage(mup::PackageCmplx::Instance());
-        p.AddPackage(mup::PackageStr::Instance());
-        p.AddPackage(mup::PackageUnit::Instance());
-        p.AddPackage(mup::PackageMatrix::Instance());
-
-        p.DefineConst("True", true);
-        p.DefineConst("False", false);
-        p.DefineConst("j", std::complex<double>(0.0, 1.0));
+        try
+        {
+            const auto tree = Expr::parse(expr);
+            std::shared_lock lock(mutex);
+            return Expr::evaluate(*tree, [this](const std::string_view name) -> const Expr::Value *
+            {
+                const auto it = constants.find(name);
+                return (it == constants.end())? nullptr : &it->second;
+            });
+        }
+        catch (const Expr::ExprError &ex)
+        {
+            throw Pothos::Exception("EvalEnvironment::eval",
+                std::string(ex.what()) + " at column " + std::to_string(ex.pos+1) + " in: " + expr);
+        }
     }
-    std::mutex parserMutex;
-    mup::ParserX p;
+
+    void define(const std::string &key, Expr::Value value)
+    {
+        std::unique_lock lock(mutex);
+        constants.insert_or_assign(key, std::move(value));
+    }
+
+    std::shared_mutex mutex;
+    std::map<std::string, Expr::Value, std::less<>> constants;
 };
 
-std::shared_ptr<Pothos::Util::EvalEnvironment> Pothos::Util::EvalEnvironment::make(void)
+std::shared_ptr<EvalEnvironment> EvalEnvironment::make(void)
 {
-    return std::shared_ptr<EvalEnvironment>(new EvalEnvironment());
+    return std::make_shared<EvalEnvironment>();
 }
 
-Pothos::Util::EvalEnvironment::EvalEnvironment(void):
-    _impl(new Impl())
+EvalEnvironment::EvalEnvironment(void):
+    _impl(std::make_shared<Impl>())
 {
     return;
 }
 
-void Pothos::Util::EvalEnvironment::registerConstantExpr(const std::string &key, const std::string &expr)
+Pothos::Object EvalEnvironment::eval(const std::string &expr)
 {
+    return Expr::toObject(_impl->evaluate(expr));
+}
+
+void EvalEnvironment::registerConstantExpr(const std::string &key, const std::string &expr)
+{
+    const std::string where("EvalEnvironment::registerConstantExpr(" + key + ")");
+    checkName(where, key);
     try
     {
-        const auto result = objectToMupValue(this->eval(expr));
-        this->unregisterConstant(key);
-        _impl->p.DefineConst(key, result);
+        _impl->define(key, _impl->evaluate(expr));
     }
-    catch (const mup::ParserError &ex)
+    catch (const Pothos::Exception &ex)
     {
-        throw Pothos::Exception("EvalEnvironment::eval("+expr+")", ex.GetMsg());
+        throw Pothos::Exception(where, ex.message());
     }
 }
 
-void Pothos::Util::EvalEnvironment::registerConstantObj(const std::string &key, const Pothos::Object &obj)
+void EvalEnvironment::registerConstantObj(const std::string &key, const Pothos::Object &obj)
 {
+    const std::string where("EvalEnvironment::registerConstantObj(" + key + ")");
+    checkName(where, key);
     try
     {
-        const auto result = objectToMupValue(obj);
-        this->unregisterConstant(key);
-        _impl->p.DefineConst(key, result);
+        _impl->define(key, Expr::fromObject(obj));
     }
-    catch (const mup::ParserError &ex)
+    catch (const Pothos::Exception &ex)
     {
-        throw Pothos::Exception("EvalEnvironment::registerConstantObj("+key+")", ex.GetMsg());
+        throw Pothos::Exception(where, ex.message());
     }
 }
 
-void Pothos::Util::EvalEnvironment::unregisterConstant(const std::string &key)
+void EvalEnvironment::unregisterConstant(const std::string &key)
 {
-    if (_impl->p.IsConstDefined(key)) _impl->p.RemoveConst(key);
-}
-
-Pothos::Object Pothos::Util::EvalEnvironment::eval(const std::string &expr)
-{
-    if (Pothos::Util::Detail::trim(expr).empty()) throw Pothos::Exception("EvalEnvironment::eval()", "expression is empty");
-
-    //handle multiple containers in top level
-    const auto tokens = EvalEnvironment::splitExpr(expr);
-    if (tokens.size() > 1)
-    {
-        size_t index = 0;
-        std::string newExpr;
-        for (const auto &tok : tokens)
-        {
-            if (tok.empty()) continue;
-            if (tok.front() == '[' or tok.front() == '{')
-            {
-                const std::string key = tmpTypeId + std::to_string(index++);
-                this->registerConstantObj(key, this->eval(tok));
-                newExpr += key;
-            }
-            else
-            {
-                newExpr += tok;
-            }
-        }
-        return this->eval(newExpr);
-    }
-
-    //list syntax mode
-    const auto inBrackets = expr.size() >= 2 and expr.front() == '[' and expr.back() == ']';
-    if (inBrackets) return this->_evalList(expr);
-
-    //map syntax mode
-    const auto inBraces = expr.size() >= 2 and expr.front() == '{' and expr.back() == '}';
-    if (inBraces) return this->_evalMap(expr);
-
-    //use the muparser
-    try
-    {
-        std::lock_guard<std::mutex> lock(_impl->parserMutex);
-        _impl->p.SetExpr(expr);
-        mup::Value result = _impl->p.Eval();
-        return mupValueToObject(result);
-    }
-    catch (const mup::ParserError &ex)
-    {
-        throw Pothos::Exception("EvalEnvironment::eval("+expr+")", ex.GetMsg());
-    }
-
-    throw Pothos::Exception("EvalEnvironment::eval("+expr+")", "unknown result");
-}
-
-Pothos::Object Pothos::Util::EvalEnvironment::_evalList(const std::string &expr)
-{
-    auto env = Pothos::ProxyEnvironment::make("managed");
-    Pothos::ProxyVector vec;
-    const auto noBrackets = expr.substr(1, expr.size()-2);
-    for (const auto &tok : EvalEnvironment::splitExpr(noBrackets, ','))
-    {
-        try
-        {
-            vec.emplace_back(env->convertObjectToProxy(this->eval(tok)));
-        }
-        catch (const Pothos::Exception &ex)
-        {
-            throw Pothos::Exception("EvalEnvironment::eval("+expr+")", ex.message());
-        }
-    }
-    return Pothos::Object(vec);
-}
-
-Pothos::Object Pothos::Util::EvalEnvironment::_evalMap(const std::string &expr)
-{
-    auto env = Pothos::ProxyEnvironment::make("managed");
-    Pothos::ProxyMap map;
-    const auto noBrackets = expr.substr(1, expr.size()-2);
-    for (const auto &tok : EvalEnvironment::splitExpr(noBrackets, ','))
-    {
-        const auto keyVal = EvalEnvironment::splitExpr(tok, ':');
-        if (keyVal.size() != 2) throw Pothos::Exception("EvalEnvironment::eval("+tok+")", "not key:value");
-        try
-        {
-            const auto key = env->convertObjectToProxy(this->eval(keyVal[0]));
-            const auto val = env->convertObjectToProxy(this->eval(keyVal[1]));
-            map.emplace(key, val);
-        }
-        catch (const Pothos::Exception &ex)
-        {
-            throw Pothos::Exception("EvalEnvironment::eval("+expr+")", ex.message());
-        }
-    }
-    return Pothos::Object(map);
+    std::unique_lock lock(_impl->mutex);
+    _impl->constants.erase(key);
 }
 
 #include <Pothos/Managed.hpp>

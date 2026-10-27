@@ -1,5 +1,20 @@
 This this the changelog file for the Pothos C++ library.
 
+pothos2 (in development)
+==========================
+
+Expressions (EvalEnvironment):
+
+- Built-in expression evaluator replaces muparserx (submodule removed)
+- Python-like syntax, a superset of JSON: None/null, True/true, lists, dicts,
+  chained comparisons, and/or/not, x if c else y, indexing
+- Incompatible: ^ is bitwise xor, use ** for power (2^3 is now 1)
+- Incompatible: / always gives a float, // is floor division
+- Incompatible: octal literals need the 0o prefix (0315 is an error)
+- Integer overflow is an error, unknown names are always an error
+- Decimal integer literals beyond 64 bits (JSON uint64 numbers) are floats
+- Duplicate dict keys: the last value wins
+
 Release 0.8.0 (pending)
 ==========================
 
