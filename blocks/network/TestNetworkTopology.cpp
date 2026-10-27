@@ -41,7 +41,8 @@ POTHOS_TEST_BLOCK("/blocks/tests", test_network_topology)
         Pothos::Topology topology;
         topology.connect(feeder, 0, collector, 0);
         topology.commit();
-        POTHOS_TEST_TRUE(topology.waitInactive());
+        //the network blocks between the processes pause on flow control
+        POTHOS_TEST_TRUE(topology.waitInactive(0.5, 20.0));
     }
 
     collector.call("verifyTestPlan", expected);

@@ -22,6 +22,11 @@
 
 using json = nlohmann::json;
 
+//the network blocks are quiet while they wait for flow control: a longer
+//idle time than the default, or a slow runner looks done before the last data
+static const double NetworkIdle = 0.5;
+static const double NetworkIdleTimeout = 20.0;
+
 static void network_test_harness(const std::string &scheme, const bool serverIsSource,
     const std::string &bindHost = Pothos::Util::getWildcardAddr(),
     const std::function<std::string(const std::string &)> &connectAddr = [](const std::string &port){return Pothos::Util::getLoopbackAddr(port);})
@@ -81,7 +86,7 @@ static void network_test_harness(const std::string &scheme, const bool serverIsS
     testPlan["enableBuffers"] = true;
     auto expected = feeder.call("feedTestPlan", testPlan.dump());
     topology.commit();
-    POTHOS_TEST_TRUE(topology.waitInactive());
+    POTHOS_TEST_TRUE(topology.waitInactive(NetworkIdle, NetworkIdleTimeout));
     collector.call("verifyTestPlan", expected);
 
     //test packets with labels and messages
@@ -90,7 +95,7 @@ static void network_test_harness(const std::string &scheme, const bool serverIsS
     testPlan["enableBuffers"] = false;
     expected = feeder.call("feedTestPlan", testPlan.dump());
     topology.commit();
-    POTHOS_TEST_TRUE(topology.waitInactive());
+    POTHOS_TEST_TRUE(topology.waitInactive(NetworkIdle, NetworkIdleTimeout));
     collector.call("verifyTestPlan", expected);
 
     std::cout << "Done!\n" << std::endl;

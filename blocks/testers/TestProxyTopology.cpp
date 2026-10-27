@@ -100,7 +100,8 @@ POTHOS_TEST_BLOCK("/blocks/tests", test_proxy_subtopology)
         topology.connect(feeder, "0", forwarder, "t_in");
         topology.connect(forwarder, "t_out", collector, "0");
         topology.commit();
-        POTHOS_TEST_TRUE(topology.waitInactive());
+        //the network blocks between the processes pause on flow control
+        POTHOS_TEST_TRUE(topology.waitInactive(0.5, 20.0));
     }
 
     std::cout << "verifyTestPlan!\n";

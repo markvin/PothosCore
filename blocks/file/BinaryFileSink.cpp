@@ -20,7 +20,8 @@ public:
 
     void deactivate() override
     {
-        close(_fd);
+        //close(-1) is a fatal invalid parameter in the MSVC runtime
+        if (_fd != -1) close(_fd);
         _fd = -1;
     }
 
