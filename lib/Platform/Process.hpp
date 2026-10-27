@@ -128,6 +128,9 @@ struct ProcessOptions
     Pipe *in = nullptr;
     Pipe *out = nullptr;
     Pipe *err = nullptr;
+
+    //! Send stdout and stderr without a pipe to the null device instead of inheriting them
+    bool discardOutput = false;
 };
 
 /*!

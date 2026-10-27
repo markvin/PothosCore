@@ -23,6 +23,7 @@ project(Pothos VERSION ${POTHOS_LIBVER} LANGUAGES C CXX)
 option(POTHOS_BUILD_APPS "Build PothosUtil (needed by the self-tests and module safe-loading)" ON)
 option(POTHOS_BUILD_DOCS "Build the Doxygen documentation (when Doxygen is found)" ${PROJECT_IS_TOP_LEVEL})
 option(POTHOS_BUILD_TESTS "Register the CTest tests of the core" ${PROJECT_IS_TOP_LEVEL})
+option(POTHOS_BUILD_BLOCKS "Build the blocks toolkit (blocks/): the copier and network blocks of the topology" ON)
 option(POTHOS_WARNINGS_AS_ERRORS "Treat compiler warnings in the core as errors (GCC and Clang)" OFF)
 
 if(PROJECT_IS_TOP_LEVEL)
@@ -119,6 +120,9 @@ add_subdirectory(cmake/Modules)
 if(POTHOS_BUILD_APPS)
     add_subdirectory(apps)
 endif()
+if(POTHOS_BUILD_BLOCKS)
+    add_subdirectory(blocks)
+endif()
 if(POTHOS_BUILD_DOCS)
     add_subdirectory(docs)
 endif()
@@ -174,6 +178,22 @@ if(POTHOS_BUILD_TESTS)
             -DLIBDIR=${CMAKE_INSTALL_LIBDIR}
             -P ${PROJECT_SOURCE_DIR}/cmake/PothosConsumerTest.cmake)
     set_tests_properties(pothos.api_compat PROPERTIES FIXTURES_REQUIRED pothos_stage)
+
+    #the self-tests of the blocks modules, one by one (see blocks/CMakeLists.txt)
+    get_property(blocks_tests GLOBAL PROPERTY POTHOS_BLOCKS_TESTS)
+    if(POTHOS_BUILD_APPS AND blocks_tests)
+        add_test(NAME pothos.blocks.selftests
+            COMMAND ${CMAKE_COMMAND}
+                -DPREFIX=${POTHOS_STAGE_DIR}
+                -DTEST_HOME_DIR=${PROJECT_BINARY_DIR}/test-home
+                -DBINDIR=${CMAKE_INSTALL_BINDIR}
+                -DLIBDIR=${CMAKE_INSTALL_LIBDIR}
+                "-DTEST_PATHS=${blocks_tests}"
+                -P ${PROJECT_SOURCE_DIR}/cmake/PothosRunSelfTests.cmake)
+        set_tests_properties(pothos.blocks.selftests PROPERTIES
+            FIXTURES_REQUIRED pothos_stage
+            TIMEOUT ${POTHOS_SELFTEST_TIMEOUT})
+    endif()
 
     #the core inside a parent project (not again from inside such a parent)
     if(PROJECT_IS_TOP_LEVEL)

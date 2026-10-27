@@ -184,6 +184,7 @@ add_library(Pothos SHARED
     App/Builtin/TestServer.cpp
     System/Builtin/TestSIMDFeatures.cpp
     SIMD/Builtin/TestSIMDConvert.cpp
+    SIMD/Builtin/TestXSIMDTraits.cpp
     Util/Builtin/TestSIMDDispatcherUtils.cpp
 
     Archive/ArchiveEntry.cpp

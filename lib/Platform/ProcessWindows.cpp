@@ -171,6 +171,16 @@ Pothos::Platform::Process Pothos::Platform::Process::launch(const std::filesyste
     si.hStdOutput = (opts.out != nullptr)? reinterpret_cast<HANDLE>(opts.out->writeHandle()) : GetStdHandle(STD_OUTPUT_HANDLE);
     si.hStdError = (opts.err != nullptr)? reinterpret_cast<HANDLE>(opts.err->writeHandle()) : GetStdHandle(STD_ERROR_HANDLE);
 
+    //the null device for discarded output, closed again after the launch
+    HANDLE nullHandle = INVALID_HANDLE_VALUE;
+    if (opts.discardOutput and (opts.out == nullptr or opts.err == nullptr))
+    {
+        nullHandle = CreateFileW(L"NUL", GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+            nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (opts.out == nullptr) si.hStdOutput = nullHandle;
+        if (opts.err == nullptr) si.hStdError = nullHandle;
+    }
+
     PROCESS_INFORMATION pi{};
     BOOL ok = FALSE;
     std::string error;
@@ -189,6 +199,8 @@ Pothos::Platform::Process Pothos::Platform::Process::launch(const std::filesyste
         if (opts.out != nullptr) SetHandleInformation(si.hStdOutput, HANDLE_FLAG_INHERIT, 0);
         if (opts.err != nullptr) SetHandleInformation(si.hStdError, HANDLE_FLAG_INHERIT, 0);
     }
+
+    if (nullHandle != INVALID_HANDLE_VALUE) CloseHandle(nullHandle);
 
     //the child owns its ends now: close the parent's copies
     if (opts.in != nullptr) opts.in->closeRead();

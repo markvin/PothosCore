@@ -28,7 +28,8 @@ SocketBuf::SocketBuf(asio::ip::tcp::socket &socket):
 SocketBuf::int_type SocketBuf::underflow(void)
 {
     if (this->gptr() < this->egptr()) return traits_type::to_int_type(*this->gptr());
-    if (not this->flushOut()) return traits_type::eof(); //request/response: send before waiting
+    //no flush of the output here: another thread may be writing the put area
+    //(one thread reads replies while others send requests), writers flush
     asio::error_code ec;
     const auto n = _socket.read_some(asio::buffer(_in), ec);
     if (ec or n == 0) return traits_type::eof();

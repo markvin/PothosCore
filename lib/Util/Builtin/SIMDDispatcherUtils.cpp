@@ -354,6 +354,8 @@ static inline std::string getSIMDDispatcherString(
         "#pragma once\n\n"
 
         "#include <Pothos/System/SIMD.hpp>\n"
+        "#include <cstddef>\n"
+        "#include <cstdint>\n"
         "#include <string>\n"
         "#include <unordered_map>\n"
         "#include <vector>\n\n"
