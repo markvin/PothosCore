@@ -310,31 +310,35 @@ namespace Pothos {
 
 namespace Detail {
 
+//! C strings: character pointers and arrays (compared by content)
+template <typename T>
+constexpr bool isTestingCString = std::is_same_v<std::remove_cvref_t<std::decay_t<T>>, const char *> or
+    std::is_same_v<std::remove_cvref_t<std::decay_t<T>>, char *>;
+
+//! Text types that a C string compares with by content
+template <typename T>
+constexpr bool isTestingString = isTestingCString<T> or
+    std::is_same_v<std::remove_cvref_t<T>, std::string> or std::is_same_v<std::remove_cvref_t<T>, std::string_view>;
+
 /*!
- * The value a test assertion compares: C strings (pointers and char arrays)
- * compare by content (nullopt for a null pointer), everything else as is.
+ * The text of a C string or a string (nullopt for a null pointer);
+ * a char array is read only within its bounds.
  */
 template <typename T>
-const T &testingValue(const T &v)
+std::optional<std::string_view> testingText(const T &s)
 {
-    return v;
-}
-
-inline std::optional<std::string_view> testingValue(const char *s)
-{
-    if (s == nullptr) return std::nullopt;
-    return std::string_view(s);
-}
-
-inline std::optional<std::string_view> testingValue(char *s)
-{
-    return testingValue(static_cast<const char *>(s));
-}
-
-template <std::size_t N>
-std::optional<std::string_view> testingValue(char (&s)[N])
-{
-    return testingValue(static_cast<const char *>(s));
+    if constexpr (std::is_array_v<T>)
+    {
+        std::size_t len = 0;
+        while (len < std::extent_v<T> and s[len] != '\0') len++;
+        return std::string_view(s, len);
+    }
+    else if constexpr (std::is_pointer_v<T>)
+    {
+        if (s == nullptr) return std::nullopt;
+        return std::string_view(s);
+    }
+    else return std::string_view(s);
 }
 
 //! Integers that std::cmp_equal and friends accept (not bool or character types)
@@ -344,25 +348,29 @@ constexpr bool isTestingInteger = std::is_integral_v<T> and
     not std::is_same_v<T, char8_t> and not std::is_same_v<T, char16_t> and not std::is_same_v<T, char32_t>;
 
 //comparison operators of the assertions: integers of any signedness compare
-//by value (std::cmp_*: -1 < 1u), C strings by content, the rest as written
-struct TestingEqual {template <typename A, typename B> static bool cmp(const A &a, const B &b) {return a == b;}
+//by value (std::cmp_*: -1 < 1u), C strings with text by content, the rest as written
+struct TestingEqual {template <typename A, typename B> static bool cmp(A &&a, B &&b) {return a == b;}
     template <typename A, typename B> static bool ints(A a, B b) {return std::cmp_equal(a, b);}};
-struct TestingNotEqual {template <typename A, typename B> static bool cmp(const A &a, const B &b) {return a != b;}
+struct TestingNotEqual {template <typename A, typename B> static bool cmp(A &&a, B &&b) {return a != b;}
     template <typename A, typename B> static bool ints(A a, B b) {return std::cmp_not_equal(a, b);}};
-struct TestingLess {template <typename A, typename B> static bool cmp(const A &a, const B &b) {return a < b;}
+struct TestingLess {template <typename A, typename B> static bool cmp(A &&a, B &&b) {return a < b;}
     template <typename A, typename B> static bool ints(A a, B b) {return std::cmp_less(a, b);}};
-struct TestingLessEqual {template <typename A, typename B> static bool cmp(const A &a, const B &b) {return a <= b;}
+struct TestingLessEqual {template <typename A, typename B> static bool cmp(A &&a, B &&b) {return a <= b;}
     template <typename A, typename B> static bool ints(A a, B b) {return std::cmp_less_equal(a, b);}};
-struct TestingGreater {template <typename A, typename B> static bool cmp(const A &a, const B &b) {return a > b;}
+struct TestingGreater {template <typename A, typename B> static bool cmp(A &&a, B &&b) {return a > b;}
     template <typename A, typename B> static bool ints(A a, B b) {return std::cmp_greater(a, b);}};
-struct TestingGreaterEqual {template <typename A, typename B> static bool cmp(const A &a, const B &b) {return a >= b;}
+struct TestingGreaterEqual {template <typename A, typename B> static bool cmp(A &&a, B &&b) {return a >= b;}
     template <typename A, typename B> static bool ints(A a, B b) {return std::cmp_greater_equal(a, b);}};
 
 template <typename Op, typename A, typename B>
-bool testingCompare(const A &a, const B &b)
+bool testingCompare(A &&a, B &&b)
 {
-    if constexpr (isTestingInteger<A> and isTestingInteger<B>) return Op::ints(a, b);
-    else return Op::cmp(testingValue(a), testingValue(b));
+    using DA = std::remove_cvref_t<A>;
+    using DB = std::remove_cvref_t<B>;
+    if constexpr (isTestingInteger<DA> and isTestingInteger<DB>) return Op::ints(a, b);
+    else if constexpr ((isTestingCString<A> or isTestingCString<B>) and
+        isTestingString<A> and isTestingString<B>) return Op::cmp(testingText(a), testingText(b));
+    else return Op::cmp(a, b);
 }
 
 } //namespace Detail
@@ -380,21 +388,16 @@ struct POTHOS_API TestingBase
         const std::string &error,
         const int line,
         const std::string &file);
+    //! C strings print as quoted text (a char array within its bounds), a null pointer as (null)
     template <typename T>
     std::string toString(const T &v)
     {
-        return Pothos::Object(v).toString();
-    }
-
-    //! C strings print as quoted text, a null pointer as (null)
-    std::string toString(const char *s)
-    {
-        return (s == nullptr)? "(null)" : Pothos::Object(s).toString();
-    }
-
-    std::string toString(char *s)
-    {
-        return this->toString(static_cast<const char *>(s));
+        if constexpr (Detail::isTestingCString<T>)
+        {
+            const auto text = Detail::testingText(v);
+            return text? Pothos::Object(std::string(*text)).toString() : "(null)";
+        }
+        else return Pothos::Object(v).toString();
     }
 };
 
