@@ -7,10 +7,9 @@
 #include "System/LoggerSinks.hpp"
 #include <optional>
 #include "Util/StringUtils.hpp"
-#include <Poco/URI.h>
-#include <Poco/Net/SocketAddress.h>
-#include <Poco/Message.h>
-#include <Poco/Net/RemoteSyslogChannel.h>
+#include "Net/Address.hpp"
+#include "Net/Uri.hpp"
+#include "Net/Syslog.hpp"
 #include <functional>
 #include <thread>
 #include <cassert>
@@ -41,7 +40,7 @@ struct Pothos::RemoteServer::Impl
     }
 
     Pothos::Platform::Process ph;
-    std::string actualPort;
+    std::string actualHost, actualPort;
     RemoteClient client;
     std::string uriStr;
 
@@ -60,8 +59,8 @@ Pothos::RemoteServer::RemoteServer(const std::string &uriStr, const bool closePi
     //validate the URI first
     if (not uriStr.empty()) POTHOS_EXCEPTION_TRY
     {
-        Poco::URI uri(uriStr);
-        if (uri.getScheme() != "tcp") throw InvalidArgumentException("unsupported URI scheme");
+        const auto uri = Pothos::Net::parseUri(uriStr);
+        if (uri.scheme != "tcp") throw InvalidArgumentException("unsupported URI scheme", uri.scheme);
     }
     POTHOS_EXCEPTION_CATCH(const Exception &ex)
     {
@@ -106,6 +105,7 @@ Pothos::RemoteServer::RemoteServer(const std::string &uriStr, const bool closePi
         std::string line; std::getline(is, line);
         if (line.empty()) continue;
         const auto tok = Pothos::Util::Detail::split(line, " ", true, false);
+        if (tok.size() >= 2 and tok[0] == "Host:") _impl->actualHost = tok[1];
         if (tok.size() >= 2 and tok[0] == "Port:")
         {
             _impl->actualPort = tok[1];
@@ -153,19 +153,13 @@ Pothos::RemoteServer::RemoteServer(const std::string &uriStr, const bool closePi
     //Try to connect to the server.
     //Store an open connection within this server wrapper.
     {
-        Poco::URI uri(uriStr);
-        uri.setPort(std::stoul(this->getActualPort()));
+        auto uri = uriStr.empty()? Pothos::Net::Uri{"tcp", "", 0} : Pothos::Net::parseUri(uriStr);
+        uri.port = static_cast<std::uint16_t>(std::stoul(this->getActualPort()));
 
-        //rewrite wildcard bind addresses into linklocal addresses
-        Poco::Net::SocketAddress serverAddr(uri.getHost(), uri.getPort());
-        if (serverAddr.host().isWildcard()) switch (serverAddr.family())
-        {
-        case Poco::Net::IPAddress::IPv4: uri.setHost("127.0.0.1"); break;
-        case Poco::Net::IPAddress::IPv6: uri.setHost("::1"); break;
-        default: break;
-        }
+        //rewrite wildcard bind addresses into loopback addresses
+        if (Pothos::Net::isWildcard(uri.host)) uri.host = Pothos::Net::loopbackFor(uri.host.empty()? _impl->actualHost : uri.host);
 
-        _impl->client = RemoteClient(uri.toString());
+        _impl->client = RemoteClient(Pothos::Net::toString(uri));
     }
 }
 
@@ -190,15 +184,8 @@ std::string Pothos::RemoteServer::getActualPort(void) const
  * syslog forwarding implementation
  **********************************************************************/
 
-//! Guess the priority using keywords in the front of the message.
-static Poco::Message::Priority guessPrio(const std::string &msg)
-{
-    //the level numbers are the syslog priorities
-    return Poco::Message::Priority(int(Pothos::System::Detail::guessLevel(msg)));
-}
-
-//! Worker thread operation to read the pipe and forward to the syslog channel
-static void pipeToSyslogWorker(Poco::AutoPtr<Poco::Channel> channel, Pothos::Platform::Pipe pipe, const std::string &source)
+//! Worker thread operation to read the pipe and forward to the syslog sender
+static void pipeToSyslogWorker(std::shared_ptr<Pothos::Net::SyslogSender> sender, Pothos::Platform::Pipe pipe, const std::string &source)
 {
     Pothos::Platform::PipeInputStream is(pipe);
     try
@@ -208,19 +195,24 @@ static void pipeToSyslogWorker(Poco::AutoPtr<Poco::Channel> channel, Pothos::Pla
         {
             std::getline(is, line);
             if (line.empty()) continue;
-            channel->log(Poco::Message(source, line, guessPrio(line)));
+            Pothos::System::Detail::LogRecord r;
+            r.level = Pothos::System::Detail::guessLevel(line); //keywords in the front of the message
+            r.source = source;
+            r.text = line;
+            r.time = std::chrono::system_clock::now();
+            sender->send(r);
         }
     }
     catch (...){}
 }
 
-//! Create the syslog channel and forwarding threads
+//! Create the syslog sender and forwarding threads
 void Pothos::RemoteServer::startSyslogForwarding(const std::string &addr, const std::string &source)
 {
     assert(_impl);
-    Poco::AutoPtr<Poco::Channel> channel(new Poco::Net::RemoteSyslogChannel(addr, ""/*empty name*/));
-    _impl->outThread = std::thread(std::bind(&pipeToSyslogWorker, channel, _impl->outPipe, source));
-    _impl->errThread = std::thread(std::bind(&pipeToSyslogWorker, channel, _impl->errPipe, source));
+    auto sender = std::make_shared<Pothos::Net::SyslogSender>(addr);
+    _impl->outThread = std::thread(&pipeToSyslogWorker, sender, _impl->outPipe, source);
+    _impl->errThread = std::thread(&pipeToSyslogWorker, sender, _impl->errPipe, source);
 }
 
 #include <Pothos/Managed.hpp>

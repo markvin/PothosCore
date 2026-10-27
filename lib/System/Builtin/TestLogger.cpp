@@ -5,6 +5,8 @@
 #include <Pothos/System/Logger.hpp>
 #include "System/LoggerSinks.hpp"
 #include "Platform/Environment.hpp"
+#include "Net/Syslog.hpp"
+#include <condition_variable>
 #include <atomic>
 #include <chrono>
 #include <future>
@@ -201,4 +203,80 @@ POTHOS_TEST_BLOCK("/system/tests", test_logger_bad_level_env)
     POTHOS_TEST_EQUAL(records.size(), 1u);
     POTHOS_TEST_TRUE(records.at(0).level == LogLevel::Warning);
     POTHOS_TEST_TRUE(records.at(0).text.find("bogus") != std::string::npos);
+}
+
+namespace {
+
+//! Wait until a predicate over the captured records holds
+template <typename Pred>
+bool waitForRecords(CaptureSink &capture, Pred pred)
+{
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (std::chrono::steady_clock::now() < deadline)
+    {
+        if (pred(capture.get())) return true;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    return false;
+}
+
+Detail::LogRecord syslogTestRecord(const std::string &text)
+{
+    Detail::LogRecord r;
+    r.level = LogLevel::Warning;
+    r.source = "Test.Syslog";
+    r.text = text;
+    r.time = std::chrono::system_clock::now();
+    return r;
+}
+
+} //namespace
+
+POTHOS_TEST_BLOCK("/system/tests", test_logger_syslog_restart)
+{
+    CaptureSink capture;
+    for (const std::string text : {"first", "second"})
+    {
+        const auto port = Logger::startSyslogListener();
+        POTHOS_TEST_TRUE(not port.empty());
+        Pothos::Net::SyslogSender("127.0.0.1:" + port).send(syslogTestRecord(text));
+        POTHOS_TEST_TRUE(waitForRecords(capture, [&text](const std::vector<Detail::LogRecord> &rs)
+        {
+            for (const auto &r : rs) if (r.text == text and r.source == "Test.Syslog" and r.level == LogLevel::Warning) return true;
+            return false;
+        }));
+        Logger::stopSyslogListener();
+    }
+}
+
+POTHOS_TEST_BLOCK("/system/tests", test_logger_syslog_forwarding)
+{
+    std::mutex mutex;
+    std::vector<Detail::LogRecord> received;
+    Pothos::Net::SyslogListener listener([&](const Detail::LogRecord &r)
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        received.push_back(r);
+    });
+    const auto previousAddr = Pothos::Platform::getEnv("POTHOS_SYSLOG_ADDR");
+    {
+        CaptureSink restore; //forwarding replaces the sink, this puts the previous one back
+        Logger::startSyslogForwarding("127.0.0.1:" + std::to_string(listener.port()));
+        POTHOS_LOG_WARNING("Test.Syslog", "forwarded {}", 42);
+        Logger::flush();
+        bool found = false;
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        while (not found and std::chrono::steady_clock::now() < deadline)
+        {
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                for (const auto &r : received) found = found or (r.text == "forwarded 42" and r.source == "Test.Syslog" and r.level == LogLevel::Warning);
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        POTHOS_TEST_TRUE(found);
+        Logger::stopSyslogForwarding();
+    }
+    if (previousAddr) Pothos::Platform::setEnv("POTHOS_SYSLOG_ADDR", *previousAddr);
+    else Pothos::Platform::unsetEnv("POTHOS_SYSLOG_ADDR");
 }

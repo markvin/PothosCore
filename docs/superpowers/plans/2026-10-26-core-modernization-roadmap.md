@@ -27,10 +27,13 @@ in-tree зависимость (спека это разрешает).
   остаётся в 10 файлах (только Net и Util), `cmake/poco-allowlist.txt`.
 - Журналы исполнения (все решения «Ruling:» и отложенные мелкие замечания):
   `docs/superpowers/ledgers/`.
-- Этап 2 — выполнен на ветке `phase2-expression-evaluator` (план
-  `2026-10-27-phase2-expression-evaluator.md`): собственный вычислитель
-  `lib/Util/Expr/`, muparserx удалён. PR в `pothos2` — после ревью.
-- Следующий — этап 4 (сеть на Asio).
+- Этап 2 — выполнен и слит в `pothos2` (PR #2, merge `bd369e9b`): собственный
+  вычислитель `lib/Util/Expr/`, muparserx удалён.
+- Этап 4 — выполнен на ветке `phase4-network-asio` (план
+  `2026-10-27-phase4-network-asio.md`): сетевой слой `lib/Net/` на standalone
+  Asio (`third_party/asio`), Remote и syslog без Poco, Poco Net не собирается.
+  PR в `pothos2` — после ревью.
+- Следующий — этап 5 (PothosUtil без Poco::Util, удаление Poco).
 
 ## Заметки для плана этапа 2 (собраны при разведке)
 

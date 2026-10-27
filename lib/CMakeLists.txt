@@ -157,6 +157,7 @@ add_library(Pothos SHARED
     Util/Expr/Builtins.cpp
     Util/Expr/Convert.cpp
 
+
     Util/Builtin/BlockEval.cpp
     Util/Builtin/DeviceInfoUtils.cpp
     Util/Builtin/DocUtils.cpp
@@ -173,6 +174,9 @@ add_library(Pothos SHARED
     Platform/Builtin/TestEnvironment.cpp
     Platform/Builtin/TestDynamicLibrary.cpp
     Platform/Builtin/TestProcess.cpp
+    Net/Builtin/TestNetAddress.cpp
+    Net/Builtin/TestNetTcp.cpp
+    Net/Builtin/TestNetSyslog.cpp
     Util/Builtin/TestSIMDDispatcherUtils.cpp
 
     Archive/ArchiveEntry.cpp
@@ -185,25 +189,60 @@ add_library(Pothos SHARED
 add_library(Pothos::Pothos ALIAS Pothos)
 
 ########################################################################
-# Internal platform layer (lib/Platform). The sources are also compiled
-# into PothosUtil: the library exports no internal symbols.
+# Internal static libraries shared by libPothos and PothosUtil: the
+# library exports no internal symbols, so both link these instead of
+# compiling the sources twice. They use the public Pothos API as clients
+# (no POTHOS_DLL_EXPORTS) and hidden visibility keeps them out of the
+# symbols that libPothos exports.
 ########################################################################
-set(platform_sources ${CMAKE_CURRENT_SOURCE_DIR}/Platform/CommandLine.cpp)
+function(pothos_internal_library name)
+    add_library(${name} STATIC ${ARGN})
+    set_target_properties(${name} PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+        C_VISIBILITY_PRESET hidden
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN ON)
+    target_compile_features(${name} PUBLIC cxx_std_23)
+    #the Pothos headers and their usage requirements, without a link cycle
+    target_include_directories(${name} PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        $<TARGET_PROPERTY:Pothos,INTERFACE_INCLUDE_DIRECTORIES>)
+    target_compile_definitions(${name} PRIVATE $<TARGET_PROPERTY:Pothos,INTERFACE_COMPILE_DEFINITIONS>)
+    target_compile_options(${name} PRIVATE $<TARGET_PROPERTY:Pothos,INTERFACE_COMPILE_OPTIONS>)
+endfunction()
+
+#internal platform layer (lib/Platform): environment, dynamic libraries, processes
+set(platform_sources Platform/CommandLine.cpp)
 if(WIN32)
-    foreach(name Environment DynamicLibrary Process)
-        list(APPEND platform_sources ${CMAKE_CURRENT_SOURCE_DIR}/Platform/${name}Windows.cpp)
-    endforeach()
+    set(platform_suffix Windows)
     set(platform_libraries iphlpapi) #GetAdaptersAddresses
 else()
-    foreach(name Environment DynamicLibrary Process)
-        list(APPEND platform_sources ${CMAKE_CURRENT_SOURCE_DIR}/Platform/${name}Unix.cpp)
-    endforeach()
+    set(platform_suffix Unix)
     set(platform_libraries ${CMAKE_DL_LIBS}) #dlopen
 endif()
-set(POTHOS_PLATFORM_SOURCES ${platform_sources} CACHE INTERNAL "")
-set(POTHOS_PLATFORM_LIBRARIES ${platform_libraries} CACHE INTERNAL "")
-target_sources(Pothos PRIVATE ${POTHOS_PLATFORM_SOURCES})
-target_link_libraries(Pothos PRIVATE ${POTHOS_PLATFORM_LIBRARIES})
+foreach(name Environment DynamicLibrary Process)
+    list(APPEND platform_sources Platform/${name}${platform_suffix}.cpp)
+endforeach()
+pothos_internal_library(pothos_platform ${platform_sources})
+target_link_libraries(pothos_platform PUBLIC ${platform_libraries})
+
+#internal network layer (lib/Net) over standalone Asio
+pothos_internal_library(pothos_net
+    Net/IoContext.cpp
+    Net/Uri.cpp
+    Net/Address.cpp
+    Net/TcpStream.cpp
+    Net/TcpServer.cpp
+    Net/Syslog.cpp)
+target_link_libraries(pothos_net PUBLIC pothos_asio)
+
+target_link_libraries(Pothos PRIVATE pothos_platform pothos_net)
+if(MSVC)
+    #the internal libraries call the Pothos API through dllimport declarations,
+    #inside Pothos.dll the linker resolves them locally: "locally defined
+    #symbol imported" is expected there
+    target_link_options(Pothos PRIVATE /IGNORE:4217,4286)
+endif()
 
 if(WIN32)
     target_sources(Pothos PRIVATE WindowsDelayLoadedSymbols.cpp)
@@ -239,7 +278,7 @@ endif(MSVC)
 ########################################################################
 #Poco is a transitional private dependency
 target_link_libraries(Pothos PRIVATE
-    PocoFoundation PocoUtil PocoNet
+    PocoFoundation PocoUtil
     pothos_json)
 
 #C++23 is required by the public headers

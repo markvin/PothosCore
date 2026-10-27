@@ -239,3 +239,8 @@ void Pothos::Platform::Process::kill(void)
 {
     if (not this->tryWait()) ::kill(_impl->pid, SIGKILL);
 }
+
+void Pothos::Platform::requestSelfTermination(void)
+{
+    ::kill(::getpid(), SIGTERM);
+}

@@ -3,11 +3,5 @@
 # stops using Poco. Public headers under include/ may never be listed.
 apps/PothosUtil.cpp
 apps/PothosUtil.hpp
-apps/PothosUtilProxyServer.cpp
 lib/ConfLoader/ConfLoader.cpp
-lib/Framework/TopologyNetworkFlows.cpp
 lib/Plugin/ModuleSafeLoad.cpp
-lib/Remote/Client.cpp
-lib/Remote/Server.cpp
-lib/System/Logger.cpp
-lib/Util/Network.cpp

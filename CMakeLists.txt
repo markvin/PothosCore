@@ -114,7 +114,8 @@ block()
         message(FATAL_ERROR "CMAKE_INSTALL_LIBDIR must be relative and start with lib: ${CMAKE_INSTALL_LIBDIR}")
     endif ()
 
-    #minimum build: only Foundation, Util, XML and Net are used
+    #minimum build: only Foundation, Util and XML are used (networking is lib/Net on Asio)
+    set(ENABLE_NET OFF CACHE INTERNAL "")
     set(ENABLE_MONGODB OFF CACHE INTERNAL "")
     set(ENABLE_PDF OFF CACHE INTERNAL "")
     set(ENABLE_NETSSL OFF CACHE INTERNAL "")
@@ -141,7 +142,7 @@ if (APPLE)
 endif ()
 
 #XML is not used by Pothos, but PocoUtil needs it at runtime
-install(TARGETS Foundation Util XML Net
+install(TARGETS Foundation Util XML
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} NAMELINK_SKIP COMPONENT pothos_runtime
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT pothos_runtime)
 
