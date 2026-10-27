@@ -1,108 +1,93 @@
 // Copyright (c) 2020 Nicholas Corgan
+//                    2026 Pothos contributors
 // SPDX-License-Identifier: BSD-3-Clause
 
-#include <xsimd/xsimd.hpp>
-#include <Pothos/Util/XSIMDTraits.hpp>
+//One copy per SIMD architecture (PothosGenerateSIMDSources)
+#include "SIMD/XSIMDCopy.hpp"
 
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
-#include <type_traits>
-
-#if !defined POTHOS_SIMD_NAMESPACE
-#error Must define POTHOS_SIMD_NAMESPACE to build this file
-#endif
+#include <limits>
 
 namespace PothosBlocksSIMD { namespace POTHOS_SIMD_NAMESPACE {
 
 namespace detail
 {
-    template <typename T>
-    using DefaultBatchBool = typename xsimd::batch_bool<T, xsimd::simd_traits<T>::size>;
-
-    template <typename T>
-    using DefaultBatch = typename xsimd::batch<T, xsimd::simd_traits<T>::size>;
-
-    template <typename T>
-    static inline DefaultBatchBool<T> isnormal(const DefaultBatch<T>& in)
+    //the classifications of the scalar functions, one register at a time
+    struct IsFinite
     {
-        static const auto ZeroReg = DefaultBatch<T>(T(0));
+        template <typename T> static bool scalar(const T x) {return std::isfinite(x);}
+        template <typename B> static auto simd(const B &x) {return xsimd::isfinite(x);}
+    };
 
-        return !(xsimd::isinf(in) || xsimd::isnan(in) || (in == ZeroReg));
-    }
-
-    template <typename T>
-    static inline DefaultBatchBool<T> isnegative(const DefaultBatch<T>& in)
+    struct IsInf
     {
-        static const auto ZeroReg = DefaultBatch<T>(T(0));
+        template <typename T> static bool scalar(const T x) {return std::isinf(x);}
+        template <typename B> static auto simd(const B &x) {return xsimd::isinf(x);}
+    };
 
-        return (in < ZeroReg);
-    }
+    struct IsNaN
+    {
+        template <typename T> static bool scalar(const T x) {return std::isnan(x);}
+        template <typename B> static auto simd(const B &x) {return xsimd::isnan(x);}
+    };
 
-    #define ISX_FUNC_DETAIL_TMPL_CUSTOM(fcnName, unoptimizedFcn, maskFcn) \
-        template <typename T> \
-        static void fcnName ## Unoptimized(const T* in, std::int8_t* out, size_t len) \
-        { \
-            for(size_t elem = 0; elem < len; ++elem) \
-            { \
-                out[elem] = unoptimizedFcn(in[elem]) ? 1 : 0; \
-            } \
-        } \
- \
-        template <typename T> \
-        static Pothos::Util::EnableIfXSIMDSupports<T, void> fcnName(const T* in, std::int8_t* out, size_t len) \
-        { \
-            static constexpr size_t simdSize = xsimd::simd_traits<T>::size; \
-            const auto numSIMDFrames = len / simdSize; \
- \
-            const T* inPtr = in; \
-            std::int8_t* outPtr = out; \
- \
-            static const auto ZeroReg = xsimd::batch<T, simdSize>(T(0)); \
-            static const auto OneReg = xsimd::batch<T, simdSize>(T(1)); \
- \
-            for(size_t frameIndex = 0; frameIndex < numSIMDFrames; ++frameIndex) \
-            { \
-                auto inReg = xsimd::load_unaligned(inPtr); \
-                auto outReg = xsimd::select(maskFcn(inReg), OneReg, ZeroReg); \
-                outReg.store_unaligned(outPtr); \
- \
-                inPtr += simdSize; \
-                outPtr += simdSize; \
-            } \
- \
-            fcnName ## Unoptimized(inPtr, outPtr, (len - (inPtr - in))); \
-        } \
- \
-        template <typename T> \
-        static Pothos::Util::EnableIfXSIMDDoesNotSupport<T, void> fcnName(const T* in, std::int8_t* out, size_t len) \
-        { \
-            fcnName ## Unoptimized(in, out, len); \
+    struct IsNormal
+    {
+        template <typename T> static bool scalar(const T x) {return std::isnormal(x);}
+        template <typename B> static auto simd(const B &x)
+        {
+            //not zero, subnormal, infinite or NaN
+            using T = typename B::value_type;
+            return (xsimd::abs(x) >= B(std::numeric_limits<T>::min())) && xsimd::isfinite(x);
         }
+    };
 
-    #define ISX_FUNC_DETAIL_TMPL(fcn) ISX_FUNC_DETAIL_TMPL_CUSTOM(fcn, std::fcn, xsimd::fcn)
+    struct IsNegative
+    {
+        template <typename T> static bool scalar(const T x) {return std::signbit(x);}
+        template <typename B> static auto simd(const B &x)
+        {
+            //the sign bit, like std::signbit (-0 and negative NaN included)
+            using T = typename B::value_type;
+            using Int = std::conditional_t<sizeof(T) == 4, std::int32_t, std::int64_t>;
+            const auto negative = xsimd::bitwise_cast<Int>(x) < xsimd::batch<Int>(Int(0));
+            return xsimd::batch_bool_cast<T>(negative);
+        }
+    };
 
-ISX_FUNC_DETAIL_TMPL(isfinite)
-ISX_FUNC_DETAIL_TMPL(isinf)
-ISX_FUNC_DETAIL_TMPL(isnan)
-
-ISX_FUNC_DETAIL_TMPL_CUSTOM(isnormal, std::isnormal, isnormal)
-ISX_FUNC_DETAIL_TMPL_CUSTOM(isnegative, std::signbit, isnegative)
-
+    template <typename Class, typename T>
+    void classify(const T* in, std::int8_t* out, size_t len)
+    {
+        size_t i = 0;
+        if constexpr (Pothos::Util::XSIMDTraits<T>::IsSupported)
+        {
+            using Batch = xsimd::batch<T>;
+            alignas(64) bool flags[Batch::size];
+            for (; i + Batch::size <= len; i += Batch::size)
+            {
+                Class::simd(Batch::load_unaligned(in+i)).store_aligned(flags);
+                for (size_t j = 0; j < Batch::size; ++j) out[i+j] = flags[j]? 1 : 0;
+            }
+        }
+        for (; i < len; ++i) out[i] = Class::scalar(in[i])? 1 : 0;
+    }
 }
 
-#define ISX_FUNC(fcn) \
+#define ISX_FUNC(fcn, Class) \
     template <typename T> \
     void fcn(const T* in, std::int8_t* out, size_t len) \
     { \
-        detail::fcn(in, out, len); \
+        detail::classify<detail::Class>(in, out, len); \
     } \
     template void fcn<float>(const float*, std::int8_t*, size_t); \
     template void fcn<double>(const double*, std::int8_t*, size_t);
 
-ISX_FUNC(isfinite)
-ISX_FUNC(isinf)
-ISX_FUNC(isnan)
-ISX_FUNC(isnormal)
-ISX_FUNC(isnegative)
+ISX_FUNC(isfinite, IsFinite)
+ISX_FUNC(isinf, IsInf)
+ISX_FUNC(isnan, IsNaN)
+ISX_FUNC(isnormal, IsNormal)
+ISX_FUNC(isnegative, IsNegative)
 
 }}

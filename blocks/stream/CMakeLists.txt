@@ -1,6 +1,22 @@
 ########################################################################
 # Stream blocks module
 ########################################################################
+#SIMD kernels: one copy of SIMD/*.cpp per architecture, chosen at runtime
+#by the dispatchers that PothosUtil generates (StreamBlocks_SIMD.hpp)
+set(simd_sources)
+set(simd_tests)
+if(POTHOS_BUILD_APPS)
+    include(${PROJECT_SOURCE_DIR}/cmake/Modules/PothosConfigSIMD.cmake)
+    PothosGenerateSIMDSources(simd_sources
+        SIMD/StreamBlocks.json
+        SIMD/Clamp.cpp
+        SIMD/IsX.cpp
+        SIMD/MinMax.cpp
+        SIMD/Round.cpp)
+    list(APPEND simd_sources TestSIMDDispatch.cpp)
+    list(APPEND simd_tests test_simd_dispatch_matches_scalar)
+endif()
+
 pothos_blocks_module(
     TARGET StreamBlocks
     SOURCES
@@ -36,7 +52,11 @@ pothos_blocks_module(
         FirstN.cpp
         TestFirstN.cpp
         TestCopier.cpp
+        ${simd_sources}
+    LIBRARIES
+        $<$<BOOL:${POTHOS_BUILD_APPS}>:pothos_xsimd>
     TESTS
+        ${simd_tests}
         test_converter
         test_round_blocks
         test_is_x
@@ -57,3 +77,8 @@ pothos_blocks_module(
         test_clamp
         test_copier_domain_crossing
 )
+if(POTHOS_BUILD_APPS)
+    target_compile_definitions(StreamBlocks PRIVATE POTHOS_XSIMD)
+    target_include_directories(StreamBlocks PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+    add_dependencies(StreamBlocks StreamBlocks_SIMDDispatcher)
+endif()
