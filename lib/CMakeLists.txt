@@ -182,6 +182,7 @@ add_library(Pothos SHARED
     App/Builtin/TestOptions.cpp
     App/Builtin/TestServer.cpp
     System/Builtin/TestSIMDFeatures.cpp
+    SIMD/Builtin/TestSIMDConvert.cpp
     Util/Builtin/TestSIMDDispatcherUtils.cpp
 
     Archive/ArchiveEntry.cpp
@@ -467,21 +468,25 @@ if(MSVC)
 endif(MSVC)
 
 ########################################################################
-# Generate dynamic dispatch files for SIMD code
+# SIMD buffer conversion: one copy of SIMD/SIMDConvert.cpp per architecture
+# (pothos_multiarch, like the toolkits' SIMD code), chosen at runtime by
+# SIMD/SIMDConvertDispatch.cpp from the generated list of copies
 ########################################################################
+include(${PROJECT_SOURCE_DIR}/cmake/Modules/PothosConfigSIMD.cmake)
+#only for the temporary libsimdpp cross-check test until the submodule is removed
 target_include_directories(Pothos SYSTEM PRIVATE ${PROJECT_SOURCE_DIR}/libsimdpp)
+pothos_get_compilable_archs(simd_convert_archs)
+set(simd_convert_files)
+pothos_multiarch(simd_convert_files simd_convert_arch_string SIMD/SIMDConvert.cpp ${simd_convert_archs})
+target_sources(Pothos PRIVATE ${simd_convert_files} SIMD/SIMDConvertDispatch.cpp)
+if(NOT MSVC)
+    #the scalar loops of the copies rely on the vectorizer
+    set_property(SOURCE ${simd_convert_files} APPEND PROPERTY COMPILE_OPTIONS -O3)
+endif()
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/../libsimdpp/cmake/SimdppMultiarch.cmake)
-
-set(simd_sources
-    SIMD/SIMDConvert.cpp)
-
-simdpp_get_runnable_archs(simdpp_runnable_archs)
-simdpp_multiarch(
-    GeneratedSIMDFiles
-    ${simd_sources}
-    ${simdpp_runnable_archs})
-target_sources(Pothos PRIVATE ${GeneratedSIMDFiles})
+string(REPLACE "," ") X(" POTHOS_SIMD_CONVERT_ARCH_LIST "X(${simd_convert_arch_string})")
+configure_file(SIMD/SIMDConvertArches.hpp.in ${CMAKE_CURRENT_BINARY_DIR}/SIMDConvertArches.hpp @ONLY)
+target_include_directories(Pothos PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 ########################################################################
 # Install the library
