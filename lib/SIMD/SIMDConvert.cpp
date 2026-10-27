@@ -14,12 +14,20 @@
 
 //xsimd builds AVX-512 as the chain F -> CD -> DQ -> BW and rejects DQ/BW/VL
 //without CD, which the Pothos AVX-512 copies do not enable (-mavx512cd):
-//then hide the extensions above F from xsimd, it uses its AVX-512F kernels
+//then hide the extensions above F while xsimd reads its configuration, it
+//uses its AVX-512F kernels (GCC restores the macros after <immintrin.h>)
 #if defined(__AVX512F__) && !defined(__AVX512CD__)
 #undef __AVX512DQ__
 #undef __AVX512BW__
 #undef __AVX512VL__
 #endif
+
+//every copy gets its own xsimd namespace: identical inline xsimd functions
+//compiled with different ISA flags must not be merged by the linker (an AVX
+//version could otherwise run in the SSE copy on a CPU without AVX)
+#define POTHOS_SIMD_CONCAT_(a, b) a##b
+#define POTHOS_SIMD_CONCAT(a, b) POTHOS_SIMD_CONCAT_(a, b)
+#define xsimd POTHOS_SIMD_CONCAT(xsimd_, POTHOS_SIMD_NAMESPACE)
 #include <xsimd/xsimd.hpp>
 #include <complex>
 #include <cstddef>
@@ -104,6 +112,16 @@ void convert(const void *in, void *out, const std::size_t n)
         using Out = Canonical<OutType>;
         convertCanonical(static_cast<const In *>(in), static_cast<Out *>(out), n);
     }
+}
+
+//! The xsimd architecture this copy was built for (checked by the self-tests)
+const char *xsimdArch(void)
+{
+    #ifdef XSIMD_NO_SUPPORTED_ARCHITECTURE
+    return "none";
+    #else
+    return xsimd::default_arch::name();
+    #endif
 }
 
 #define POTHOS_SIMD_CONVERT_INSTANTIATE(In, Out) template void convert<In, Out>(const void *, void *, std::size_t);

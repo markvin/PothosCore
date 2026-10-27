@@ -21,7 +21,8 @@
 
 #define POTHOS_SIMD_CONVERT_DECLARE(ns) \
     namespace PothosSIMDConvert { namespace ns { \
-        template <typename InType, typename OutType> void convert(const void *, void *, std::size_t); }}
+        template <typename InType, typename OutType> void convert(const void *, void *, std::size_t); \
+        const char *xsimdArch(void); }}
 POTHOS_SIMD_CONVERT_ARCHES(POTHOS_SIMD_CONVERT_DECLARE)
 
 namespace {
@@ -168,5 +169,20 @@ POTHOS_TEST_BLOCK("/framework/tests", test_simd_convert_dispatch)
         const auto feature = key.substr(pos, end-pos);
         POTHOS_TEST_TRUE(std::ranges::find(supported, feature) != supported.end());
         pos = end + 2;
+    }
+}
+
+POTHOS_TEST_BLOCK("/framework/tests", test_simd_convert_copy_flags)
+{
+    //each copy must really be built for its architecture: a lost compiler flag
+    //would leave e.g. the AVX-512 copy as SSE2 code that still wins the dispatch
+    #define POTHOS_SIMD_CONVERT_ARCH_NAME(ns) {#ns, PothosSIMDConvert::ns::xsimdArch()},
+    const std::vector<std::pair<std::string, std::string>> copies{POTHOS_SIMD_CONVERT_ARCHES(POTHOS_SIMD_CONVERT_ARCH_NAME)};
+    for (const auto &[key, arch] : copies)
+    {
+        std::cout << key << " -> xsimd " << arch << std::endl;
+        if (key.find("x86_avx512") != std::string::npos) {POTHOS_TEST_TRUE(arch.starts_with("avx512"));}
+        else if (key.find("x86_avx2") != std::string::npos) {POTHOS_TEST_TRUE(arch.find("avx2") != std::string::npos);}
+        else if (key.find("x86_avx") != std::string::npos) {POTHOS_TEST_TRUE(arch.find("avx") != std::string::npos);}
     }
 }
