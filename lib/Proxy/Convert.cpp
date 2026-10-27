@@ -146,17 +146,21 @@ pothos_static_block(pothosProxyConvertRegister)
 Pothos::Proxy Pothos::ProxyEnvironment::convertObjectToProxy(const Pothos::Object &local)
 {
     //find the plugin in the map, it will be null if not found
-    std::shared_lock<std::shared_mutex> lock(getMapToProxyMutex());
-    const size_t h = hashIt(this->getName(), local.type());
-    auto it = getConvertToProxyMap().find(h);
+    //(copied out of the map: called without the lock, it may re-enter)
+    Pothos::Callable callable;
+    {
+        std::shared_lock<std::shared_mutex> lock(getMapToProxyMutex());
+        const size_t h = hashIt(this->getName(), local.type());
+        auto it = getConvertToProxyMap().find(h);
 
-    //thow an error when the conversion is not supported
-    if (it == getConvertToProxyMap().end()) throw Pothos::ProxyEnvironmentConvertError(
-        "Pothos::ProxyEnvironment::convertObjectToProxy()",
-        std::format("doesnt support Object of type {} to {} environment",
-        local.getTypeString(), this->getName()));
+        //thow an error when the conversion is not supported
+        if (it == getConvertToProxyMap().end()) throw Pothos::ProxyEnvironmentConvertError(
+            "Pothos::ProxyEnvironment::convertObjectToProxy()",
+            std::format("doesnt support Object of type {} to {} environment",
+            local.getTypeString(), this->getName()));
 
-    const auto &callable = it->second.getObject().extract<Pothos::Callable>();
+        callable = it->second.getObject().extract<Pothos::Callable>();
+    }
     Pothos::Object args[2];
     args[0] = Pothos::Object(this->shared_from_this());
     args[1] = local;
@@ -173,17 +177,22 @@ Pothos::Object Pothos::ProxyEnvironment::convertProxyToObject(const Pothos::Prox
     }
 
     //find the plugin in the map, it will be null if not found
-    std::shared_lock<std::shared_mutex> lock(getMapToLocalMutex());
-    const size_t h = hashIt(this->getName(), proxy.getHandle()->getClassName());
-    auto it = getConvertToLocalMap().find(h);
+    //(copied out of the map: called without the lock, it may re-enter)
+    Pothos::Callable callable;
+    {
+        const std::string className = proxy.getHandle()->getClassName();
+        const size_t h = hashIt(this->getName(), className);
+        std::shared_lock<std::shared_mutex> lock(getMapToLocalMutex());
+        auto it = getConvertToLocalMap().find(h);
 
-    //thow an error when the conversion is not supported
-    if (it == getConvertToLocalMap().end()) throw Pothos::ProxyEnvironmentConvertError(
-        "Pothos::ProxyEnvironment::convertProxyToObject()",
-        std::format("doesnt support environment {} type {} to Object",
-        this->getName(), std::string(proxy.getHandle()->getClassName())));
+        //thow an error when the conversion is not supported
+        if (it == getConvertToLocalMap().end()) throw Pothos::ProxyEnvironmentConvertError(
+            "Pothos::ProxyEnvironment::convertProxyToObject()",
+            std::format("doesnt support environment {} type {} to Object",
+            this->getName(), className));
 
-    const auto &callable = it->second.getObject().extract<Pothos::ProxyConvertPair>().second;
+        callable = it->second.getObject().extract<Pothos::ProxyConvertPair>().second;
+    }
     Pothos::Object args[1];
     args[0] = Pothos::Object(proxy);
     return callable.opaqueCall(args, 1);

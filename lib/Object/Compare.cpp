@@ -78,18 +78,23 @@ pothos_static_block(pothosObjectCompareRegister)
 int Pothos::Object::compareTo(const Pothos::Object &other) const
 {
     //find the plugin in the map, it will be null if not found
-    std::shared_lock<std::shared_mutex> lock(getMapMutex());
-    auto it = getCompareMap().find(typesHashCombine(this->type(), other.type()));
+    //(copied out of the map: called without the lock, it may re-enter)
+    Pothos::Callable call;
+    {
+        std::shared_lock<std::shared_mutex> lock(getMapMutex());
+        auto it = getCompareMap().find(typesHashCombine(this->type(), other.type()));
+        if (it != getCompareMap().end()) call = it->second.getObject().extract<Pothos::Callable>();
+    }
 
     //try a number type just in the case that this is possible
-    if (it == getCompareMap().end()) try
+    if (not call) try
     {
         return Pothos::Util::compareTo(double(*this), double(other));
     }
     catch(const Pothos::ObjectConvertError &){}
 
     //thow an error when the compare is not supported
-    if (it == getCompareMap().end()) throw Pothos::ObjectCompareError(
+    if (not call) throw Pothos::ObjectCompareError(
         "Pothos::Object::compareTo()",
         std::format("not supported for {}, {}",
         this->toString(), other.toString()));
@@ -97,6 +102,5 @@ int Pothos::Object::compareTo(const Pothos::Object &other) const
     Object args[2];
     args[0] = *this;
     args[1] = other;
-    const auto &call = it->second.getObject().extract<Pothos::Callable>();
     return call.opaqueCall(args, 2).extract<int>();
 }

@@ -154,12 +154,15 @@ std::string Pothos::Object::toString(void) const
     catch (...) {}
 
     //check for a registered toString(), it will be null if not found
-    std::shared_lock<std::shared_mutex> lock(getMapMutex());
-    auto it = getToStringMap().find(this->type().hash_code());
-    if(getToStringMap().end() != it)
+    //(copied out of the map: called without the lock, it may re-enter)
+    Pothos::Callable call;
     {
-        const auto &call = it->second.getObject().extract<Pothos::Callable>();
-
+        std::shared_lock<std::shared_mutex> lock(getMapMutex());
+        auto it = getToStringMap().find(this->type().hash_code());
+        if(getToStringMap().end() != it) call = it->second.getObject().extract<Pothos::Callable>();
+    }
+    if (call)
+    {
         Pothos::Object arg0(*this);
         return call.opaqueCall(&arg0, 1).extract<std::string>();
     }

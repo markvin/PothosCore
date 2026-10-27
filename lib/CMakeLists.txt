@@ -36,6 +36,7 @@ add_library(Pothos SHARED
     Object/Builtin/Serialize.cpp
     Object/Builtin/Tests.cpp
     Object/Builtin/TestConvertVectors.cpp
+    Object/Builtin/TestReentrantPlugins.cpp
 
     Callable/Callable.cpp
     Callable/CallInterface.cpp

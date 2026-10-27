@@ -71,12 +71,16 @@ pothos_static_block(pothosObjectHashFcnRegister)
 size_t Pothos::Object::hashCode(void) const
 {
     //find the plugin in the map, it will be null if not found
-    std::shared_lock<std::shared_mutex> lock(getMapMutex());
-    auto it = getHashFcnMap().find(this->type().hash_code());
+    //(copied out of the map: called without the lock, it may re-enter)
+    Pothos::Callable call;
+    {
+        std::shared_lock<std::shared_mutex> lock(getMapMutex());
+        auto it = getHashFcnMap().find(this->type().hash_code());
 
-    //return the address when no hash function found
-    if (it == getHashFcnMap().end()) return size_t(_impl);
+        //return the address when no hash function found
+        if (it == getHashFcnMap().end()) return size_t(_impl);
 
-    const auto &call = it->second.getObject().extract<Pothos::Callable>();
+        call = it->second.getObject().extract<Pothos::Callable>();
+    }
     return call.opaqueCall(this, 1).extract<size_t>();
 }
