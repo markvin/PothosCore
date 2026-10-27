@@ -9,6 +9,8 @@
 #include "Util/Expr/Parser.hpp"
 #include "Util/Expr/Eval.hpp"
 #include <cmath>
+#include <exception>
+#include <functional>
 #include <limits>
 #include <map>
 #include <complex>
@@ -16,6 +18,11 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <pthread.h>
+#endif
 
 using namespace Pothos::Util::Expr;
 
@@ -301,7 +308,7 @@ POTHOS_TEST_BLOCK("/util/tests", test_expr_depth_limit)
     POTHOS_TEST_THROWS(parse(idxChain), ExprError);
 
     //moderate nesting and long flat containers are fine
-    POTHOS_TEST_EQUAL(parseDump(std::string(100, '(') + "1" + std::string(100, ')')), "1");
+    POTHOS_TEST_EQUAL(parseDump(std::string(MaxNesting-1, '(') + "1" + std::string(MaxNesting-1, ')')), "1");
     std::string flat("[");
     for (std::size_t i = 0; i < n; i++) flat += "1,";
     POTHOS_TEST_TRUE(parse(flat + "]")->children.size() == n);
@@ -682,4 +689,92 @@ POTHOS_TEST_BLOCK("/util/tests", test_expr_builtins)
     //functions and constants are separate namespaces
     POTHOS_TEST_TRUE(same(ev("sin(0) + sin", {{"sin", Value(1)}}), Value(1.0)));
     POTHOS_TEST_TRUE(errorMessage("x(1)").find("unknown function 'x'") != std::string::npos);
+}
+
+namespace {
+
+//! Run fn on a thread with a small stack, rethrow what it threw
+void runOnSmallStack(const std::size_t stackSize, const std::function<void()> &fn)
+{
+    struct Job
+    {
+        const std::function<void()> *fn;
+        std::exception_ptr error;
+        static void run(Job *job)
+        {
+            try {(*job->fn)();}
+            catch (...) {job->error = std::current_exception();}
+        }
+    } job{&fn, nullptr};
+#ifdef _WIN32
+    const auto entry = [](LPVOID arg) -> DWORD {Job::run(static_cast<Job *>(arg)); return 0;};
+    const auto thread = CreateThread(nullptr, stackSize, entry, &job, STACK_SIZE_PARAM_IS_A_RESERVATION, nullptr);
+    if (thread == nullptr) throw std::runtime_error("CreateThread failed");
+    WaitForSingleObject(thread, INFINITE);
+    CloseHandle(thread);
+#else
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setstacksize(&attr, stackSize);
+    pthread_t thread;
+    const auto entry = [](void *arg) -> void * {Job::run(static_cast<Job *>(arg)); return nullptr;};
+    const int rc = pthread_create(&thread, &attr, entry, &job);
+    pthread_attr_destroy(&attr);
+    if (rc != 0) throw std::runtime_error("pthread_create failed");
+    pthread_join(thread, nullptr);
+#endif
+    if (job.error) std::rethrow_exception(job.error);
+}
+
+std::string repeat(const std::string &s, const std::size_t n)
+{
+    std::string out;
+    for (std::size_t i = 0; i < n; i++) out += s;
+    return out;
+}
+
+} //namespace
+
+POTHOS_TEST_BLOCK("/util/tests", test_expr_depth_small_stack)
+{
+    //half of the macOS secondary thread stack, so that unoptimized builds pass as well
+    const std::size_t stack = 256*1024;
+    const auto n = MaxNesting - 1;
+    runOnSmallStack(stack, [n]
+    {
+        //the deepest valid expressions evaluate
+        if (not same(ev(repeat("(", n) + "1" + repeat(")", n)), Value(1))) throw std::runtime_error("parens");
+        if (ev(repeat("[", n) + repeat("]", n)).repr().size() != 2*n) throw std::runtime_error("lists");
+        if (not same(ev(repeat("abs(", n-1) + "-1" + repeat(")", n-1)), Value(1))) throw std::runtime_error("calls");
+        if (not same(ev(repeat("-", n) + "1"), Value(n % 2? -1 : 1))) throw std::runtime_error("unary");
+        if (not same(ev("1" + repeat("+1", MaxTreeDepth-1)), Value(int(MaxTreeDepth)))) throw std::runtime_error("sum");
+        if (not same(ev(repeat("[", n) + repeat("]", n) + repeat("[0]", n-1)), Value(List{}))) throw std::runtime_error("index");
+        if (not same(ev("{'a': " + repeat("[", n-2) + repeat("]", n-2) + "}"), ev("{'a': " + repeat("[", n-2) + repeat("]", n-2) + "}"))) throw std::runtime_error("dict");
+    });
+    for (const auto &expr : {
+        repeat("(", 10000) + "1" + repeat(")", 10000), repeat("[", 10000), repeat("-", 10000) + "1",
+        repeat("abs(", 10000) + "1", "1" + repeat("+1", 10000), "a" + repeat("[0]", 10000),
+        repeat("not ", 10000) + "1", "2" + repeat("**2", 10000), repeat("1 if 1 else ", 10000) + "1",
+        repeat("{1:", 10000)})
+    {
+        bool threw = false;
+        runOnSmallStack(stack, [&expr, &threw]
+        {
+            try {ev(expr);}
+            catch (const ExprError &) {threw = true;}
+        });
+        POTHOS_TEST_TRUE(threw);
+    }
+}
+
+POTHOS_TEST_BLOCK("/util/tests", test_expr_float_stream_fallback)
+{
+    //the istringstream path is used where floating point from_chars is missing (Apple libc++)
+    POTHOS_TEST_EQUAL(parseFloatStream("2.5"), 2.5);
+    POTHOS_TEST_EQUAL(parseFloatStream("5e-324"), 5e-324);
+    POTHOS_TEST_EQUAL(parseFloatStream("2.2250738585072014e-308"), 2.2250738585072014e-308);
+    POTHOS_TEST_EQUAL(parseFloatStream("1.7976931348623157e308"), 1.7976931348623157e308);
+    POTHOS_TEST_EQUAL(parseFloatStream("1e-400"), 0.0);
+    POTHOS_TEST_TRUE(std::isinf(parseFloatStream("1e400")));
+    POTHOS_TEST_EQUAL(std::get<double>(lexOne("5e-324").literal.data), 5e-324);
 }

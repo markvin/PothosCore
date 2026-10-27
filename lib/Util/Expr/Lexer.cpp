@@ -308,22 +308,34 @@ double Pothos::Util::Expr::parseDecimalFloat(const std::string_view intPart, con
     if (not fracPart.empty()) s += "." + std::string(fracPart);
     if (not expPart.empty()) s += "e" + std::string(expPart);
 
-    double value = 0.0;
-    bool outOfRange = false;
 #if defined(__cpp_lib_to_chars) && __cpp_lib_to_chars >= 201611L
+    double value = 0.0;
     const auto result = std::from_chars(s.data(), s.data()+s.size(), value);
-    outOfRange = result.ec == std::errc::result_out_of_range;
-#else
-    //no floating point from_chars (older libc++): classic locale stream
-    std::istringstream is(s);
-    is.imbue(std::locale::classic());
-    is >> value;
-    outOfRange = is.fail();
-#endif
-    if (not outOfRange) return value;
+    if (result.ec != std::errc::result_out_of_range) return value;
 
     //too small underflows to zero, too large overflows to infinity (like Python)
     return expPart.starts_with('-')? 0.0 : std::numeric_limits<double>::infinity();
+#else
+    //no floating point from_chars (Apple libc++)
+    return parseFloatStream(s);
+#endif
+}
+
+double Pothos::Util::Expr::parseFloatStream(const std::string &text)
+{
+    std::istringstream is(text);
+    is.imbue(std::locale::classic());
+    double value = 0.0;
+    is >> value;
+    if (not is.fail()) return value;
+
+    //out of range: decide from the stored value, not from the failbit alone --
+    //libc++ also fails for subnormal results and keeps the correct value then
+    if (std::isinf(value) or std::fabs(value) == std::numeric_limits<double>::max())
+    {
+        return std::copysign(std::numeric_limits<double>::infinity(), value);
+    }
+    return value;
 }
 
 std::vector<Token> Pothos::Util::Expr::tokenize(const std::string_view expr)

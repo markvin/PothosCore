@@ -48,6 +48,13 @@ std::vector<Token> tokenize(std::string_view expr);
  */
 double parseDecimalFloat(std::string_view intPart, std::string_view fracPart, std::string_view expPart);
 
+/*!
+ * Parse "digits[.digits][e[+-]digits]" with a classic locale stream: the
+ * implementation of parseDecimalFloat without floating point from_chars.
+ * Exposed for tests. Out of range values become inf or 0.
+ */
+double parseFloatStream(const std::string &text);
+
 } //namespace Expr
 } //namespace Util
 } //namespace Pothos
