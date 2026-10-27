@@ -152,6 +152,7 @@ add_library(Pothos SHARED
     Util/BlockDescription.cpp
     Util/Expr/Value.cpp
     Util/Expr/Lexer.cpp
+    Util/Expr/Parser.cpp
 
     Util/Builtin/BlockEval.cpp
     Util/Builtin/DeviceInfoUtils.cpp

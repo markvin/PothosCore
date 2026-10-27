@@ -6,6 +6,7 @@
 #include <Pothos/Testing.hpp>
 #include "Util/Expr/Value.hpp"
 #include "Util/Expr/Lexer.hpp"
+#include "Util/Expr/Parser.hpp"
 #include <complex>
 #include <cstdint>
 #include <stdexcept>
@@ -183,4 +184,117 @@ POTHOS_TEST_BLOCK("/util/tests", test_expr_value_basics)
     POTHOS_TEST_TRUE(Value(List{Value()}).truthy());
     POTHOS_TEST_TRUE(Value(std::complex<double>(0.0, 1.0)).truthy());
     POTHOS_TEST_TRUE(Value("0").truthy());
+}
+
+namespace {
+
+std::string parseDump(const std::string &expr)
+{
+    return dump(*parse(expr));
+}
+
+} //namespace
+
+POTHOS_TEST_BLOCK("/util/tests", test_expr_parse_precedence)
+{
+    POTHOS_TEST_EQUAL(parseDump("1 + 2 * 3"), "(+ 1 (* 2 3))");
+    POTHOS_TEST_EQUAL(parseDump("1 - 2 - 3"), "(- (- 1 2) 3)");
+    POTHOS_TEST_EQUAL(parseDump("(1 + 2) * 3"), "(* (+ 1 2) 3)");
+    POTHOS_TEST_EQUAL(parseDump("-2**2"), "(neg (** 2 2))");
+    POTHOS_TEST_EQUAL(parseDump("2**-1"), "(** 2 (neg 1))");
+    POTHOS_TEST_EQUAL(parseDump("2**3**2"), "(** 2 (** 3 2))");
+    POTHOS_TEST_EQUAL(parseDump("+~x"), "(pos (inv x))");
+    POTHOS_TEST_EQUAL(parseDump("a // b % c / d"), "(/ (% (// a b) c) d)");
+    POTHOS_TEST_EQUAL(parseDump("a if b else c if d else e"), "(if b a (if d c e))");
+    POTHOS_TEST_EQUAL(parseDump("not a == b"), "(not (== a b))");
+    POTHOS_TEST_EQUAL(parseDump("0 < x < 10"), "(cmp 0 < x < 10)");
+    POTHOS_TEST_EQUAL(parseDump("a != b"), "(!= a b)");
+    POTHOS_TEST_EQUAL(parseDump("a or b and not c or d"), "(or a (and b (not c)) d)");
+    POTHOS_TEST_EQUAL(parseDump("1 | 2 ^ 3 & 4 << 1"), "(| 1 (^ 2 (& 3 (<< 4 1))))");
+    POTHOS_TEST_EQUAL(parseDump("a >> 1 + 2"), "(>> a (+ 1 2))");
+    POTHOS_TEST_EQUAL(parseDump("'s' + 1.5 + 2j"), "(+ (+ 's' 1.5) 2j)");
+    POTHOS_TEST_EQUAL(parseDump("-a[0]**2"), "(neg (** (index a 0) 2))");
+}
+
+POTHOS_TEST_BLOCK("/util/tests", test_expr_parse_containers)
+{
+    POTHOS_TEST_EQUAL(parseDump("[]"), "(list)");
+    POTHOS_TEST_EQUAL(parseDump("[1, ]"), "(list 1)");
+    POTHOS_TEST_EQUAL(parseDump("{}"), "(dict)");
+    POTHOS_TEST_EQUAL(parseDump("{1: 2, }"), "(dict 1 2)");
+    POTHOS_TEST_EQUAL(parseDump("[1, [2, 3]]"), "(list 1 (list 2 3))");
+    POTHOS_TEST_EQUAL(parseDump("f(1, 2,)"), "(call f 1 2)");
+    POTHOS_TEST_EQUAL(parseDump("f()"), "(call f)");
+    POTHOS_TEST_EQUAL(parseDump("a[0][1]"), "(index (index a 0) 1)");
+    POTHOS_TEST_EQUAL(parseDump("{'a': [1, {'b': 2}]}"), "(dict 'a' (list 1 (dict 'b' 2)))");
+    POTHOS_TEST_EQUAL(parseDump("f(x)[0]"), "(index (call f x) 0)");
+    POTHOS_TEST_EQUAL(parseDump("[1 if a else 2, b]"), "(list (if a 1 2) b)");
+}
+
+POTHOS_TEST_BLOCK("/util/tests", test_expr_parse_errors)
+{
+    POTHOS_TEST_EQUAL(errorPos([]{parse("1 +");}), 3);
+    POTHOS_TEST_EQUAL(errorPos([]{parse("(1");}), 2);
+    POTHOS_TEST_EQUAL(errorPos([]{parse("[1 2]");}), 3);
+    POTHOS_TEST_EQUAL(errorPos([]{parse("{1}");}), 2);
+    POTHOS_TEST_EQUAL(errorPos([]{parse("{1: 2 3: 4}");}), 6);
+    POTHOS_TEST_EQUAL(errorPos([]{parse("1 2");}), 2);
+    POTHOS_TEST_EQUAL(errorPos([]{parse("");}), 0);
+    POTHOS_TEST_EQUAL(errorPos([]{parse("   ");}), 3);
+    POTHOS_TEST_EQUAL(errorPos([]{parse("f(1)(2)");}), 4);
+    POTHOS_TEST_EQUAL(errorPos([]{parse("1 if 2");}), 6);
+    POTHOS_TEST_EQUAL(errorPos([]{parse("a and");}), 5);
+    POTHOS_TEST_EQUAL(errorPos([]{parse("if + 1");}), 0);
+    POTHOS_TEST_EQUAL(errorPos([]{parse("1 + )");}), 4);
+    POTHOS_TEST_EQUAL(errorPos([]{parse("[,]");}), 1);
+    POTHOS_TEST_EQUAL(errorPos([]{parse("a[]");}), 2);
+
+    try
+    {
+        parse("1 +");
+        POTHOS_TEST_TRUE(false);
+    }
+    catch (const ExprError &ex)
+    {
+        POTHOS_TEST_TRUE(std::string(ex.what()).find("unexpected end") != std::string::npos);
+    }
+    try
+    {
+        parse("1 2");
+        POTHOS_TEST_TRUE(false);
+    }
+    catch (const ExprError &ex)
+    {
+        POTHOS_TEST_TRUE(std::string(ex.what()).find("unexpected '2'") != std::string::npos);
+    }
+}
+
+POTHOS_TEST_BLOCK("/util/tests", test_expr_depth_limit)
+{
+    const std::size_t n = 10000;
+    POTHOS_TEST_THROWS(parse(std::string(n, '(') + "1" + std::string(n, ')')), ExprError);
+    POTHOS_TEST_THROWS(parse(std::string(n, '[') + std::string(n, ']')), ExprError);
+    POTHOS_TEST_THROWS(parse(std::string(n, '-') + "1"), ExprError);
+    POTHOS_TEST_THROWS(parse(std::string(n, '~') + "1"), ExprError);
+
+    std::string notChain, powChain("2"), sumChain("1"), callChain, idxChain("a");
+    for (std::size_t i = 0; i < n; i++)
+    {
+        notChain += "not ";
+        powChain += "**2";
+        sumChain += "+1";
+        callChain += "f(";
+        idxChain += "[0]";
+    }
+    POTHOS_TEST_THROWS(parse(notChain + "1"), ExprError);
+    POTHOS_TEST_THROWS(parse(powChain), ExprError);
+    POTHOS_TEST_THROWS(parse(sumChain), ExprError);
+    POTHOS_TEST_THROWS(parse(callChain + "1" + std::string(n, ')')), ExprError);
+    POTHOS_TEST_THROWS(parse(idxChain), ExprError);
+
+    //moderate nesting and long flat containers are fine
+    POTHOS_TEST_EQUAL(parseDump(std::string(100, '(') + "1" + std::string(100, ')')), "1");
+    std::string flat("[");
+    for (std::size_t i = 0; i < n; i++) flat += "1,";
+    POTHOS_TEST_TRUE(parse(flat + "]")->children.size() == n);
 }
