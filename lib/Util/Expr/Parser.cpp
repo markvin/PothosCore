@@ -3,6 +3,7 @@
 
 #include "Util/Expr/Parser.hpp"
 #include "Util/Expr/Lexer.hpp"
+#include "Util/Expr/Stack.hpp"
 #include <algorithm>
 #include <array>
 #include <initializer_list>
@@ -44,6 +45,7 @@ private:
             p(p)
         {
             if (++p._nesting > MaxNesting) p.fail("expression is nested too deeply", p.cur().pos);
+            p._stack.check(p.cur().pos);
         }
         ~Nest(void)
         {
@@ -362,6 +364,7 @@ private:
     const std::vector<Token> _toks;
     std::size_t _i = 0;
     std::size_t _nesting = 0;
+    const StackGuard _stack;
 };
 
 } //namespace

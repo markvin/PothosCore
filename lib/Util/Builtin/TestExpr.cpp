@@ -8,6 +8,7 @@
 #include "Util/Expr/Lexer.hpp"
 #include "Util/Expr/Parser.hpp"
 #include "Util/Expr/Eval.hpp"
+#include "Util/Expr/Stack.hpp"
 #include <cmath>
 #include <exception>
 #include <functional>
@@ -313,7 +314,7 @@ POTHOS_TEST_BLOCK("/util/tests", test_expr_depth_limit)
     POTHOS_TEST_THROWS(parse(idxChain), ExprError);
 
     //moderate nesting and long flat containers are fine
-    POTHOS_TEST_EQUAL(parseDump(std::string(MaxNesting-1, '(') + "1" + std::string(MaxNesting-1, ')')), "1");
+    POTHOS_TEST_EQUAL(parseDump(std::string(25, '(') + "1" + std::string(25, ')')), "1");
     std::string flat("[");
     for (std::size_t i = 0; i < n; i++) flat += "1,";
     POTHOS_TEST_TRUE(parse(flat + "]")->children.size() == n);
@@ -588,7 +589,7 @@ POTHOS_TEST_BLOCK("/util/tests", test_expr_math)
     POTHOS_TEST_TRUE(same(ev("pow(2, 0.5)"), Value(std::sqrt(2.0))));
     POTHOS_TEST_TRUE(same(ev("sqrt(4)"), Value(2.0)));
     POTHOS_TEST_TRUE(std::isnan(fl("sqrt(-1)")));
-    POTHOS_TEST_TRUE(same(ev("sqrt(-1+0j)"), Value(C(0.0, 1.0))));
+    POTHOS_TEST_CLOSE(std::abs(std::get<C>(ev("sqrt(-1+0j)").data) - C(0.0, 1.0)), 0.0, 1e-15);
     POTHOS_TEST_TRUE(same(ev("log2(8)"), Value(3.0)));
     POTHOS_TEST_TRUE(same(ev("log10(1000)"), Value(3.0)));
     POTHOS_TEST_CLOSE(fl("log(e)"), 1.0, 1e-15);
@@ -744,19 +745,39 @@ std::string repeat(const std::string &s, const std::size_t n)
 
 POTHOS_TEST_BLOCK("/util/tests", test_expr_depth_small_stack)
 {
-    //half of the macOS secondary thread stack, so that unoptimized builds pass as well
-    const std::size_t stack = 256*1024;
-    const auto n = MaxNesting - 1;
-    runOnSmallStack(stack, [n]
+    //the stack budget (StackBudget) plus a margin: well below the 512 KiB of macOS secondary threads
+    const std::size_t stack = StackBudget + 64*1024;
+
+    //deep expressions either evaluate or fail cleanly, whatever the frame sizes of the compiler
+    const auto deepOrTooDeep = [](const std::string &expr, const Value &expected)
     {
-        //the deepest valid expressions evaluate
-        if (not same(ev(repeat("(", n) + "1" + repeat(")", n)), Value(1))) throw std::runtime_error("parens");
-        if (ev(repeat("[", n) + repeat("]", n)).repr().size() != 2*n) throw std::runtime_error("lists");
-        if (not same(ev(repeat("abs(", n-1) + "-1" + repeat(")", n-1)), Value(1))) throw std::runtime_error("calls");
-        if (not same(ev(repeat("-", n) + "1"), Value(n % 2? -1 : 1))) throw std::runtime_error("unary");
-        if (not same(ev("1" + repeat("+1", MaxTreeDepth-1)), Value(int(MaxTreeDepth)))) throw std::runtime_error("sum");
-        if (not same(ev(repeat("[", n) + repeat("]", n) + repeat("[0]", n-1)), Value(List{}))) throw std::runtime_error("index");
-        if (not same(ev("{'a': " + repeat("[", n-2) + repeat("]", n-2) + "}"), ev("{'a': " + repeat("[", n-2) + repeat("]", n-2) + "}"))) throw std::runtime_error("dict");
+        try
+        {
+            return same(ev(expr), expected);
+        }
+        catch (const ExprError &ex)
+        {
+            return std::string(ex.what()).find("nested too deeply") != std::string::npos;
+        }
+    };
+
+    runOnSmallStack(stack, [&deepOrTooDeep]
+    {
+        //moderate nesting always works
+        const std::size_t m = 25;
+        if (not same(ev(repeat("(", m) + "1" + repeat(")", m)), Value(1))) throw std::runtime_error("parens");
+        if (not same(ev(repeat("abs(", m) + "-1" + repeat(")", m)), Value(1))) throw std::runtime_error("calls");
+        if (ev(repeat("[", m) + repeat("]", m)).repr().size() != 2*m) throw std::runtime_error("lists");
+        if (not same(ev(repeat("-", m) + "1"), Value(-1))) throw std::runtime_error("unary");
+        if (not same(ev("1" + repeat("+1", 99)), Value(100))) throw std::runtime_error("sum");
+
+        //the deepest valid expressions evaluate or report the stack budget
+        const auto n = MaxNesting - 1;
+        if (not deepOrTooDeep(repeat("(", n) + "1" + repeat(")", n), Value(1))) throw std::runtime_error("parens n");
+        if (not deepOrTooDeep(repeat("abs(", n-1) + "-1" + repeat(")", n-1), Value(1))) throw std::runtime_error("calls n");
+        if (not deepOrTooDeep(repeat("-", n) + "1", Value(n % 2? -1 : 1))) throw std::runtime_error("unary n");
+        if (not deepOrTooDeep("1" + repeat("+1", MaxTreeDepth-1), Value(int(MaxTreeDepth)))) throw std::runtime_error("sum n");
+        if (not deepOrTooDeep(repeat("[", n) + repeat("]", n) + repeat("[0]", n-1), Value(List{}))) throw std::runtime_error("index n");
     });
     for (const auto &expr : {
         repeat("(", 10000) + "1" + repeat(")", 10000), repeat("[", 10000), repeat("-", 10000) + "1",

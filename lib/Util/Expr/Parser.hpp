@@ -17,8 +17,9 @@ namespace Expr {
 
 /*!
  * Nesting of parentheses, containers, calls and prefix operators.
- * Parsing and evaluation recurse: the limits keep the stack use within
- * small thread stacks (512 KiB secondary threads on macOS).
+ * Parsing and evaluation recurse: these counters and the stack budget
+ * (Stack.hpp) keep the stack use within small thread stacks
+ * (512 KiB secondary threads on macOS).
  */
 constexpr std::size_t MaxNesting = 100;
 

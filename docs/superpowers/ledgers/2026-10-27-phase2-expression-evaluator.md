@@ -25,3 +25,6 @@ Final: minor (deferred): M-5 round(int, -19) returns 0 instead of overflow
 Final: minor (deferred): M-6 strings are byte strings: "\xe9" is one byte, len("é") == 2
 Final: minor (deferred): M-7 str()/repr() of floats use the shortest std::format form ('1e+05', Python '100000.0')
 Final: minor (deferred): M-8 only ExprError is translated to Pothos::Exception (bad_alloc/length_error escape)
+CI #1 on PR #2: Linux green; macOS (Debug) and Windows (Release) crashed in test_expr_depth_small_stack (256 KiB thread), macOS also failed the exact sqrt(-1+0j) == 1j check (libc++ returns a tiny nonzero real part)
+CI: Ruling: nesting counters cannot bound the stack across compilers — added StackGuard (lib/Util/Expr/Stack.hpp): parser Nest and every evaluator step throw "nested too deeply" past a 128 KiB budget measured from the entry of parse/evaluate; counters stay as a second limit. GCC reaches ~75 nesting levels within the budget (-O0 and -O2); the small-stack test now runs on a budget+64 KiB thread, requires 25 levels everywhere and only "evaluates or fails cleanly" at MaxNesting — cost if wrong: deep expressions (>~40 levels on MSVC/Apple) get an error instead of a value
+CI: sqrt(-1+0j) test compares with a 1e-15 tolerance

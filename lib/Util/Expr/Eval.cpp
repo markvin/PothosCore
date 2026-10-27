@@ -4,6 +4,7 @@
 #include "Util/Expr/Eval.hpp"
 #include "Util/Expr/Ops.hpp"
 #include "Util/Expr/Builtins.hpp"
+#include "Util/Expr/Stack.hpp"
 #include <algorithm>
 #include <limits>
 #include <numbers>
@@ -44,6 +45,7 @@ public:
 
     Value eval(const Node &node) const
     {
+        _stack.check(node.pos);
         const auto &c = node.children;
         switch (node.kind)
         {
@@ -171,6 +173,7 @@ private:
     }
 
     const Lookup &_lookup;
+    const StackGuard _stack;
 };
 
 } //namespace
