@@ -19,7 +19,7 @@ void PothosUtilBase::runTopology(void)
     Pothos::ScopedInit init;
 
     //sanity check the file
-    const auto path = this->config().getString("inputFile");
+    const auto path = this->config().getString("run-topology");
     if (std::filesystem::path(path).extension() == ".pothos" or
         std::filesystem::path(path).extension() == ".pth")
     {
@@ -72,14 +72,14 @@ void PothosUtilBase::runTopology(void)
     auto topology = Pothos::Topology::make(topObj.dump());
 
     //commit the topology and wait for specified time for CTRL+C
-    if (this->config().has("idleTime"))
+    if (this->config().has("idle-time"))
     {
-        const auto idleTime = this->config().getDouble("idleTime");
+        const auto idleTime = this->config().getDouble("idle-time", 0.0);
         double timeout = 0.0;
         std::string timeoutMsg = "no timeout";
-        if (this->config().has("runDuration"))
+        if (this->config().has("run-duration"))
         {
-            timeout = this->config().getDouble("runDuration");
+            timeout = this->config().getDouble("run-duration", 0.0);
             timeoutMsg = "timeout " + std::to_string(timeout) + " seconds";
         }
         std::cout << ">>> Running topology until idle with " << timeoutMsg << std::endl;
@@ -89,9 +89,9 @@ void PothosUtilBase::runTopology(void)
             throw Pothos::RuntimeException("Topology::waitInactive() reached timeout");
         }
     }
-    else if (this->config().has("runDuration"))
+    else if (this->config().has("run-duration"))
     {
-        const auto runDuration = this->config().getDouble("runDuration");
+        const auto runDuration = this->config().getDouble("run-duration", 0.0);
         std::cout << ">>> Running topology for " << runDuration << " seconds" << std::endl;
         topology->commit();
         std::this_thread::sleep_for(std::chrono::milliseconds(long(runDuration*1000)));
@@ -104,9 +104,9 @@ void PothosUtilBase::runTopology(void)
     }
 
     //dump the stats to file if specified
-    if (this->config().has("outputFile"))
+    if (this->config().has("output"))
     {
-        const auto statsFile = this->config().getString("outputFile");
+        const auto statsFile = this->config().getString("output");
         std::cout << ">>> Dumping stats: " << statsFile << std::endl;
         std::ofstream ofs(Pothos::Util::Detail::expandPath(statsFile));
         ofs << topology->queryJSONStats() << std::endl;

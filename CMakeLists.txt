@@ -94,59 +94,6 @@ if(APPLE)
 endif()
 
 ########################################################################
-# POCO C++ utility libraries (transitional, private, in-tree)
-########################################################################
-if (NOT EXISTS ${PROJECT_SOURCE_DIR}/poco/CMakeLists.txt)
-    message(FATAL_ERROR "poco submodule not configured (git submodule update --init poco)")
-endif ()
-
-#mark that the in-tree poco build is used by PothosConfig
-set(POCO_IN_TREE TRUE)
-
-block()
-    #poco's cmake predates CMake 3.5 policies
-    set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
-
-    #poco installs libraries into lib${LIB_SUFFIX}: keep them next to Pothos
-    if (CMAKE_INSTALL_LIBDIR MATCHES "^lib(.*)$")
-        set(LIB_SUFFIX "${CMAKE_MATCH_1}")
-    else ()
-        message(FATAL_ERROR "CMAKE_INSTALL_LIBDIR must be relative and start with lib: ${CMAKE_INSTALL_LIBDIR}")
-    endif ()
-
-    #minimum build: only Foundation, Util and XML are used (networking is lib/Net on Asio)
-    set(ENABLE_NET OFF CACHE INTERNAL "")
-    set(ENABLE_MONGODB OFF CACHE INTERNAL "")
-    set(ENABLE_PDF OFF CACHE INTERNAL "")
-    set(ENABLE_NETSSL OFF CACHE INTERNAL "")
-    set(ENABLE_CRYPTO OFF CACHE INTERNAL "")
-    set(ENABLE_DATA OFF CACHE INTERNAL "")
-    set(ENABLE_SEVENZIP OFF CACHE INTERNAL "")
-    set(ENABLE_ZIP OFF CACHE INTERNAL "")
-    set(ENABLE_APACHECONNECTOR OFF CACHE INTERNAL "")
-    set(ENABLE_JSON OFF CACHE INTERNAL "")
-    set(ENABLE_REDIS OFF CACHE INTERNAL "")
-    set(ENABLE_PAGECOMPILER OFF CACHE INTERNAL "")
-    set(ENABLE_PAGECOMPILER_FILE2PAGE OFF CACHE INTERNAL "")
-
-    #EXCLUDE_FROM_ALL also drops poco's own install rules (headers, cmake
-    #package, namelinks): only the runtime libraries are installed below
-    add_subdirectory(poco EXCLUDE_FROM_ALL)
-endblock()
-
-#poco's bundled zlib treats modern macOS (TARGET_OS_MAC) as classic Mac OS
-#and redefines fdopen() as NULL, which breaks the SDK's stdio.h declaration;
-#an identity macro makes its "#ifndef fdopen" guard skip that redefinition
-if (APPLE)
-    target_compile_definitions(Foundation PRIVATE "fdopen=fdopen")
-endif ()
-
-#XML is not used by Pothos, but PocoUtil needs it at runtime
-install(TARGETS Foundation Util XML
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} NAMELINK_SKIP COMPONENT pothos_runtime
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT pothos_runtime)
-
-########################################################################
 # Third party libraries in the source tree
 ########################################################################
 add_subdirectory(third_party)
@@ -200,12 +147,6 @@ add_test(NAME pothos.consumer
         -P ${PROJECT_SOURCE_DIR}/cmake/PothosConsumerTest.cmake)
 set_tests_properties(pothos.consumer PROPERTIES FIXTURES_REQUIRED pothos_stage)
 
-add_test(NAME pothos.poco_allowlist
-    COMMAND ${CMAKE_COMMAND}
-        -DSRC=${PROJECT_SOURCE_DIR}
-        -DALLOWLIST=${PROJECT_SOURCE_DIR}/cmake/poco-allowlist.txt
-        -P ${PROJECT_SOURCE_DIR}/cmake/PothosCheckPoco.cmake)
-
 add_test(NAME pothos.test_env_guard
     COMMAND ${CMAKE_COMMAND}
         -DWORK=${CMAKE_BINARY_DIR}/test-env-guard
@@ -214,20 +155,12 @@ add_test(NAME pothos.test_env_guard
 ########################################################################
 # uninstall target
 ########################################################################
-if (TARGET uninstall)
-    # in-tree poco already defines uninstall: overwrite its script
-    configure_file(
-        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake_uninstall.cmake.in"
-        "${CMAKE_CURRENT_BINARY_DIR}/poco/cmake_uninstall.cmake"
-        @ONLY)
-else ()
-    add_custom_target(uninstall
-        "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake")
-    configure_file(
-        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake_uninstall.cmake.in"
-        "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
-        @ONLY)
-endif ()
+add_custom_target(uninstall
+    "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake_uninstall.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
+    @ONLY)
 
 ########################################################################
 # print features summary

@@ -156,6 +156,7 @@ add_library(Pothos SHARED
     Util/Expr/Eval.cpp
     Util/Expr/Builtins.cpp
     Util/Expr/Convert.cpp
+    Util/PropertyFile.cpp
 
 
     Util/Builtin/BlockEval.cpp
@@ -166,6 +167,7 @@ add_library(Pothos SHARED
     Util/Builtin/TestErrorCodeHandling.cpp
     Util/Builtin/TestEvalExpression.cpp
     Util/Builtin/TestExpr.cpp
+    Util/Builtin/TestPropertyFile.cpp
     Util/Builtin/TestRingDeque.cpp
     Util/Builtin/TestStringUtils.cpp
     Util/Builtin/TestTempFile.cpp
@@ -177,6 +179,8 @@ add_library(Pothos SHARED
     Net/Builtin/TestNetAddress.cpp
     Net/Builtin/TestNetTcp.cpp
     Net/Builtin/TestNetSyslog.cpp
+    App/Builtin/TestOptions.cpp
+    App/Builtin/TestServer.cpp
     Util/Builtin/TestSIMDDispatcherUtils.cpp
 
     Archive/ArchiveEntry.cpp
@@ -236,7 +240,19 @@ pothos_internal_library(pothos_net
     Net/Syslog.cpp)
 target_link_libraries(pothos_net PUBLIC pothos_asio)
 
-target_link_libraries(Pothos PRIVATE pothos_platform pothos_net)
+#internal application support for PothosUtil (lib/App): command line, server modes
+if(WIN32)
+    set(app_server_source App/ServerWindows.cpp)
+else()
+    set(app_server_source App/ServerUnix.cpp)
+endif()
+pothos_internal_library(pothos_app
+    App/Options.cpp
+    App/PothosUtilOptions.cpp
+    ${app_server_source})
+target_link_libraries(pothos_app PUBLIC pothos_platform)
+
+target_link_libraries(Pothos PRIVATE pothos_platform pothos_net pothos_app)
 if(MSVC)
     #the internal libraries call the Pothos API through dllimport declarations,
     #inside Pothos.dll the linker resolves them locally: "locally defined
@@ -276,10 +292,7 @@ endif(MSVC)
 ########################################################################
 # Link feature dependencies
 ########################################################################
-#Poco is a transitional private dependency
-target_link_libraries(Pothos PRIVATE
-    PocoFoundation PocoUtil
-    pothos_json)
+target_link_libraries(Pothos PRIVATE pothos_json)
 
 #C++23 is required by the public headers
 target_compile_features(Pothos PUBLIC cxx_std_23)

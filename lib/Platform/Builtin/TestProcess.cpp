@@ -30,9 +30,9 @@ POTHOS_TEST_BLOCK("/platform/tests", test_windows_command_line_quoting)
 
 POTHOS_TEST_BLOCK("/platform/tests", test_termination_event_name)
 {
-    //the named termination event of a Poco ServerApplication: POCOTRM + 8 upper case hex digits
-    POTHOS_TEST_TRUE(terminationEventName(0xABCD) == L"POCOTRM0000ABCD");
-    POTHOS_TEST_TRUE(terminationEventName(1234) == L"POCOTRM000004D2");
+    //the named termination event that PothosUtil waits for on Windows
+    POTHOS_TEST_TRUE(terminationEventName(0xABCD) == L"PothosUtilTerminate0000ABCD");
+    POTHOS_TEST_TRUE(terminationEventName(1234) == L"PothosUtilTerminate000004D2");
 }
 
 POTHOS_TEST_BLOCK("/platform/tests", test_pipe_roundtrip)

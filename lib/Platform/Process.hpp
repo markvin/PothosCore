@@ -172,8 +172,8 @@ private:
 std::wstring buildWindowsCommandLine(const std::filesystem::path &exe, const std::vector<std::string> &args);
 
 /*!
- * Name of the Windows event that asks a Poco ServerApplication (PothosUtil
- * until phase 5) to terminate: "POCOTRM" + the pid as 8 upper case hex digits.
+ * Name of the Windows event that asks PothosUtil to terminate (it waits for
+ * it in server modes): "PothosUtilTerminate" + the pid as 8 upper case hex digits.
  */
 std::wstring terminationEventName(const int pid);
 

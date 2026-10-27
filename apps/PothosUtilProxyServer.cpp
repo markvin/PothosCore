@@ -48,7 +48,7 @@ void PothosUtilBase::proxyServer(const std::string &, const std::string &uriStr)
     }
 
     //create the server
-    const bool requireActive = this->config().hasOption("requireActive");
+    const bool requireActive = this->config().hasOption("require-active");
     Pothos::Net::TcpServer server(uri.host, uri.port,
         [](Pothos::Net::TcpStream &stream)
         {

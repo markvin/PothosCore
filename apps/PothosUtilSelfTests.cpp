@@ -131,7 +131,7 @@ void PothosUtilBase::selfTestOne(const std::string &, const std::string &path)
 {
     Pothos::ScopedInit init;
 
-    const auto numTrials = this->config().getUInt("numTrials", 1);
+    const auto numTrials = this->config().getUInt("num-trials", 1);
     const bool multipleTrials = (numTrials > 1);
 
     auto plugin = Pothos::PluginRegistry::get(path);
@@ -167,7 +167,7 @@ void PothosUtilBase::selfTests(const std::string &, const std::string &path)
 {
     Pothos::ScopedInit init;
 
-    const auto numTrials = this->config().getUInt("numTrials", 1);
+    const auto numTrials = this->config().getUInt("num-trials", 1);
 
     SelfTestResults results;
     if (path.find('*') == std::string::npos)

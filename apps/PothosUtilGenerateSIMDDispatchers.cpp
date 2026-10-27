@@ -22,8 +22,8 @@ void PothosUtilBase::generateSIMDDispatchers(const std::string&, const std::stri
     auto env = Pothos::ProxyEnvironment::make("managed");
     auto simdDispatcher = env->findProxy("Pothos/Util/SIMDDispatcher");
 
-    const auto simdArchesStr = this->config().getString("simdArches");
-    const auto outputFilePath = this->config().getString("outputFile");
+    const auto simdArchesStr = this->config().getString("simd-arches");
+    const auto outputFilePath = this->config().getString("output");
 
     const auto simdArchesTokenizer = Pothos::Util::Detail::split(simdArchesStr, ",", true, false);
     std::vector<std::string> simdArches(simdArchesTokenizer.begin(), simdArchesTokenizer.end());

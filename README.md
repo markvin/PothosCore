@@ -18,8 +18,6 @@ the entire Pothos software suite in one build.
 The framework is being made self-contained: every dependency it needs
 is built from the source tree and kept private to the library.
 
-* poco C++ utility library (transitional submodule, being removed;
-  only its Util library is still used)
 * libsimdpp SIMD library (submodule, header only)
 * nlohmann/json (vendored in third_party/)
 * standalone Asio networking library (vendored in third_party/asio)
@@ -48,7 +46,7 @@ compiler (GCC 13+, Clang 17+, Xcode 15+, Visual Studio 2022 17.8+).
 The build needs no network access and no system libraries.
 
 ```sh
-git submodule update --init poco libsimdpp
+git submodule update --init libsimdpp
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ctest --test-dir build --output-on-failure
@@ -78,7 +76,7 @@ This repository is a meta-project for developing, building, and installing
 the main Pothos framework, core dependency libraries, and official toolkits.
 License files and source code are available in each project sub-directory.
 
-The core Pothos library, Poco and libsimdpp C++ libraries,
+The core Pothos library, the libsimdpp C++ library,
 and official toolkits found in this repository
 are available under the Boost Software License - Version 1.0.
 

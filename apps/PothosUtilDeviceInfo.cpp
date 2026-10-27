@@ -16,7 +16,7 @@ void PothosUtilBase::printDeviceInfo(void)
 {
     Pothos::ScopedInit init;
 
-    const auto deviceType = this->config().getString("deviceType");
+    const auto deviceType = this->config().getString("device-info");
     if (deviceType.empty())
     {
         std::cout << std::endl;
@@ -38,9 +38,9 @@ void PothosUtilBase::printDeviceInfo(void)
     auto info = json::parse(call.call<std::string>());
 
     //dump the information to file
-    if (this->config().has("outputFile"))
+    if (this->config().has("output"))
     {
-        const auto infoFile = this->config().getString("outputFile");
+        const auto infoFile = this->config().getString("output");
         std::cout << ">>> Dumping info: " << infoFile << std::endl;
         std::ofstream ofs(Pothos::Util::Detail::expandPath(infoFile));
         ofs << info.dump(4);

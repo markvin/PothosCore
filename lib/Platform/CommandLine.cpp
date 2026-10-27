@@ -94,5 +94,5 @@ std::wstring Pothos::Platform::buildWindowsCommandLine(const std::filesystem::pa
 
 std::wstring Pothos::Platform::terminationEventName(const int pid)
 {
-    return std::format(L"POCOTRM{:08X}", static_cast<unsigned>(pid));
+    return std::format(L"PothosUtilTerminate{:08X}", static_cast<unsigned>(pid));
 }

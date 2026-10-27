@@ -73,7 +73,7 @@ void PothosUtilBase::printTypeConversions(const std::string&, const std::string&
 {
     Pothos::ScopedInit init;
 
-    const auto typeName = this->config().getString("type");
+    const auto typeName = this->config().getString("type-conversions");
     if (typeName.empty())
     {
         std::cout << ">>> Specify --type=typeName to list conversions..." << std::endl;

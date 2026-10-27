@@ -8,8 +8,7 @@
 #include "Platform/Process.hpp"
 #include <filesystem>
 #include <chrono>
-#include <Poco/AutoPtr.h>
-#include <Poco/Util/PropertyFileConfiguration.h>
+#include "Util/PropertyFile.hpp"
 #include <mutex>
 #include <cctype>
 
@@ -68,19 +67,15 @@ static bool previousLoadWasSuccessful(const std::string &modulePath)
 {
     std::lock_guard<std::mutex> mutexLock(getLoaderMutex());
     std::lock_guard<Pothos::Util::FileLock> fileLock(getLoaderFileLock());
-    Poco::AutoPtr<Poco::Util::PropertyFileConfiguration> cache(new Poco::Util::PropertyFileConfiguration());
-    try {cache->load(getModuleLoaderCachePath());} catch(...){}
+    Pothos::Util::Detail::PropertyMap cache;
+    try {cache = Pothos::Util::Detail::loadPropertyFile(getModuleLoaderCachePath());} catch(...){}
 
-    try
-    {
-        auto libTime = getLastModifiedTimeStr(Pothos::System::getPothosRuntimeLibraryPath());
-        auto modTime = getLastModifiedTimeStr(modulePath);
-        auto cachedLibTime = cache->getString(escape(Pothos::System::getPothosRuntimeLibraryPath()));
-        auto cachedModTime = cache->getString(escape(modulePath));
-        return (libTime == cachedLibTime) and (modTime == cachedModTime);
-    }
-    catch (const Poco::NotFoundException &){}
-    return false;
+    const auto cachedLibTime = cache.find(escape(Pothos::System::getPothosRuntimeLibraryPath()));
+    const auto cachedModTime = cache.find(escape(modulePath));
+    if (cachedLibTime == cache.end() or cachedModTime == cache.end()) return false;
+    const auto libTime = getLastModifiedTimeStr(Pothos::System::getPothosRuntimeLibraryPath());
+    const auto modTime = getLastModifiedTimeStr(modulePath);
+    return (libTime == cachedLibTime->second) and (modTime == cachedModTime->second);
 }
 
 //! Mark that the safe load of this module was successful
@@ -88,14 +83,12 @@ static void markCurrentLoadSuccessful(const std::string &modulePath)
 {
     std::lock_guard<std::mutex> mutexLock(getLoaderMutex());
     std::lock_guard<Pothos::Util::FileLock> fileLock(getLoaderFileLock());
-    Poco::AutoPtr<Poco::Util::PropertyFileConfiguration> cache(new Poco::Util::PropertyFileConfiguration());
-    try {cache->load(getModuleLoaderCachePath());} catch(...){}
+    Pothos::Util::Detail::PropertyMap cache;
+    try {cache = Pothos::Util::Detail::loadPropertyFile(getModuleLoaderCachePath());} catch(...){}
 
-    auto libTime = getLastModifiedTimeStr(Pothos::System::getPothosRuntimeLibraryPath());
-    auto modTime = getLastModifiedTimeStr(modulePath);
-    cache->setString(escape(Pothos::System::getPothosRuntimeLibraryPath()), libTime);
-    cache->setString(escape(modulePath), modTime);
-    try {cache->save(getModuleLoaderCachePath());} catch(...){}
+    cache[escape(Pothos::System::getPothosRuntimeLibraryPath())] = getLastModifiedTimeStr(Pothos::System::getPothosRuntimeLibraryPath());
+    cache[escape(modulePath)] = getLastModifiedTimeStr(modulePath);
+    try {Pothos::Util::Detail::savePropertyFile(getModuleLoaderCachePath(), cache);} catch(...){}
 }
 
 /***********************************************************************

@@ -31,7 +31,6 @@ Pothos::Util::CompilerArgs Pothos::Util::CompilerArgs::defaultDevEnv(void)
             library.extension() == ".dylib"
         ) and
         (
-            file.find("Poco") != std::string::npos or
             file.find("Pothos") != std::string::npos
         )) args.libraries.push_back(std::filesystem::absolute(library).string());
     }

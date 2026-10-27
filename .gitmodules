@@ -2,10 +2,6 @@
 	path = spuce
 	url = https://github.com/audiofilter/spuce.git
 	branch = master
-[submodule "poco"]
-	path = poco
-	url = https://github.com/pocoproject/poco.git
-	branch = poco-1.7.8
 [submodule "plotters"]
 	path = plotters
 	url = https://github.com/pothosware/PothosPlotters.git
