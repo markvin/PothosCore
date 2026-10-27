@@ -51,6 +51,15 @@ std::vector<Pothos::App::OptionSpec> Pothos::App::pothosUtilOptions(void)
         {"daemon", 0, Arg::None, "", "Run as a daemon (with --proxy-server)."},
         {"umask", 0, Arg::Required, "mask", "Set the umask of the process (octal, e.g. 027)."},
         {"pidfile", 0, Arg::Required, "path", "Write the process ID to the given file."},
+        #else
+        {"register-service", 0, Arg::Optional, "name",
+            "Register PothosUtil with the other options of this command line as a Windows service "
+            "(default name PothosUtil)."},
+        {"unregister-service", 0, Arg::Optional, "name", "Remove a Windows service registered with --register-service."},
+        {"display-name", 0, Arg::Required, "name", "The display name of the service (with --register-service)."},
+        {"description", 0, Arg::Required, "text", "The description of the service (with --register-service)."},
+        {"startup", 0, Arg::Required, "mode", "The startup mode of the service: auto or manual (with --register-service)."},
+        {"run-service", 0, Arg::Required, "name", "Run as the given service (used by the service control manager).", false, true},
         #endif
     };
 }

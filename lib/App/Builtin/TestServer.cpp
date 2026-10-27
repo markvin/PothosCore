@@ -16,7 +16,10 @@
 #include <string>
 #include <thread>
 #include <vector>
-#ifndef _WIN32
+#include "App/Server.hpp"
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <csignal>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -165,5 +168,78 @@ POTHOS_TEST_BLOCK("/app/tests", test_app_daemon_pidfile)
     }
     POTHOS_TEST_TRUE(::kill(pid, 0) != 0);
     POTHOS_TEST_TRUE(not std::filesystem::exists(pidFile.path()));
+    #endif
+}
+
+#ifdef _WIN32
+namespace {
+
+//! The state of a service, 0 when it cannot be queried
+DWORD serviceState(SC_HANDLE service)
+{
+    SERVICE_STATUS status{};
+    return QueryServiceStatus(service, &status)? status.dwCurrentState : 0;
+}
+
+bool waitServiceState(SC_HANDLE service, const DWORD state, const std::chrono::seconds timeout)
+{
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    while (serviceState(service) != state)
+    {
+        if (std::chrono::steady_clock::now() > deadline) return false;
+        std::this_thread::sleep_for(100ms);
+    }
+    return true;
+}
+
+} //namespace
+#endif
+
+POTHOS_TEST_BLOCK("/app/tests", test_app_windows_service)
+{
+    #ifndef _WIN32
+    std::cout << "skipped: Windows only" << std::endl;
+    #else
+    const SC_HANDLE scm = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CREATE_SERVICE);
+    if (scm == nullptr)
+    {
+        std::cout << "skipped: not elevated (cannot open the service control manager)" << std::endl;
+        return;
+    }
+    CloseServiceHandle(scm);
+
+    Pothos::App::ServiceOptions opts;
+    opts.name = "PothosUtilTest" + std::to_string(GetCurrentProcessId());
+    opts.displayName = "Pothos self-test service";
+    opts.description = "Registered and removed by test_app_windows_service";
+    opts.args = {"--proxy-server=tcp://127.0.0.1:0"};
+    Pothos::App::registerService(opts);
+
+    bool started = false, stopped = false;
+    {
+        const SC_HANDLE manager = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
+        const auto wideName = std::wstring(opts.name.begin(), opts.name.end());
+        const SC_HANDLE service = OpenServiceW(manager, wideName.c_str(), SERVICE_START | SERVICE_STOP | SERVICE_QUERY_STATUS);
+        if (service != nullptr)
+        {
+            if (StartServiceW(service, 0, nullptr)) started = waitServiceState(service, SERVICE_RUNNING, 30s);
+            SERVICE_STATUS status{};
+            if (started and ControlService(service, SERVICE_CONTROL_STOP, &status)) stopped = waitServiceState(service, SERVICE_STOPPED, 30s);
+            CloseServiceHandle(service);
+        }
+        CloseServiceHandle(manager);
+    }
+    Pothos::App::unregisterService(opts.name); //always clean up
+    POTHOS_TEST_TRUE(started);
+    POTHOS_TEST_TRUE(stopped);
+
+    //gone after unregistering
+    const SC_HANDLE manager = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
+    const auto wideName = std::wstring(opts.name.begin(), opts.name.end());
+    const SC_HANDLE service = OpenServiceW(manager, wideName.c_str(), SERVICE_QUERY_STATUS);
+    const bool gone = service == nullptr or serviceState(service) == 0 or serviceState(service) == SERVICE_STOPPED;
+    if (service != nullptr) CloseServiceHandle(service);
+    CloseServiceHandle(manager);
+    POTHOS_TEST_TRUE(gone);
     #endif
 }

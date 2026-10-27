@@ -5,7 +5,10 @@
 
 #pragma once
 #include <filesystem>
+#include <functional>
 #include <optional>
+#include <string>
+#include <vector>
 
 namespace Pothos {
 namespace App {
@@ -29,6 +32,35 @@ void waitForTerminationRequest(void);
  * \throws Pothos::SystemException when fork fails
  */
 void becomeDaemon(std::optional<unsigned> umaskValue);
+#endif
+
+#ifdef _WIN32
+struct ServiceOptions
+{
+    std::string name = "PothosUtil";
+    std::string displayName; //!< the name when empty
+    std::string description;
+    std::string startup = "manual"; //!< "auto" or "manual"
+    std::vector<std::string> args; //!< options of the service process (after --run-service=NAME)
+};
+
+/*!
+ * Register this executable as a Windows service started as
+ * "<exe>" --run-service=NAME <args>.
+ * \throws Pothos::SystemException with the Win32 error (access denied without elevation)
+ */
+void registerService(const ServiceOptions &opts);
+
+//! \throws Pothos::SystemException with the Win32 error
+void unregisterService(const std::string &name);
+
+/*!
+ * Run main as the service NAME under the service control manager: the
+ * service reports running, a stop or shutdown request becomes a termination
+ * request (waitForTerminationRequest returns), the exit code of main is reported.
+ * \throws Pothos::SystemException when not started by the service control manager
+ */
+int runAsService(const std::string &name, std::function<int()> main);
 #endif
 
 //! Writes the process id to a file, removes the file on destruction

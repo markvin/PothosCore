@@ -8,6 +8,7 @@
 #include "App/Server.hpp"
 #include <Pothos/System.hpp>
 #include <Pothos/Exception.hpp>
+#include <algorithm>
 #include <charconv>
 #include <functional>
 #include <iostream>
@@ -49,6 +50,24 @@ public:
             "The util provides a command-line interface for the self-tests, "
             "and can spawn servers and daemons for remote interfaces.");
     }
+
+    #ifdef _WIN32
+    //! The command line options again, without the service options (for the service command line)
+    std::vector<std::string> serviceArgs(void) const
+    {
+        static const std::vector<std::string> serviceOptions{
+            "register-service", "unregister-service", "display-name", "description", "startup", "run-service"};
+        std::vector<std::string> out;
+        for (const auto &[name, value] : _config.given())
+        {
+            if (std::ranges::find(serviceOptions, name) != serviceOptions.end()) continue;
+            out.push_back(value.empty()? "--" + name : "--" + name + "=" + value);
+        }
+        if (not _config.positional().empty()) out.push_back("--");
+        out.insert(out.end(), _config.positional().begin(), _config.positional().end());
+        return out;
+    }
+    #endif
 
     //! Run the commands: those with a value in command line order, then the first flag command
     void runCommands(void)
@@ -113,6 +132,43 @@ int main(int argc, char *argv[])
         app.displayHelp();
         return 0;
     }
+
+    #ifdef _WIN32
+    try
+    {
+        const auto &config = app.config();
+        if (config.has("register-service"))
+        {
+            Pothos::App::ServiceOptions opts;
+            if (not config.getString("register-service").empty()) opts.name = config.getString("register-service");
+            opts.displayName = config.getString("display-name");
+            opts.description = config.getString("description");
+            opts.startup = config.getString("startup", "manual");
+            opts.args = app.serviceArgs();
+            Pothos::App::registerService(opts);
+            std::cout << "Registered the service " << opts.name << std::endl;
+            return 0;
+        }
+        if (config.has("unregister-service"))
+        {
+            const auto name = config.getString("unregister-service");
+            Pothos::App::unregisterService(name.empty()? "PothosUtil" : name);
+            std::cout << "Removed the service " << (name.empty()? "PothosUtil" : name) << std::endl;
+            return 0;
+        }
+        if (config.has("run-service")) return Pothos::App::runAsService(config.getString("run-service"), [&app]
+        {
+            Pothos::System::Logger::setupDefaultLogging();
+            app.runCommands();
+            return app.config().getInt("success-code", 0);
+        });
+    }
+    catch (const Pothos::Exception &ex)
+    {
+        std::cerr << ex.displayText() << std::endl;
+        return ExitUsage;
+    }
+    #endif
 
     try
     {
