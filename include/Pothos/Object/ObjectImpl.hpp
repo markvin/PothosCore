@@ -78,10 +78,20 @@ makeObjectContainer(Args&&...)
 template <typename ValueType>
 ValueType &extractObject(const Object &obj)
 {
-    //Support for the special NullObject case when the _impl is nullptr.
+    //Support for the special NullObject case when the _impl is nullptr:
+    //a real instance, a reference made from a null pointer is undefined
+    //behaviour (and crashes with optimizing compilers).
     //Otherwise, check the type for a match and then extract the internal value
-    typedef typename std::decay<ValueType>::type DecayValueType;
-    return *(reinterpret_cast<DecayValueType *>((obj._impl == nullptr)?0:obj._impl->internal));
+    using DecayValueType = std::decay_t<ValueType>;
+    if constexpr (std::is_same_v<DecayValueType, NullObject>)
+    {
+        if (obj._impl == nullptr)
+        {
+            static NullObject null;
+            return null;
+        }
+    }
+    return *reinterpret_cast<DecayValueType *>(obj._impl->internal);
 }
 
 [[noreturn]] POTHOS_API void throwExtract(const Object &obj, const std::type_info &type);
