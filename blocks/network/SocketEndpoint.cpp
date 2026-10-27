@@ -70,8 +70,7 @@ struct PothosPacketSocketEndpointTcp
             socket.async_connect(endpoint, [&](const asio::error_code &e){ec = e;});
             runFor(context, socket, ConnectTimeout);
             if (ec) throw asio::system_error(ec, "connect");
-            socket.set_option(asio::ip::tcp::no_delay(true));
-            connected = true;
+            this->setupConnected();
         }
     }
 
@@ -93,50 +92,71 @@ struct PothosPacketSocketEndpointTcp
     {
         if (not connected)
         {
-            if (not waitReadable(context, acceptor, timeout)) return false;
+            if (not pollSocket(acceptor, false, timeout)) return false;
             acceptor.accept(socket);
-            socket.set_option(asio::ip::tcp::no_delay(true));
-            connected = true;
+            this->setupConnected();
             return false;
         }
-        return waitReadable(context, socket, std::chrono::milliseconds(50));
+        return pollSocket(socket, false, std::chrono::milliseconds(50));
     }
 
+    //! The socket never blocks: the waits below have the stall timeout
+    void setupConnected(void)
+    {
+        socket.set_option(asio::ip::tcp::no_delay(true));
+        socket.non_blocking(true);
+        connected = true;
+    }
+
+    //! Send everything, failing when the peer accepts nothing for the stall timeout
     void sendAll(const void *buff, const size_t length, const int flags)
     {
         size_t sent = 0;
         while (sent < length)
         {
             asio::error_code ec;
-            sent += socket.send(asio::buffer(static_cast<const char *>(buff)+sent, length-sent), flags, ec);
+            const auto n = socket.send(asio::buffer(static_cast<const char *>(buff)+sent, length-sent), flags, ec);
+            if (ec == asio::error::would_block or ec == asio::error::try_again)
+            {
+                if (not pollSocket(socket, true, StallTimeout)) throw Pothos::IOException(
+                    "PothosPacketSocketEndpoint::send()", "the peer stalled (accepted no data for 5 s)");
+                continue;
+            }
             if (ec) throw Pothos::IOException("PothosPacketSocketEndpoint::send()", ec.message());
+            sent += n;
         }
-    }
-
-    static std::string recvError(const asio::error_code &ec)
-    {
-        if (ec == asio::error::operation_aborted) return "the peer stalled (no data for 5 s)";
-        return ec.message();
     }
 
     //! Receive exactly length bytes (the peer has started to send them)
     void recvAll(void *buff, const size_t length)
     {
-        asio::error_code ec = asio::error::timed_out;
-        asio::async_read(socket, asio::buffer(buff, length), [&](const asio::error_code &e, size_t){ec = e;});
-        runFor(context, socket, StallTimeout);
-        if (ec) throw Pothos::IOException("PothosPacketSocketEndpoint::recv()", recvError(ec));
+        size_t received = 0;
+        while (received < length) received += this->recvSome(static_cast<char *>(buff)+received, length-received);
     }
 
-    //! Receive what is available, at least one byte
+    //! Receive what is available, at least one byte, failing when nothing comes for the stall timeout
     size_t recvSome(void *buff, const size_t length)
     {
-        asio::error_code ec = asio::error::timed_out;
-        size_t n = 0;
-        socket.async_read_some(asio::buffer(buff, length), [&](const asio::error_code &e, size_t r){ec = e; n = r;});
-        runFor(context, socket, StallTimeout);
-        if (ec) throw Pothos::IOException("PothosPacketSocketEndpoint::recv()", recvError(ec));
-        return n;
+        while (true)
+        {
+            asio::error_code ec;
+            const auto n = socket.read_some(asio::buffer(buff, length), ec);
+            if (ec == asio::error::would_block or ec == asio::error::try_again)
+            {
+                if (not pollSocket(socket, false, StallTimeout)) throw Pothos::IOException(
+                    "PothosPacketSocketEndpoint::recv()", "the peer stalled (no data for 5 s)");
+                continue;
+            }
+            if (ec) throw Pothos::IOException("PothosPacketSocketEndpoint::recv()", ec.message());
+            return n;
+        }
+    }
+
+    //! Stop the connection after an error: both directions, safe while another thread waits on it
+    void shutdown(void)
+    {
+        asio::error_code ec;
+        socket.shutdown(asio::ip::tcp::socket::shutdown_both, ec);
     }
 
     const bool server;
@@ -227,6 +247,13 @@ struct PothosPacketSocketEndpoint::Impl
     }
     void send(const uint16_t flags, const uint16_t type, const void *buff, const size_t numBytes, const bool more = false);
     void recv(uint16_t &flags, uint16_t &type, Pothos::BufferChunk &buffer, const std::chrono::high_resolution_clock::duration &timeout);
+
+    //! After an error the stream is out of sync: the connection ends
+    void fail(void)
+    {
+        this->state = EP_STATE_CLOSED;
+        if (this->iface != nullptr) this->iface->shutdown();
+    }
 
     uint64_t flowControlWindowBytes(void) const
     {
@@ -507,7 +534,8 @@ void PothosPacketSocketEndpoint::Impl::unpackHeader(const PothosPacketHeader &he
 void PothosPacketSocketEndpoint::recv(uint16_t &type, Pothos::BufferChunk &buffer, const std::chrono::high_resolution_clock::duration &timeout)
 {
     uint16_t flags = 0;
-    return _impl->recv(flags, type, buffer, timeout);
+    try {return _impl->recv(flags, type, buffer, timeout);}
+    catch (...) {_impl->fail(); throw;}
 }
 
 void PothosPacketSocketEndpoint::Impl::recv(uint16_t &flags, uint16_t &type, Pothos::BufferChunk &buffer, const std::chrono::high_resolution_clock::duration &timeout)
@@ -577,7 +605,8 @@ void PothosPacketSocketEndpoint::Impl::recv(uint16_t &flags, uint16_t &type, Pot
  **********************************************************************/
 void PothosPacketSocketEndpoint::send(const uint16_t type, const void *buff, const size_t numBytes, const bool more)
 {
-    _impl->send(PothosPacketFlagPsh, type, buff, numBytes, more);
+    try {_impl->send(PothosPacketFlagPsh, type, buff, numBytes, more);}
+    catch (...) {_impl->fail(); throw;}
 }
 
 void PothosPacketSocketEndpoint::Impl::send(const uint16_t flags, const uint16_t type, const void *buff, const size_t numBytes, const bool more)

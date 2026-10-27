@@ -118,11 +118,12 @@ POTHOS_TEST_BLOCK("/blocks/tests", test_network_blocks_ipv6)
  * A peer that connects and then stalls: commit() fails (no handshake)
  * within its timeouts instead of waiting for the peer forever
  **********************************************************************/
-static bool finishesWithin(const std::chrono::seconds limit, const std::function<void(void)> &fcn)
+static bool finishesWithin(const std::chrono::seconds limit, std::function<void(void)> fcn)
 {
+    //the thread owns everything it uses: it may outlive this call on failure
     auto done = std::make_shared<std::promise<void>>();
     auto result = done->get_future();
-    std::thread([fcn, done]
+    std::thread([fcn = std::move(fcn), done]
     {
         try {fcn();} catch (...) {}
         done->set_value();
@@ -137,13 +138,13 @@ static void stalledPeerTest(const std::string &bytesBeforeStall)
     const std::string port = sink.call("getActualPort");
 
     //a raw client that never answers the handshake
-    asio::io_context context;
-    asio::ip::tcp::socket peer(context);
-    peer.connect(asio::ip::tcp::endpoint(asio::ip::make_address("127.0.0.1"), std::uint16_t(std::stoi(port))));
-    if (not bytesBeforeStall.empty()) asio::write(peer, asio::buffer(bytesBeforeStall));
+    auto context = std::make_shared<asio::io_context>();
+    auto peer = std::make_shared<asio::ip::tcp::socket>(*context);
+    peer->connect(asio::ip::tcp::endpoint(asio::ip::make_address("127.0.0.1"), std::uint16_t(std::stoi(port))));
+    if (not bytesBeforeStall.empty()) asio::write(*peer, asio::buffer(bytesBeforeStall));
 
-    bool threw = false;
-    POTHOS_TEST_TRUE(finishesWithin(std::chrono::seconds(15), [&]
+    auto threw = std::make_shared<bool>(false);
+    POTHOS_TEST_TRUE(finishesWithin(std::chrono::seconds(15), [=]
     {
         Pothos::Topology topology;
         topology.connect(feeder, 0, sink, 0);
@@ -151,18 +152,57 @@ static void stalledPeerTest(const std::string &bytesBeforeStall)
         catch (const Pothos::Exception &ex)
         {
             std::cout << "commit: " << ex.displayText() << std::endl;
-            threw = true;
+            *threw = true;
         }
+        (void)context; (void)peer; //keep the peer open while committing
     }));
-    POTHOS_TEST_TRUE(threw);
+    POTHOS_TEST_TRUE(*threw);
 }
 
-POTHOS_TEST_BLOCK("/blocks/tests", test_network_deactivate_unblocks)
+POTHOS_TEST_BLOCK("/blocks/tests", test_network_activate_stalled_peer)
 {
     std::cout << "silent peer" << std::endl;
     stalledPeerTest("");
     std::cout << "peer stalls inside a header" << std::endl;
     stalledPeerTest("PTH");
+}
+
+/***********************************************************************
+ * The receiving side stops reading during a transfer: the sending
+ * topology still shuts down (the stalled send ends with an error)
+ **********************************************************************/
+namespace
+{
+    struct NeverConsumes : Pothos::Block
+    {
+        NeverConsumes(void)
+        {
+            this->setupInput(0, "int");
+        }
+
+        void work(void) {}
+    };
+}
+
+POTHOS_TEST_BLOCK("/blocks/tests", test_network_stalled_reader)
+{
+    auto feeder = Pothos::BlockRegistry::make("/blocks/feeder_source", "int");
+    auto sink = Pothos::BlockRegistry::make("/blocks/network_sink", "tcp://127.0.0.1", "BIND");
+    const std::string port = sink.call("getActualPort");
+    auto source = Pothos::BlockRegistry::make("/blocks/network_source", "tcp://127.0.0.1:"+port, "CONNECT");
+    auto stuck = std::make_shared<NeverConsumes>();
+
+    //one buffer far larger than the socket buffers of the loopback
+    feeder.call("feedBuffer", Pothos::BufferChunk("int", 8*1024*1024));
+
+    POTHOS_TEST_TRUE(finishesWithin(std::chrono::seconds(30), [=]
+    {
+        Pothos::Topology topology;
+        topology.connect(feeder, 0, sink, 0);
+        topology.connect(source, 0, stuck, 0);
+        topology.commit();
+        std::this_thread::sleep_for(std::chrono::seconds(1)); //the send blocks by now
+    }));
 }
 
 /***********************************************************************

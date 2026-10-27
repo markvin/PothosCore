@@ -15,7 +15,8 @@ pothos_blocks_module(
     TESTS
         test_network_blocks
         test_network_blocks_ipv6
-        test_network_deactivate_unblocks
+        test_network_activate_stalled_peer
+        test_network_stalled_reader
         test_network_topology
         test_datagram_io
 )
