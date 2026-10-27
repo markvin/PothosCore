@@ -5,5 +5,3 @@ apps/PothosUtil.cpp
 apps/PothosUtil.hpp
 lib/ConfLoader/ConfLoader.cpp
 lib/Plugin/ModuleSafeLoad.cpp
-lib/Remote/Server.cpp
-lib/System/Logger.cpp

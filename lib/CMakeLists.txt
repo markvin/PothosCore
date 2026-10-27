@@ -176,6 +176,7 @@ add_library(Pothos SHARED
     Platform/Builtin/TestProcess.cpp
     Net/Builtin/TestNetAddress.cpp
     Net/Builtin/TestNetTcp.cpp
+    Net/Builtin/TestNetSyslog.cpp
     Util/Builtin/TestSIMDDispatcherUtils.cpp
 
     Archive/ArchiveEntry.cpp
@@ -213,7 +214,7 @@ target_link_libraries(Pothos PRIVATE ${POTHOS_PLATFORM_LIBRARIES})
 # PothosUtil (proxy server) for the same reason as the platform layer.
 ########################################################################
 set(net_sources)
-foreach(name IoContext Uri Address TcpStream TcpServer)
+foreach(name IoContext Uri Address TcpStream TcpServer Syslog)
     list(APPEND net_sources ${CMAKE_CURRENT_SOURCE_DIR}/Net/${name}.cpp)
 endforeach()
 set(POTHOS_NET_SOURCES ${net_sources} CACHE INTERNAL "")

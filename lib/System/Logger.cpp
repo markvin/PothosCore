@@ -3,18 +3,11 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include <Pothos/System/Logger.hpp>
-#include <Pothos/Util/Network.hpp>
 #include <Pothos/Plugin/Static.hpp> //static block
 #include "System/LoggerSinks.hpp"
 #include "Platform/Environment.hpp"
 #include "Util/StringUtils.hpp"
-#include <Poco/Net/RemoteSyslogChannel.h>
-#include <Poco/Net/RemoteSyslogListener.h>
-#include <Poco/Net/DatagramSocket.h>
-#include <Poco/AutoPtr.h>
-#include <Poco/Message.h>
-#include <Poco/Channel.h>
-#include <Poco/URI.h>
+#include "Net/Syslog.hpp"
 #include <atomic>
 #include <charconv>
 #include <chrono>
@@ -262,7 +255,7 @@ static struct LoggingShutdownGuard
 } loggingShutdownGuard;
 
 /***********************************************************************
- * Syslog forwarding and listening (Poco Net until it is replaced)
+ * Syslog forwarding and listening (lib/Net)
  **********************************************************************/
 static std::mutex &getSetupLoggerMutex(void)
 {
@@ -270,67 +263,34 @@ static std::mutex &getSetupLoggerMutex(void)
     return mutex;
 }
 
-//! A channel for the syslog listener that writes received messages to the active sink
-class LoggerChannel : public Poco::Channel
-{
-public:
-    void log(const Poco::Message &msg) override
-    {
-        Detail::LogRecord r;
-        const int prio = int(msg.getPriority());
-        r.level = (prio >= int(LogLevel::Fatal) and prio <= int(LogLevel::Trace))? LogLevel(prio) : LogLevel::Information;
-        r.source = msg.getSource();
-        r.text = msg.getText();
-        r.time = std::chrono::system_clock::time_point(std::chrono::microseconds(msg.getTime().epochMicroseconds()));
-        r.threadId = static_cast<unsigned long>(msg.getTid());
-        r.pid = static_cast<int>(msg.getPid());
-        Detail::deliver(r);
-    }
-};
-
-static Poco::AutoPtr<Poco::Net::RemoteSyslogListener> listener;
+static std::unique_ptr<Pothos::Net::SyslogListener> listener;
 
 std::string Logger::startSyslogListener(void)
 {
     std::lock_guard<std::mutex> lock(getSetupLoggerMutex());
 
-    if (not listener)
-    {
-        //find an available udp port
-        const auto addr = Poco::URI("udp://"+Pothos::Util::getWildcardAddr()).getHost();
-        Poco::Net::DatagramSocket sock(Poco::Net::SocketAddress(addr, 0), false);
-        const auto port = sock.address().port();
-        sock.close();
-
-        //create a new listener that feeds the logger
-        //FIXME syslog listener always binds to IPv4...
-        listener = new Poco::Net::RemoteSyslogListener(port);
-        listener->addChannel(Poco::AutoPtr<Poco::Channel>(new LoggerChannel()));
-        listener->open();
-    }
+    //a listener on all interfaces that feeds the active sink
+    if (not listener) listener = std::make_unique<Pothos::Net::SyslogListener>(&Detail::deliver);
 
     //return the port number of the log service
-    return listener->getProperty(Poco::Net::RemoteSyslogListener::PROP_PORT);
+    return std::to_string(listener->port());
 }
 
 void Logger::stopSyslogListener(void)
 {
     std::lock_guard<std::mutex> lock(getSetupLoggerMutex());
-    if (not listener) return;
-    listener->close();
-    listener = nullptr;
+    listener.reset();
 }
 
-static Poco::AutoPtr<Poco::Net::RemoteSyslogChannel> forwarder;
+static std::shared_ptr<Pothos::Net::SyslogSender> forwarder;
 
 static void __startSyslogForwarding(const std::string &addr)
 {
-    forwarder = new Poco::Net::RemoteSyslogChannel(addr, ""/*empty name*/);
-    auto channel = forwarder;
-    Detail::setLogSink([channel](const Detail::LogRecord &r) mutable
+    forwarder = std::make_shared<Pothos::Net::SyslogSender>(addr);
+    auto sender = forwarder;
+    Detail::setLogSink([sender](const Detail::LogRecord &r)
     {
-        Poco::Message msg(r.source, r.text, Poco::Message::Priority(int(r.level)));
-        channel->log(msg);
+        sender->send(r);
     });
 
     //subprocesses will automatically forward to this address
@@ -348,8 +308,7 @@ void Logger::stopSyslogForwarding(void)
     std::lock_guard<std::mutex> lock(getSetupLoggerMutex());
     if (not forwarder) return;
     Detail::setLogSink(Detail::LogSink()); //messages are dropped, as before
-    forwarder->close();
-    forwarder = nullptr;
+    forwarder.reset();
 }
 
 /***********************************************************************

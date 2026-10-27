@@ -9,8 +9,7 @@
 #include "Util/StringUtils.hpp"
 #include "Net/Address.hpp"
 #include "Net/Uri.hpp"
-#include <Poco/Message.h>
-#include <Poco/Net/RemoteSyslogChannel.h>
+#include "Net/Syslog.hpp"
 #include <functional>
 #include <thread>
 #include <cassert>
@@ -185,15 +184,8 @@ std::string Pothos::RemoteServer::getActualPort(void) const
  * syslog forwarding implementation
  **********************************************************************/
 
-//! Guess the priority using keywords in the front of the message.
-static Poco::Message::Priority guessPrio(const std::string &msg)
-{
-    //the level numbers are the syslog priorities
-    return Poco::Message::Priority(int(Pothos::System::Detail::guessLevel(msg)));
-}
-
-//! Worker thread operation to read the pipe and forward to the syslog channel
-static void pipeToSyslogWorker(Poco::AutoPtr<Poco::Channel> channel, Pothos::Platform::Pipe pipe, const std::string &source)
+//! Worker thread operation to read the pipe and forward to the syslog sender
+static void pipeToSyslogWorker(std::shared_ptr<Pothos::Net::SyslogSender> sender, Pothos::Platform::Pipe pipe, const std::string &source)
 {
     Pothos::Platform::PipeInputStream is(pipe);
     try
@@ -203,19 +195,24 @@ static void pipeToSyslogWorker(Poco::AutoPtr<Poco::Channel> channel, Pothos::Pla
         {
             std::getline(is, line);
             if (line.empty()) continue;
-            channel->log(Poco::Message(source, line, guessPrio(line)));
+            Pothos::System::Detail::LogRecord r;
+            r.level = Pothos::System::Detail::guessLevel(line); //keywords in the front of the message
+            r.source = source;
+            r.text = line;
+            r.time = std::chrono::system_clock::now();
+            sender->send(r);
         }
     }
     catch (...){}
 }
 
-//! Create the syslog channel and forwarding threads
+//! Create the syslog sender and forwarding threads
 void Pothos::RemoteServer::startSyslogForwarding(const std::string &addr, const std::string &source)
 {
     assert(_impl);
-    Poco::AutoPtr<Poco::Channel> channel(new Poco::Net::RemoteSyslogChannel(addr, ""/*empty name*/));
-    _impl->outThread = std::thread(std::bind(&pipeToSyslogWorker, channel, _impl->outPipe, source));
-    _impl->errThread = std::thread(std::bind(&pipeToSyslogWorker, channel, _impl->errPipe, source));
+    auto sender = std::make_shared<Pothos::Net::SyslogSender>(addr);
+    _impl->outThread = std::thread(&pipeToSyslogWorker, sender, _impl->outPipe, source);
+    _impl->errThread = std::thread(&pipeToSyslogWorker, sender, _impl->errPipe, source);
 }
 
 #include <Pothos/Managed.hpp>

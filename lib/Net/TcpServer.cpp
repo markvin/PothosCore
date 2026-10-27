@@ -145,18 +145,24 @@ TcpServer::~TcpServer(void)
         for (auto &conn : impl->connections) conn->stream->close();
     }
 
-    //the acceptor belongs to the io_context thread: close it there
-    std::promise<void> closed;
-    auto done = closed.get_future();
-    asio::post(ioContext(), [impl, &closed]
+    //the acceptor belongs to the io_context thread: close it there,
+    //or directly when that thread is gone (process exit)
+    bool closedThere = false;
+    if (not ioContext().stopped())
+    {
+        auto closed = std::make_shared<std::promise<void>>(); //outlives a timed out wait
+        auto done = closed->get_future();
+        asio::post(ioContext(), [impl, closed]
+        {
+            asio::error_code ec;
+            impl->acceptor.close(ec);
+            closed->set_value();
+        });
+        closedThere = done.wait_for(std::chrono::seconds(5)) == std::future_status::ready;
+    }
+    if (not closedThere)
     {
         asio::error_code ec;
-        impl->acceptor.close(ec);
-        closed.set_value();
-    });
-    if (done.wait_for(std::chrono::seconds(5)) != std::future_status::ready)
-    {
-        asio::error_code ec; //the io_context is not running (process exit)
         impl->acceptor.close(ec);
     }
 
