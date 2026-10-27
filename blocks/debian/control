@@ -1,0 +1,31 @@
+Source: pothos-blocks
+Section: science
+Priority: optional
+Maintainer: Josh Blum <josh@pothosware.com>
+Build-Depends:
+    debhelper (>= 9.0.0),
+    cmake (>= 2.8.9),
+    libpoco-dev (>= 1.6),
+    nlohmann-json-dev,
+    libpothos-dev
+Standards-Version: 4.5.0
+Homepage: https://github.com/pothosware/PothosBlocks/wiki
+Vcs-Git: https://github.com/pothosware/PothosBlocks.git
+Vcs-Browser: https://github.com/pothosware/PothosBlocks
+
+Package: pothos-modules-blocks
+Section: libs
+Architecture: all
+Pre-Depends: ${misc:Pre-Depends}
+Depends: pothos0.7-modules-blocks, ${misc:Depends}
+Description: core processing blocks - metapackage
+ The Pothos data-flow software suite.
+
+Package: pothos0.7-modules-blocks
+Section: libs
+Architecture: any
+Multi-Arch: same
+Pre-Depends: ${misc:Pre-Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: core processing blocks
+ The Pothos data-flow software suite.
