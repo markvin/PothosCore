@@ -150,6 +150,8 @@ add_library(Pothos SHARED
     Util/EvalEnvironment.cpp
     Util/EvalEnvironmentListParsers.cpp
     Util/BlockDescription.cpp
+    Util/Expr/Value.cpp
+    Util/Expr/Lexer.cpp
 
     Util/Builtin/BlockEval.cpp
     Util/Builtin/DeviceInfoUtils.cpp
@@ -159,6 +161,7 @@ add_library(Pothos SHARED
     Util/Builtin/TestDocUtils.cpp
     Util/Builtin/TestErrorCodeHandling.cpp
     Util/Builtin/TestEvalExpression.cpp
+    Util/Builtin/TestExpr.cpp
     Util/Builtin/TestRingDeque.cpp
     Util/Builtin/TestStringUtils.cpp
     Util/Builtin/TestTempFile.cpp
