@@ -163,6 +163,10 @@ Pothos::Platform::Process Pothos::Platform::Process::launch(const std::filesyste
     if (opts.in != nullptr) posix_spawn_file_actions_adddup2(&actions, int(opts.in->readHandle()), STDIN_FILENO);
     if (opts.out != nullptr) posix_spawn_file_actions_adddup2(&actions, int(opts.out->writeHandle()), STDOUT_FILENO);
     if (opts.err != nullptr) posix_spawn_file_actions_adddup2(&actions, int(opts.err->writeHandle()), STDERR_FILENO);
+    const bool nullOut = opts.discardOutput and opts.out == nullptr;
+    const bool nullErr = opts.discardOutput and opts.err == nullptr;
+    if (nullOut) posix_spawn_file_actions_addopen(&actions, STDOUT_FILENO, "/dev/null", O_WRONLY, 0);
+    if (nullErr) posix_spawn_file_actions_addopen(&actions, STDERR_FILENO, "/dev/null", O_WRONLY, 0);
 
     //the child inherits only stdin, stdout and stderr: other descriptors
     //(sockets and files of other libraries, without close-on-exec) are closed
@@ -171,8 +175,8 @@ Pothos::Platform::Process Pothos::Platform::Process::launch(const std::filesyste
     #if defined(__APPLE__)
     posix_spawnattr_setflags(&attr, POSIX_SPAWN_CLOEXEC_DEFAULT);
     if (opts.in == nullptr) posix_spawn_file_actions_addinherit_np(&actions, STDIN_FILENO);
-    if (opts.out == nullptr) posix_spawn_file_actions_addinherit_np(&actions, STDOUT_FILENO);
-    if (opts.err == nullptr) posix_spawn_file_actions_addinherit_np(&actions, STDERR_FILENO);
+    if (opts.out == nullptr and not nullOut) posix_spawn_file_actions_addinherit_np(&actions, STDOUT_FILENO);
+    if (opts.err == nullptr and not nullErr) posix_spawn_file_actions_addinherit_np(&actions, STDERR_FILENO);
     #elif defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 34))
     posix_spawn_file_actions_addclosefrom_np(&actions, STDERR_FILENO+1);
     #else

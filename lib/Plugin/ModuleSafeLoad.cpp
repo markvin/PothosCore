@@ -105,13 +105,10 @@ Pothos::PluginModule Pothos::PluginModule::safeLoad(const std::string &path)
     Pothos::Platform::ProcessOptions opts;
     opts.args = {"--load-module", path, "--success-code", std::to_string(success)};
 
-    //launch: output is discarded (pipes closed so the child never blocks)
-    Pothos::Platform::Pipe outPipe, errPipe;
-    opts.out = &outPipe;
-    opts.err = &errPipe;
+    //launch: output goes to the null device (a closed pipe would kill the
+    //child with a broken pipe as soon as it prints)
+    opts.discardOutput = true;
     auto ph = Pothos::Platform::Process::launch(Pothos::System::getPothosUtilExecutablePath(), opts);
-    outPipe.close();
-    errPipe.close();
 
     //wait, check error condition, and throw
     if (ph.wait() != success)

@@ -4,7 +4,7 @@
 #include <Pothos/Exception.hpp>
 #include <Pothos/Framework.hpp>
 
-#include <Poco/Logger.h>
+#include <Pothos/System/Logger.hpp>
 
 #include <cstdlib>
 #include <string>
@@ -98,15 +98,15 @@ public:
         Pothos::Block(),
         _abortEvent(abortEvent),
         _abortFcnLabel(abortFcnLabel),
-        _abortFcn(abortFcn),
-        _logger(Poco::Logger::get(this->getName()))
+        _abortFcn(abortFcn)
     {
         if("CONSTRUCTOR" == abortEvent)
         {
             // The block name isn't set yet, so hardcode the string.
-            poco_information_f1(
-                _logger,
-                "AbortBlock: calling %s on block construction",
+            Pothos::System::log(
+                Pothos::System::LogLevel::Information,
+                "AbortBlock",
+                "AbortBlock: calling {} on block construction",
                 _abortFcnLabel);
 
             _abortFcn();
@@ -122,9 +122,10 @@ public:
     {
         if("ACTIVATE" == _abortEvent)
         {
-            poco_information_f2(
-                _logger,
-                "%s: calling %s on activate()",
+            Pothos::System::log(
+                Pothos::System::LogLevel::Information,
+                "AbortBlock",
+                "{}: calling {} on activate()",
                 this->getName(),
                 _abortFcnLabel);
 
@@ -136,9 +137,10 @@ public:
     {
         if("DEACTIVATE" == _abortEvent)
         {
-            poco_information_f2(
-                _logger,
-                "%s: calling %s on deactivate()",
+            Pothos::System::log(
+                Pothos::System::LogLevel::Information,
+                "AbortBlock",
+                "{}: calling {} on deactivate()",
                 this->getName(),
                 _abortFcnLabel);
 
@@ -150,9 +152,10 @@ public:
     {
         if("WORK" == _abortEvent)
         {
-            poco_information_f2(
-                _logger,
-                "%s: calling %s on work()",
+            Pothos::System::log(
+                Pothos::System::LogLevel::Information,
+                "AbortBlock",
+                "{}: calling {} on work()",
                 this->getName(),
                 _abortFcnLabel);
 
@@ -164,9 +167,10 @@ public:
     {
         if("REGISTERED_CALL" == _abortEvent)
         {
-            poco_information_f2(
-                _logger,
-                "%s: calling %s on registered call",
+            Pothos::System::log(
+                Pothos::System::LogLevel::Information,
+                "AbortBlock",
+                "{}: calling {} on registered call",
                 this->getName(),
                 _abortFcnLabel);
 
@@ -178,7 +182,6 @@ private:
     std::string _abortEvent;
     std::string _abortFcnLabel;
     AbortFcn _abortFcn;
-    Poco::Logger& _logger;
 };
 
 static Pothos::BlockRegistry registerAbort(

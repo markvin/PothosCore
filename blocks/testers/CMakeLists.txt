@@ -1,24 +1,11 @@
 ########################################################################
-## Feature registration
-########################################################################
-cmake_dependent_option(ENABLE_BLOCKS_TESTERS "Enable Pothos Blocks.Testers component" ON "ENABLE_BLOCKS;JSON_HPP_INCLUDE_DIR" OFF)
-add_feature_info("  Testers" ENABLE_BLOCKS_TESTERS "Unit test verification support blocks")
-if (NOT ENABLE_BLOCKS_TESTERS)
-    return()
-endif()
-
-########################################################################
 # Tester blocks module
 ########################################################################
-include_directories(${JSON_HPP_INCLUDE_DIR})
-POTHOS_MODULE_UTIL(
+pothos_blocks_module(
     TARGET TesterBlocks
     SOURCES
         TestUnitTestBlocks.cpp
-        TestProxyTopology.cpp
-        TestJSONTopology.cpp
         TestSetThreadPool.cpp
-        TestConstantSource.cpp
         FeederSource.cpp
         CollectorSink.cpp
         BlackHole.cpp
@@ -31,6 +18,8 @@ POTHOS_MODULE_UTIL(
         MessageGenerator.cpp
         ConstantSource.cpp
         Abort.cpp
-    DESTINATION blocks
-    ENABLE_DOCS
+    TESTS
+        test_unit_test_blocks
+        test_unit_testplans
+        test_set_thread_pool
 )

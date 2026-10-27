@@ -79,12 +79,12 @@ function(POTHOS_MODULE_UTIL)
         endif()
     endif()
 
-    #add git hash when possible
+    #add git hash when possible (no cache entry: the caller's cache stays as it was)
     if (EXISTS "${PROJECT_SOURCE_DIR}/.git")
-        find_package(Git)
-        if(GIT_FOUND)
+        find_program(__POTHOS_GIT_EXECUTABLE git NO_CACHE)
+        if(__POTHOS_GIT_EXECUTABLE)
             execute_process(
-                COMMAND ${GIT_EXECUTABLE} -C "${PROJECT_SOURCE_DIR}" rev-parse --short HEAD
+                COMMAND ${__POTHOS_GIT_EXECUTABLE} -C "${PROJECT_SOURCE_DIR}" rev-parse --short HEAD
                 OUTPUT_STRIP_TRAILING_WHITESPACE
                 OUTPUT_VARIABLE GIT_HASH)
             if (GIT_HASH)
@@ -94,7 +94,7 @@ function(POTHOS_MODULE_UTIL)
                     set(POTHOS_MODULE_UTIL_VERSION "${GIT_HASH}")
                 endif()
             endif()
-        endif(GIT_FOUND)
+        endif()
     endif()
 
     #setup module build and install rules

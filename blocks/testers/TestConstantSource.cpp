@@ -5,7 +5,8 @@
 #include <Pothos/Framework.hpp>
 #include <Pothos/Proxy.hpp>
 
-#include <Poco/Thread.h>
+#include <chrono>
+#include <thread>
 
 #include <algorithm>
 #include <complex>
@@ -46,7 +47,7 @@ static void testConstantSource(const T& constant)
         topology.connect(constantSource, 0, collectorSink, 0);
 
         topology.commit();
-        Poco::Thread::sleep(10);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
     auto buffer = collectorSink.call<Pothos::BufferChunk>("getBuffer");

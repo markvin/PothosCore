@@ -103,6 +103,17 @@ POTHOS_TEST_BLOCK("/platform/tests", test_process_large_output)
     POTHOS_TEST_EQUAL(count, 4096u);
 }
 
+//a child that writes to a discarded stdout is not killed (no broken pipe)
+POTHOS_TEST_BLOCK("/platform/tests", test_process_discard_output)
+{
+    ProcessOptions opts;
+    opts.args = {"--self-test1", "/platform/tests/helper_large_output"};
+    opts.env = {{"POTHOS_TEST_LARGE_OUTPUT", "1"}};
+    opts.discardOutput = true;
+    auto proc = Process::launch(Pothos::System::getPothosUtilExecutablePath(), opts);
+    POTHOS_TEST_EQUAL(proc.wait(), 0);
+}
+
 #ifndef _WIN32
 //helper for test_process_no_fd_inheritance: reports whether a descriptor is open
 POTHOS_TEST_BLOCK("/platform/tests", helper_check_fd)

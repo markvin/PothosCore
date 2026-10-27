@@ -1,58 +1,32 @@
 ########################################################################
-# Project setup
+# The blocks toolkit, built with the core: the modules link the core's
+# third party targets (json, xsimd, Asio through lib/Net), which stay
+# private to this build and are never installed
 ########################################################################
-cmake_minimum_required(VERSION 2.8.9)
-project(PothosBlocks CXX)
 
-if(${CMAKE_PROJECT_NAME} STREQUAL ${PROJECT_NAME})
-    find_package(Pothos "0.7.0" CONFIG REQUIRED)
-else()
-    find_package(Pothos CONFIG REQUIRED) #in-tree build
-endif()
-
-########################################################################
-## Feature registration
-########################################################################
-include(FeatureSummary)
-include(CMakeDependentOption)
-cmake_dependent_option(ENABLE_BLOCKS "Enable Pothos Blocks component" ON "Pothos_FOUND" OFF)
-add_feature_info(Blocks ENABLE_BLOCKS "A collection of general purpose blocks")
-
-########################################################################
-# json.hpp header
-########################################################################
-find_path(JSON_HPP_INCLUDE_DIR NAMES json.hpp PATH_SUFFIXES nlohmann)
-
-if (NOT JSON_HPP_INCLUDE_DIR)
-    message(WARNING "Pothos Blocks toolkit requires json.hpp, skipping...")
-endif (NOT JSON_HPP_INCLUDE_DIR)
-
-########################################################################
-# SIMD dynamic dispatch, if supported by this Pothos build
-########################################################################
-include(PothosConfigSIMD OPTIONAL RESULT_VARIABLE SIMD_SUPPORTED)
-if(SIMD_SUPPORTED)
-    include(CheckIncludeFileCXX)
-    set(CMAKE_REQUIRED_INCLUDES ${Pothos_INCLUDE_DIRS})
-    check_include_file_cxx(Pothos/Util/XSIMDTraits.hpp HAS_POTHOS_XSIMD_TRAITS_HPP)
-
-    if(HAS_POTHOS_XSIMD_TRAITS_HPP)
-        find_package(xsimd)
-        if(xsimd_FOUND)
-            add_definitions(-DPOTHOS_XSIMD)
-        endif()
+#pothos_blocks_module(TARGET <name> SOURCES <sources...>
+#    [LIBRARIES <libraries...>] [TESTS <self test names...>])
+#builds and installs a blocks module, TESTS are names under /blocks/tests
+#run one by one by the pothos.blocks.selftests test
+function(pothos_blocks_module)
+    cmake_parse_arguments(BLOCKS "" "TARGET" "SOURCES;LIBRARIES;TESTS" ${ARGN})
+    set(docs)
+    if(POTHOS_BUILD_APPS) #the doc parser is PothosUtil
+        set(docs ENABLE_DOCS)
     endif()
-endif()
+    POTHOS_MODULE_UTIL(
+        TARGET ${BLOCKS_TARGET}
+        SOURCES ${BLOCKS_SOURCES}
+        LIBRARIES pothos_json ${BLOCKS_LIBRARIES}
+        DESTINATION blocks
+        ${docs})
+    set_target_properties(${BLOCKS_TARGET} PROPERTIES CXX_EXTENSIONS OFF)
+    target_include_directories(${BLOCKS_TARGET} PRIVATE ${CMAKE_CURRENT_FUNCTION_LIST_DIR})
+    pothos_warnings_as_errors(${BLOCKS_TARGET})
+    foreach(test IN LISTS BLOCKS_TESTS)
+        set_property(GLOBAL APPEND PROPERTY POTHOS_BLOCKS_TESTS /blocks/tests/${test})
+    endforeach()
+endfunction()
 
-########################################################################
-# Build subdirectories
-########################################################################
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-
-add_subdirectory(file)
-add_subdirectory(event)
-add_subdirectory(network)
 add_subdirectory(packet)
-add_subdirectory(serialize)
-add_subdirectory(stream)
 add_subdirectory(testers)
