@@ -1260,7 +1260,28 @@ endfunction()
 #
 function(pothos_get_compilable_archs ARCH_LIST_VAR)
 
+    #only the architectures of the target processor family: some flags switch
+    #the target instead of extending it (Apple clang -arch arm64 on x86_64
+    #compiles the test, but gives an object the x86_64 link cannot use)
+    string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" processor)
+    if(processor MATCHES "^(x86_64|amd64|x64|x86|i[3-6]86)$")
+        set(family "^X86_")
+    elseif(processor MATCHES "^(arm64|aarch64)")
+        set(family "^ARM64_")
+    elseif(processor MATCHES "^arm")
+        set(family "^ARM_")
+    elseif(processor MATCHES "^(ppc|powerpc)")
+        set(family "^POWER_")
+    elseif(processor MATCHES "^mips")
+        set(family "^MIPS_")
+    else()
+        set(family "") #unknown processor: try every architecture
+    endif()
+
     foreach(ARCH ${POTHOS_ARCHS_PRI})
+        if(family AND NOT ARCH MATCHES "${family}")
+            continue()
+        endif()
         set(CMAKE_REQUIRED_FLAGS "${POTHOS_${ARCH}_CXX_FLAGS}")
         check_cxx_source_compiles("${POTHOS_${ARCH}_TEST_CODE}" CAN_COMPILE_${ARCH})
         if(CAN_COMPILE_${ARCH})
