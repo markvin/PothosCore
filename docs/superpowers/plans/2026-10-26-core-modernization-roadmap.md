@@ -34,8 +34,12 @@ in-tree зависимость (спека это разрешает).
 - Этап 4 — выполнен и слит в `pothos2` (PR #3, merge `34ea844e`): сетевой слой
   `lib/Net/` на standalone Asio (`third_party/asio`), Remote и syslog без Poco,
   Poco Net не собирается.
-- Этап 5 — план `2026-10-27-phase5-remove-poco.md`, ветка
-  `phase5-pothosutil-without-poco`.
+- Этап 5 — выполнен на ветке `phase5-pothosutil-without-poco` (план
+  `2026-10-27-phase5-remove-poco.md`): Poco удалён полностью; PothosUtil на
+  собственной библиотеке `pothos_app` (`lib/App/`: командная строка, ожидание
+  завершения, демон, pid-файл, служба Windows), `.conf`/кеш модулей — свой
+  читатель формата свойств. PR в `pothos2` — после ревью.
+- Следующий — этап 5a (libsimdpp → xsimd), затем 6 и 7.
 - Этап 5a (решение пользователя, 2026-10-27): libsimdpp заменяется на xsimd
   (копия в `third_party/xsimd`, не Highway — тулкиты уже используют xsimd).
 
