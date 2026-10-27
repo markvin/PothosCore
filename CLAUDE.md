@@ -27,6 +27,12 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
+- CMake options are prefixed `POTHOS_` (`POTHOS_BUILD_APPS`, `POTHOS_BUILD_DOCS`,
+  `POTHOS_BUILD_TESTS`, ...). The core must work as a subproject
+  (`pothos.subproject` test): no global `CMAKE_*` settings (use target
+  properties, `pothos_target_settings()`), no generic option/target names,
+  `PROJECT_BINARY_DIR`/`PROJECT_SOURCE_DIR` instead of `CMAKE_BINARY_DIR`,
+  top-level-only behaviour under `PROJECT_IS_TOP_LEVEL`.
 - C++23, CMake >= 3.25 (works on 4.x). No network access during the build;
   `third_party/` holds vendored code (nlohmann/json, standalone Asio, xsimd).
 - Internal dependencies (nlohmann/json, Asio, xsimd) are PRIVATE; they
