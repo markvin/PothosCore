@@ -20,14 +20,14 @@ namespace Util {
 template <typename T>
 struct Fundamental
 {
-    typedef T Type;
+    using Type = T;
 };
 
 //! Overload for getting the fundamental type of std::complex<T>
 template <typename T>
 struct Fundamental<std::complex<T>>
 {
-    typedef T Type;
+    using Type = T;
 };
 
 /*!

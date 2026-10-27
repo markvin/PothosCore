@@ -85,7 +85,15 @@ ctest --test-dir build --output-on-failure
 
 ## Conventions
 
-<!-- TODO -->
+- Public API (`include/Pothos/**`): prefer the standard primitives
+  (`std::mutex`, `std::shared_mutex`, `std::span`, `std::index_sequence`, ...)
+  over home-made ones. Keep names that toolkits use (`Util::SpinLock`,
+  `Util::index_sequence`, ...) as thin aliases/wrappers; do not break block
+  sources — `pothos.api_compat` (`tests/api_compat/`) builds old-style code
+  against the staged install.
+- `using` instead of `typedef`.
+- No warnings: the Linux CI builds with `-DPOTHOS_WARNINGS_AS_ERRORS=ON`
+  (GCC and Clang); fix warnings, do not silence them.
 
 ## Notes
 

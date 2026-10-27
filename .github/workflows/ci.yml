@@ -17,13 +17,13 @@ jobs:
             cc: gcc-14
             cxx: g++-14
             config: Debug
-            extra: ""
+            extra: "-DPOTHOS_WARNINGS_AS_ERRORS=ON"
           - name: linux-clang
             os: ubuntu-24.04
             cc: clang-18
             cxx: clang++-18
             config: Release
-            extra: "-DCMAKE_INSTALL_LIBDIR=lib64"
+            extra: "-DCMAKE_INSTALL_LIBDIR=lib64 -DPOTHOS_WARNINGS_AS_ERRORS=ON"
           - name: macos
             # temporary Intel (x86_64) runner: macos-latest/macos-15 arm64 jobs
             # were repeatedly not acquired by a hosted runner (capacity);

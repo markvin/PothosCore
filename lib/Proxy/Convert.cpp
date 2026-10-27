@@ -4,7 +4,7 @@
 #include <Pothos/Proxy/Environment.hpp>
 #include <Pothos/Proxy/Handle.hpp>
 #include <Pothos/Proxy/Exception.hpp>
-#include <Pothos/Util/SpinLockRW.hpp>
+#include <shared_mutex>
 #include <Pothos/Util/TypeInfo.hpp>
 #include <Pothos/Callable.hpp>
 #include <Pothos/Plugin.hpp>
@@ -18,15 +18,15 @@
 /***********************************************************************
  * Global map structure for conversions
  **********************************************************************/
-static Pothos::Util::SpinLockRW &getMapToLocalMutex(void)
+static std::shared_mutex &getMapToLocalMutex(void)
 {
-    static Pothos::Util::SpinLockRW lock;
+    static std::shared_mutex lock;
     return lock;
 }
 
-static Pothos::Util::SpinLockRW &getMapToProxyMutex(void)
+static std::shared_mutex &getMapToProxyMutex(void)
 {
-    static Pothos::Util::SpinLockRW lock;
+    static std::shared_mutex lock;
     return lock;
 }
 
@@ -98,7 +98,7 @@ static void handlePluginEvent(const Pothos::Plugin &plugin, const std::string &e
         if (isConvertToLocal(plugin))
         {
             const auto &pair = plugin.getObject().extract<Pothos::ProxyConvertPair>();
-            std::lock_guard<Pothos::Util::SpinLockRW> lock(getMapToLocalMutex());
+            std::lock_guard<std::shared_mutex> lock(getMapToLocalMutex());
             if (event == "add")
             {
                 getConvertToLocalMap()[hashIt(name, pair.first)] = plugin;
@@ -111,7 +111,7 @@ static void handlePluginEvent(const Pothos::Plugin &plugin, const std::string &e
         else if (isConvertToProxy(plugin))
         {
             const auto &callable = plugin.getObject().extract<Pothos::Callable>();
-            std::lock_guard<Pothos::Util::SpinLockRW> lock(getMapToProxyMutex());
+            std::lock_guard<std::shared_mutex> lock(getMapToProxyMutex());
             if (event == "add")
             {
                 getConvertToProxyMap()[hashIt(name, callable.type(1))] = plugin;
@@ -146,17 +146,21 @@ pothos_static_block(pothosProxyConvertRegister)
 Pothos::Proxy Pothos::ProxyEnvironment::convertObjectToProxy(const Pothos::Object &local)
 {
     //find the plugin in the map, it will be null if not found
-    Pothos::Util::SpinLockRW::SharedLock lock(getMapToProxyMutex());
-    const size_t h = hashIt(this->getName(), local.type());
-    auto it = getConvertToProxyMap().find(h);
+    //(copied out of the map: called without the lock, it may re-enter)
+    Pothos::Callable callable;
+    {
+        std::shared_lock<std::shared_mutex> lock(getMapToProxyMutex());
+        const size_t h = hashIt(this->getName(), local.type());
+        auto it = getConvertToProxyMap().find(h);
 
-    //thow an error when the conversion is not supported
-    if (it == getConvertToProxyMap().end()) throw Pothos::ProxyEnvironmentConvertError(
-        "Pothos::ProxyEnvironment::convertObjectToProxy()",
-        std::format("doesnt support Object of type {} to {} environment",
-        local.getTypeString(), this->getName()));
+        //thow an error when the conversion is not supported
+        if (it == getConvertToProxyMap().end()) throw Pothos::ProxyEnvironmentConvertError(
+            "Pothos::ProxyEnvironment::convertObjectToProxy()",
+            std::format("doesnt support Object of type {} to {} environment",
+            local.getTypeString(), this->getName()));
 
-    const auto &callable = it->second.getObject().extract<Pothos::Callable>();
+        callable = it->second.getObject().extract<Pothos::Callable>();
+    }
     Pothos::Object args[2];
     args[0] = Pothos::Object(this->shared_from_this());
     args[1] = local;
@@ -173,17 +177,22 @@ Pothos::Object Pothos::ProxyEnvironment::convertProxyToObject(const Pothos::Prox
     }
 
     //find the plugin in the map, it will be null if not found
-    Pothos::Util::SpinLockRW::SharedLock lock(getMapToLocalMutex());
-    const size_t h = hashIt(this->getName(), proxy.getHandle()->getClassName());
-    auto it = getConvertToLocalMap().find(h);
+    //(copied out of the map: called without the lock, it may re-enter)
+    Pothos::Callable callable;
+    {
+        const std::string className = proxy.getHandle()->getClassName();
+        const size_t h = hashIt(this->getName(), className);
+        std::shared_lock<std::shared_mutex> lock(getMapToLocalMutex());
+        auto it = getConvertToLocalMap().find(h);
 
-    //thow an error when the conversion is not supported
-    if (it == getConvertToLocalMap().end()) throw Pothos::ProxyEnvironmentConvertError(
-        "Pothos::ProxyEnvironment::convertProxyToObject()",
-        std::format("doesnt support environment {} type {} to Object",
-        this->getName(), std::string(proxy.getHandle()->getClassName())));
+        //thow an error when the conversion is not supported
+        if (it == getConvertToLocalMap().end()) throw Pothos::ProxyEnvironmentConvertError(
+            "Pothos::ProxyEnvironment::convertProxyToObject()",
+            std::format("doesnt support environment {} type {} to Object",
+            this->getName(), className));
 
-    const auto &callable = it->second.getObject().extract<Pothos::ProxyConvertPair>().second;
+        callable = it->second.getObject().extract<Pothos::ProxyConvertPair>().second;
+    }
     Pothos::Object args[1];
     args[0] = Pothos::Object(proxy);
     return callable.opaqueCall(args, 1);

@@ -36,6 +36,7 @@ add_library(Pothos SHARED
     Object/Builtin/Serialize.cpp
     Object/Builtin/Tests.cpp
     Object/Builtin/TestConvertVectors.cpp
+    Object/Builtin/TestReentrantPlugins.cpp
 
     Callable/Callable.cpp
     Callable/CallInterface.cpp
@@ -85,6 +86,7 @@ add_library(Pothos SHARED
     Framework/Builtin/TestBufferChunkSerialization.cpp
     Framework/Builtin/TestToString.cpp
     Framework/Builtin/TestBufferConvert.cpp
+    Framework/Builtin/TestBufferChunkSpan.cpp
     Framework/Builtin/TestDoesBlockExist.cpp
     Framework/Builtin/TestDType.cpp
     Framework/Builtin/TestAutomaticPorts.cpp
@@ -163,6 +165,9 @@ add_library(Pothos SHARED
     Util/Builtin/TestEvalExpression.cpp
     Util/Builtin/TestExpr.cpp
     Util/Builtin/TestPropertyFile.cpp
+    Util/Builtin/TestTesting.cpp
+    Util/Builtin/TestSpinLock.cpp
+    Util/Builtin/TestTemplates.cpp
     Util/Builtin/TestRingDeque.cpp
     Util/Builtin/TestStringUtils.cpp
     Util/Builtin/TestTempFile.cpp
@@ -206,6 +211,7 @@ function(pothos_internal_library name)
         CXX_VISIBILITY_PRESET hidden
         VISIBILITY_INLINES_HIDDEN ON)
     target_compile_features(${name} PUBLIC cxx_std_23)
+    pothos_warnings_as_errors(${name})
     #the Pothos headers and their usage requirements, without a link cycle
     target_include_directories(${name} PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}

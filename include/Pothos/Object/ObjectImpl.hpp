@@ -12,8 +12,7 @@
 #include <Pothos/Config.hpp>
 #include <Pothos/Object/Object.hpp>
 #include <Pothos/Object/Exception.hpp>
-#include <Pothos/Util/Templates.hpp> //special_decay_t
-#include <type_traits> //std::decay
+#include <type_traits> //std::decay, std::unwrap_ref_decay_t
 #include <utility> //std::forward
 #include <atomic>
 
@@ -62,7 +61,7 @@ template <typename ValueType, typename... Args>
 typename std::enable_if<!std::is_same<NullObject, ValueType>::value, ObjectContainer *>::type
 makeObjectContainer(Args&&... args)
 {
-    return new ObjectContainerT<Pothos::Util::special_decay_t<ValueType>>(std::forward<Args>(args)...);
+    return new ObjectContainerT<std::unwrap_ref_decay_t<ValueType>>(std::forward<Args>(args)...);
 }
 
 template <typename ValueType, typename... Args>
@@ -78,10 +77,20 @@ makeObjectContainer(Args&&...)
 template <typename ValueType>
 ValueType &extractObject(const Object &obj)
 {
-    //Support for the special NullObject case when the _impl is nullptr.
+    //Support for the special NullObject case when the _impl is nullptr:
+    //a real instance, a reference made from a null pointer is undefined
+    //behaviour (and crashes with optimizing compilers).
     //Otherwise, check the type for a match and then extract the internal value
-    typedef typename std::decay<ValueType>::type DecayValueType;
-    return *(reinterpret_cast<DecayValueType *>((obj._impl == nullptr)?0:obj._impl->internal));
+    using DecayValueType = std::decay_t<ValueType>;
+    if constexpr (std::is_same_v<DecayValueType, NullObject>)
+    {
+        if (obj._impl == nullptr)
+        {
+            static NullObject null;
+            return null;
+        }
+    }
+    return *reinterpret_cast<DecayValueType *>(obj._impl->internal);
 }
 
 [[noreturn]] POTHOS_API void throwExtract(const Object &obj, const std::type_info &type);

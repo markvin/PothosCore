@@ -17,12 +17,12 @@
 
 namespace Pothos {
 
-typedef std::vector<Object> ObjectVector;
+using ObjectVector = std::vector<Object>;
 
-typedef std::set<Object> ObjectSet;
+using ObjectSet = std::set<Object>;
 
-typedef std::map<Object, Object> ObjectMap;
+using ObjectMap = std::map<Object, Object>;
 
-typedef std::map<std::string, Object> ObjectKwargs;
+using ObjectKwargs = std::map<std::string, Object>;
 
 } // namespace Pothos

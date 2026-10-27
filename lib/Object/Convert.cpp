@@ -4,7 +4,7 @@
 #include "TypesHashCombine.hpp"
 #include <Pothos/Object/ObjectImpl.hpp>
 #include <Pothos/Object/Exception.hpp>
-#include <Pothos/Util/SpinLockRW.hpp>
+#include <shared_mutex>
 #include <Pothos/Util/TypeInfo.hpp>
 #include <Pothos/Callable.hpp>
 #include <Pothos/Plugin.hpp>
@@ -17,9 +17,9 @@
 /***********************************************************************
  * Global map structure for conversions
  **********************************************************************/
-static Pothos::Util::SpinLockRW &getMapMutex(void)
+static std::shared_mutex &getMapMutex(void)
 {
-    static Pothos::Util::SpinLockRW lock;
+    static std::shared_mutex lock;
     return lock;
 }
 
@@ -56,7 +56,7 @@ static void handleConvertPluginEvent(const Pothos::Plugin &plugin, const std::st
         const std::type_info &inputType = call.type(0);
         const std::type_info &outputType = call.type(-1);
 
-        std::lock_guard<Pothos::Util::SpinLockRW> lock(getMapMutex());
+        std::lock_guard<std::shared_mutex> lock(getMapMutex());
         if (event == "add")
         {
             getConvertMap()[typesHashCombine(inputType, outputType)] = plugin;
@@ -87,36 +87,46 @@ pothos_static_block(pothosObjectConvertRegister)
  **********************************************************************/
 static Pothos::Object convertObject(const Pothos::Object &inputObj, const std::type_info &outputType)
 {
-    //find the plugin in the map, it will be null if not found
-    Pothos::Util::SpinLockRW::SharedLock lock(getMapMutex());
-    auto it = getConvertMap().find(typesHashCombine(inputObj.type(), outputType));
-
-    //try an intermediate conversion
-    if (it == getConvertMap().end())
+    //copy the conversion calls out of the map: they are called without the lock,
+    //because a conversion may convert again or register plugins
+    Pothos::Callable call, call1, call2;
     {
-        auto itIo = getConvertIoMap().find(inputObj.type().hash_code());
-        if (itIo != getConvertIoMap().end()) for (const size_t intermHash : itIo->second)
+        //find the plugin in the map, it will be null if not found
+        std::shared_lock<std::shared_mutex> lock(getMapMutex());
+        auto it = getConvertMap().find(typesHashCombine(inputObj.type(), outputType));
+        if (it != getConvertMap().end()) call = it->second.getObject().extract<Pothos::Callable>();
+
+        //try an intermediate conversion
+        else
         {
-            auto it1 = getConvertMap().find(typesHashCombine(inputObj.type().hash_code(), intermHash));
-            auto it2 = getConvertMap().find(typesHashCombine(intermHash, outputType.hash_code()));
-            if (it1 != getConvertMap().end() and it2 != getConvertMap().end())
+            auto itIo = getConvertIoMap().find(inputObj.type().hash_code());
+            if (itIo != getConvertIoMap().end()) for (const size_t intermHash : itIo->second)
             {
-                const auto &call1 = it1->second.getObject().extract<Pothos::Callable>();
-                const auto &call2 = it2->second.getObject().extract<Pothos::Callable>();
-                Pothos::Object intermediate = call1.opaqueCall(&inputObj, 1);
-                return call2.opaqueCall(&intermediate, 1);
+                auto it1 = getConvertMap().find(typesHashCombine(inputObj.type().hash_code(), intermHash));
+                auto it2 = getConvertMap().find(typesHashCombine(intermHash, outputType.hash_code()));
+                if (it1 != getConvertMap().end() and it2 != getConvertMap().end())
+                {
+                    call1 = it1->second.getObject().extract<Pothos::Callable>();
+                    call2 = it2->second.getObject().extract<Pothos::Callable>();
+                    break;
+                }
             }
         }
     }
 
+    if (call1)
+    {
+        Pothos::Object intermediate = call1.opaqueCall(&inputObj, 1);
+        return call2.opaqueCall(&intermediate, 1);
+    }
+
     //thow an error when the conversion is not supported
-    if (it == getConvertMap().end()) throw Pothos::ObjectConvertError(
+    if (not call) throw Pothos::ObjectConvertError(
         "Pothos::Object::convert()",
         std::format("doesnt support {} to {}",
         inputObj.getTypeString(),
         Pothos::Util::typeInfoToString(outputType)));
 
-    const auto &call = it->second.getObject().extract<Pothos::Callable>();
     return call.opaqueCall(&inputObj, 1);
 }
 
@@ -136,7 +146,7 @@ bool Pothos::Object::canConvert(const std::type_info &type) const
 bool Pothos::Object::canConvert(const std::type_info &srcType, const std::type_info &dstType)
 {
     if (srcType == dstType) return true;
-    Pothos::Util::SpinLockRW::SharedLock lock(getMapMutex());
+    std::shared_lock<std::shared_mutex> lock(getMapMutex());
     auto it = getConvertMap().find(typesHashCombine(srcType, dstType));
 
     //try an intermediate conversion

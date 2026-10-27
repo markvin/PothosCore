@@ -23,12 +23,12 @@
 
 namespace Pothos {
 
-typedef std::map<std::string, std::string> ProxyEnvironmentArgs;
+using ProxyEnvironmentArgs = std::map<std::string, std::string>;
 
 /*!
- * ProxyConvertPair typedef used in proxy -> local plugin registrations
+ * ProxyConvertPair alias used in proxy -> local plugin registrations
  */
-typedef std::pair<std::string, Pothos::Callable> ProxyConvertPair;
+using ProxyConvertPair = std::pair<std::string, Pothos::Callable>;
 
 /*!
  * A ProxyEnvironment is the interaction point for dealing with managed objects.
@@ -43,7 +43,7 @@ class POTHOS_API ProxyEnvironment :
     public std::enable_shared_from_this<ProxyEnvironment>
 {
 public:
-    typedef std::shared_ptr<ProxyEnvironment> Sptr;
+    using Sptr = std::shared_ptr<ProxyEnvironment>;
 
     /*!
      * Create a new environment given the name of the factory.

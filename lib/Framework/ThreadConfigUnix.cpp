@@ -84,7 +84,7 @@ std::string ThreadEnvironment::setCPUAffinity(const std::vector<size_t> &affinit
     #endif
 }
 
-std::string ThreadEnvironment::setNodeAffinity(const std::vector<size_t> &affinity)
+std::string ThreadEnvironment::setNodeAffinity([[maybe_unused]] const std::vector<size_t> &affinity)
 {
     #if defined(LIBNUMA_API_VERSION) && (LIBNUMA_API_VERSION > 1)
 

@@ -7,7 +7,7 @@
 #include <Pothos/Framework/DType.hpp>
 #include <Pothos/Callable.hpp>
 #include <Pothos/Plugin.hpp>
-#include <Pothos/Util/SpinLockRW.hpp>
+#include <shared_mutex>
 
 #include <Pothos/System/Logger.hpp>
 #include <format>
@@ -21,9 +21,9 @@
 /***********************************************************************
  * Global map structure for comparisons
  **********************************************************************/
-static Pothos::Util::SpinLockRW &getMapMutex(void)
+static std::shared_mutex &getMapMutex(void)
 {
-    static Pothos::Util::SpinLockRW lock;
+    static std::shared_mutex lock;
     return lock;
 }
 
@@ -52,7 +52,7 @@ static void handleToStringPluginEvent(const Pothos::Plugin &plugin, const std::s
         //extract type info used for map lookup
         const std::type_info &t = call.type(0);
 
-        std::lock_guard<Pothos::Util::SpinLockRW> lock(getMapMutex());
+        std::lock_guard<std::shared_mutex> lock(getMapMutex());
         if (event == "add")
         {
             getToStringMap()[t.hash_code()] = plugin;
@@ -154,12 +154,15 @@ std::string Pothos::Object::toString(void) const
     catch (...) {}
 
     //check for a registered toString(), it will be null if not found
-    Pothos::Util::SpinLockRW::SharedLock lock(getMapMutex());
-    auto it = getToStringMap().find(this->type().hash_code());
-    if(getToStringMap().end() != it)
+    //(copied out of the map: called without the lock, it may re-enter)
+    Pothos::Callable call;
     {
-        const auto &call = it->second.getObject().extract<Pothos::Callable>();
-
+        std::shared_lock<std::shared_mutex> lock(getMapMutex());
+        auto it = getToStringMap().find(this->type().hash_code());
+        if(getToStringMap().end() != it) call = it->second.getObject().extract<Pothos::Callable>();
+    }
+    if (call)
+    {
         Pothos::Object arg0(*this);
         return call.opaqueCall(&arg0, 1).extract<std::string>();
     }

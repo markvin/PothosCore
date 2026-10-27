@@ -3,7 +3,7 @@
 
 #include <Pothos/Plugin/Registry.hpp>
 #include <Pothos/Plugin/Exception.hpp>
-#include <Pothos/Util/SpinLockRW.hpp>
+#include <shared_mutex>
 #include <Pothos/Callable.hpp> //gets call implementation
 #include <Pothos/System/Logger.hpp>
 #include <cassert>
@@ -13,9 +13,9 @@
 /***********************************************************************
  * registry data structure
  **********************************************************************/
-static Pothos::Util::SpinLockRW &getRegistryMutex(void)
+static std::shared_mutex &getRegistryMutex(void)
 {
-    static Pothos::Util::SpinLockRW lock;
+    static std::shared_mutex lock;
     return lock;
 }
 
@@ -84,7 +84,7 @@ static void handlePluginEvent(const Pothos::Plugin &plugin, const std::string &e
     //traverse the tree - store a list of parent plugins
     //we lock the mutex here for protection and make a plugin copy
     {
-        Pothos::Util::SpinLockRW::SharedLock lock(getRegistryMutex());
+        std::shared_lock<std::shared_mutex> lock(getRegistryMutex());
         const std::vector<std::string> pathNodes = path.listNodes();
         RegistryEntry *root = &getRegistryRoot();
 
@@ -151,7 +151,7 @@ void Pothos::PluginRegistry::add(const Plugin &plugin_)
     POTHOS_LOG_DEBUG("Pothos.PluginRegistry.add", "{}", plugin.toString());
 
     {
-        std::lock_guard<Pothos::Util::SpinLockRW> lock(getRegistryMutex());
+        std::lock_guard<std::shared_mutex> lock(getRegistryMutex());
         const std::vector<std::string> pathNodes = path.listNodes();
         RegistryEntry *root = &getRegistryRoot();
 
@@ -186,7 +186,7 @@ void Pothos::PluginRegistry::add(const Plugin &plugin_)
 
 Pothos::Plugin Pothos::PluginRegistry::get(const PluginPath &path)
 {
-    Pothos::Util::SpinLockRW::SharedLock lock(getRegistryMutex());
+    std::shared_lock<std::shared_mutex> lock(getRegistryMutex());
     const std::vector<std::string> pathNodes = path.listNodes();
     RegistryEntry *root = &getRegistryRoot();
 
@@ -211,7 +211,7 @@ Pothos::Plugin Pothos::PluginRegistry::remove(const PluginPath &path)
 
     Plugin plugin;
     {
-        std::lock_guard<Pothos::Util::SpinLockRW> lock(getRegistryMutex());
+        std::lock_guard<std::shared_mutex> lock(getRegistryMutex());
         const std::vector<std::string> pathNodes = path.listNodes();
         RegistryEntry *root = &getRegistryRoot();
 
@@ -240,7 +240,7 @@ Pothos::Plugin Pothos::PluginRegistry::remove(const PluginPath &path)
 
 bool Pothos::PluginRegistry::empty(const PluginPath &path)
 {
-    Pothos::Util::SpinLockRW::SharedLock lock(getRegistryMutex());
+    std::shared_lock<std::shared_mutex> lock(getRegistryMutex());
     const std::vector<std::string> pathNodes = path.listNodes();
     RegistryEntry *root = &getRegistryRoot();
 
@@ -255,7 +255,7 @@ bool Pothos::PluginRegistry::empty(const PluginPath &path)
 
 bool Pothos::PluginRegistry::exists(const PluginPath &path)
 {
-    Pothos::Util::SpinLockRW::SharedLock lock(getRegistryMutex());
+    std::shared_lock<std::shared_mutex> lock(getRegistryMutex());
     const std::vector<std::string> pathNodes = path.listNodes();
     RegistryEntry *root = &getRegistryRoot();
 
@@ -270,7 +270,7 @@ bool Pothos::PluginRegistry::exists(const PluginPath &path)
 
 std::vector<std::string> Pothos::PluginRegistry::list(const PluginPath &path)
 {
-    Pothos::Util::SpinLockRW::SharedLock lock(getRegistryMutex());
+    std::shared_lock<std::shared_mutex> lock(getRegistryMutex());
     const std::vector<std::string> pathNodes = path.listNodes();
     RegistryEntry *root = &getRegistryRoot();
 
@@ -313,7 +313,7 @@ static void loadInfoDump(const Pothos::PluginPath &path, const RegistryEntry &en
 
 Pothos::PluginRegistryInfoDump Pothos::PluginRegistry::dump(void)
 {
-    Pothos::Util::SpinLockRW::SharedLock lock(getRegistryMutex());
+    std::shared_lock<std::shared_mutex> lock(getRegistryMutex());
     PluginRegistryInfoDump dump;
     loadInfoDump(PluginPath(), getRegistryRoot(), dump);
     return dump;

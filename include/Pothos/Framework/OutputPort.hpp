@@ -17,7 +17,7 @@
 #include <Pothos/Framework/BufferChunk.hpp>
 #include <Pothos/Framework/BufferManager.hpp>
 #include <Pothos/Util/RingDeque.hpp>
-#include <Pothos/Util/SpinLock.hpp>
+#include <mutex>
 #include <string>
 
 namespace Pothos {
@@ -252,10 +252,10 @@ private:
     //counts work actions which we will use to establish activity
     size_t _workEvents;
 
-    Util::SpinLock _bufferManagerLock;
+    std::mutex _bufferManagerLock;
     BufferManager::Sptr _bufferManager;
 
-    Util::SpinLock _tokenManagerLock;
+    std::mutex _tokenManagerLock;
     BufferManager::Sptr _tokenManager; //used for message backpressure
 
     /////// buffer manager /////////
@@ -263,7 +263,7 @@ private:
     bool bufferManagerEmpty(void);
     void bufferManagerFront(BufferChunk &);
     void bufferManagerPop(const size_t numBytes);
-    void bufferManagerPush(Pothos::Util::SpinLock *mutex, const ManagedBuffer &buff);
+    void bufferManagerPush(std::mutex *mutex, const ManagedBuffer &buff);
 
     /////// token manager /////////
     void tokenManagerInit(void);

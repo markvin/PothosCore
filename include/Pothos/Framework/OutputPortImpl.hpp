@@ -134,31 +134,31 @@ inline void Pothos::OutputPort::setReserve(const size_t numElements)
 
 inline bool Pothos::OutputPort::bufferManagerEmpty(void)
 {
-    std::lock_guard<Util::SpinLock> lock(_bufferManagerLock);
+    std::lock_guard<std::mutex> lock(_bufferManagerLock);
     return not _bufferManager or _bufferManager->empty();
 }
 
 inline void Pothos::OutputPort::bufferManagerFront(Pothos::BufferChunk &buff)
 {
-    std::lock_guard<Util::SpinLock> lock(_bufferManagerLock);
+    std::lock_guard<std::mutex> lock(_bufferManagerLock);
     buff = _bufferManager?_bufferManager->front():Pothos::BufferChunk();
 }
 
 inline void Pothos::OutputPort::bufferManagerPop(const size_t numBytes)
 {
-    std::lock_guard<Util::SpinLock> lock(_bufferManagerLock);
+    std::lock_guard<std::mutex> lock(_bufferManagerLock);
     return _bufferManager->pop(numBytes);
 }
 
 inline bool Pothos::OutputPort::tokenManagerEmpty(void)
 {
-    std::lock_guard<Util::SpinLock> lock(_tokenManagerLock);
+    std::lock_guard<std::mutex> lock(_tokenManagerLock);
     return not _tokenManager or _tokenManager->empty();
 }
 
 inline Pothos::BufferChunk Pothos::OutputPort::tokenManagerPop(void)
 {
-    std::lock_guard<Util::SpinLock> lock(_tokenManagerLock);
+    std::lock_guard<std::mutex> lock(_tokenManagerLock);
     if (_tokenManager->empty()) return Pothos::BufferChunk();
     auto tok = _tokenManager->front();
     _tokenManager->pop(0);
@@ -167,6 +167,6 @@ inline Pothos::BufferChunk Pothos::OutputPort::tokenManagerPop(void)
 
 inline void Pothos::OutputPort::tokenManagerPop(const size_t numBytes)
 {
-    std::lock_guard<Util::SpinLock> lock(_tokenManagerLock);
+    std::lock_guard<std::mutex> lock(_tokenManagerLock);
     return _tokenManager->pop(numBytes);
 }

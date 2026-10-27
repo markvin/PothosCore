@@ -3,7 +3,7 @@
 
 #include <Pothos/Managed/Class.hpp>
 #include <Pothos/Managed/Exception.hpp>
-#include <Pothos/Util/SpinLockRW.hpp>
+#include <shared_mutex>
 #include <Pothos/Util/TypeInfo.hpp>
 #include <Pothos/Callable.hpp>
 #include <Pothos/Plugin.hpp>
@@ -14,9 +14,9 @@
 /***********************************************************************
  * Global map structure for registry
  **********************************************************************/
-static Pothos::Util::SpinLockRW &getMapMutex(void)
+static std::shared_mutex &getMapMutex(void)
 {
-    static Pothos::Util::SpinLockRW lock;
+    static std::shared_mutex lock;
     return lock;
 }
 
@@ -40,7 +40,7 @@ static void handlePluginEvent(const Pothos::Plugin &plugin, const std::string &e
         if (plugin.getObject().type() != typeid(Pothos::ManagedClass)) return;
         const auto &reg = plugin.getObject().extract<Pothos::ManagedClass>();
 
-        std::lock_guard<Pothos::Util::SpinLockRW> lock(getMapMutex());
+        std::lock_guard<std::shared_mutex> lock(getMapMutex());
         if (event == "add")
         {
             getClassMap()[reg.type().hash_code()] = plugin;
@@ -74,7 +74,7 @@ pothos_static_block(pothosManagedClassRegister)
 Pothos::ManagedClass Pothos::ManagedClass::lookup(const std::type_info &type)
 {
     //find the plugin in the map, it will be null if not found
-    Pothos::Util::SpinLockRW::SharedLock lock(getMapMutex());
+    std::shared_lock<std::shared_mutex> lock(getMapMutex());
     auto it = getClassMap().find(type.hash_code());
 
     //thow an error when the entry is not found

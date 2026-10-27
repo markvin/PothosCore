@@ -16,7 +16,7 @@
 #include <Pothos/Framework/BufferChunk.hpp>
 #include <Pothos/Framework/BufferAccumulator.hpp>
 #include <Pothos/Util/RingDeque.hpp>
-#include <Pothos/Util/SpinLock.hpp>
+#include <mutex>
 #include <string>
 
 namespace Pothos {
@@ -230,16 +230,16 @@ private:
     //counts work actions which we will use to establish activity
     size_t _workEvents;
 
-    Util::SpinLock _asyncMessagesLock;
+    std::mutex _asyncMessagesLock;
     Util::RingDeque<std::pair<Object, BufferChunk>> _asyncMessages;
 
-    Util::SpinLock _slotCallsLock;
+    std::mutex _slotCallsLock;
     Util::RingDeque<std::pair<Object, BufferChunk>> _slotCalls;
 
     std::vector<Label> _inlineMessages; //user api structure
     Util::RingDeque<Label> _inputInlineMessages; //shared structure
 
-    Util::SpinLock _bufferAccumulatorLock;
+    std::mutex _bufferAccumulatorLock;
     BufferAccumulator _bufferAccumulator;
 
     std::vector<OutputPort *> _subscribers;

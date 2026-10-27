@@ -581,13 +581,13 @@ std::string Pothos::WorkerActor::queryWorkStats(void)
             portStats["frontBytes"] = frontBuff.length;
         }
         {
-            std::lock_guard<Util::SpinLock> lockB(port._bufferAccumulatorLock);
+            std::lock_guard<std::mutex> lockB(port._bufferAccumulatorLock);
             portStats["enqueuedBytes"] = port._bufferAccumulator.getTotalBytesAvailable();
             portStats["enqueuedBuffers"] = port._bufferAccumulator.getUniqueManagedBufferCount();
             portStats["enqueuedLabels"] = port._inlineMessages.size()+port._inputInlineMessages.size();
         }
         {
-            std::lock_guard<Util::SpinLock> lockM(port._asyncMessagesLock);
+            std::lock_guard<std::mutex> lockM(port._asyncMessagesLock);
             portStats["enqueuedMessages"] = port._asyncMessages.size();
         }
         inputStats.push_back(portStats);

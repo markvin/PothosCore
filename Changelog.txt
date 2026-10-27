@@ -27,6 +27,22 @@ Build (CMake):
   POTHOS_BUILD_TESTS; APPDATA_ENV -> POTHOS_APPDATA_ENV
 - No global CMAKE_CXX_STANDARD or RPATH settings any more (target properties)
 
+Public API (source compatible for blocks):
+
+- BufferChunk::asSpan<T>() gives a std::span<T> view of the buffer
+  (length / sizeof(T) elements; as<T>() and the pointer conversion stay)
+- Util::SpinLock waits (std::atomic_flag::wait) instead of spinning when
+  contended; ports and registries use std::mutex/std::shared_mutex
+- Removed: Pothos/Util/SpinLockRW.hpp (use std::shared_mutex)
+- Util::index_sequence, make_index_sequence, index_sequence_for,
+  integer_sequence, special_decay_t and unwrap_refwrapper are aliases of
+  the standard ones; typedefs in the headers became using-declarations
+- POTHOS_TEST_EQUAL/NOT_EQUAL/LT/LE/GT/GE compare C strings by content
+  (null pointers are allowed) and integers of mixed signedness correctly
+- Config.hpp no longer includes <ciso646>
+- Fixed: extracting a null Object no longer dereferences a null pointer
+- The core builds without warnings on GCC and Clang; POTHOS_WARNINGS_AS_ERRORS
+
 SIMD:
 
 - libsimdpp replaced by xsimd (vendored in third_party/xsimd): CPU feature

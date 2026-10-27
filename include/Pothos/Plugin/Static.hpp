@@ -59,7 +59,7 @@
 namespace Pothos {
 namespace Detail {
 
-typedef void (*InitFcn)(void);
+using InitFcn = void (*)(void);
 
 POTHOS_API void safeInit(const std::string &clientAbi, const std::string &name, InitFcn init);
 

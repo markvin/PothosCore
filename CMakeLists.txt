@@ -23,6 +23,7 @@ project(Pothos VERSION ${POTHOS_LIBVER} LANGUAGES C CXX)
 option(POTHOS_BUILD_APPS "Build PothosUtil (needed by the self-tests and module safe-loading)" ON)
 option(POTHOS_BUILD_DOCS "Build the Doxygen documentation (when Doxygen is found)" ${PROJECT_IS_TOP_LEVEL})
 option(POTHOS_BUILD_TESTS "Register the CTest tests of the core" ${PROJECT_IS_TOP_LEVEL})
+option(POTHOS_WARNINGS_AS_ERRORS "Treat compiler warnings in the core as errors (GCC and Clang)" OFF)
 
 if(PROJECT_IS_TOP_LEVEL)
     #compile_commands.json in the build directory for code navigation (clangd)
@@ -79,6 +80,13 @@ include(GNUInstallDirs)
 ########################################################################
 # Target settings instead of globals (CMAKE_CXX_STANDARD, CMAKE_INSTALL_RPATH...)
 ########################################################################
+#warnings stay out of the core: errors with POTHOS_WARNINGS_AS_ERRORS (CI)
+function(pothos_warnings_as_errors target)
+    if(POTHOS_WARNINGS_AS_ERRORS AND NOT MSVC)
+        target_compile_options(${target} PRIVATE -Werror)
+    endif()
+endfunction()
+
 #C++23 comes from target_compile_features(cxx_std_23); no compiler extensions;
 #the install RPATH is relative to the installed binary, so that an installation
 #can be relocated (bin/ and lib/ are siblings)
@@ -86,6 +94,7 @@ function(pothos_target_settings target)
     set_target_properties(${target} PROPERTIES
         CXX_EXTENSIONS OFF
         INSTALL_RPATH_USE_LINK_PATH TRUE)
+    pothos_warnings_as_errors(${target})
     if(APPLE)
         set_target_properties(${target} PROPERTIES INSTALL_RPATH "@loader_path/../${CMAKE_INSTALL_LIBDIR}")
     elseif(UNIX)
@@ -149,6 +158,20 @@ if(POTHOS_BUILD_TESTS)
             -DLIBDIR=${CMAKE_INSTALL_LIBDIR}
             -P ${PROJECT_SOURCE_DIR}/cmake/PothosConsumerTest.cmake)
     set_tests_properties(pothos.consumer PROPERTIES FIXTURES_REQUIRED pothos_stage)
+
+    #sources written against the old API still build (source compatibility)
+    add_test(NAME pothos.api_compat
+        COMMAND ${CMAKE_COMMAND}
+            -DPREFIX=${POTHOS_STAGE_DIR}
+            -DSRC=${PROJECT_SOURCE_DIR}/tests/api_compat
+            -DWORK=${PROJECT_BINARY_DIR}/api_compat
+            -DEXE=api_compat
+            -DGENERATOR=${CMAKE_GENERATOR}
+            -DCONFIG=$<CONFIG>
+            -DBINDIR=${CMAKE_INSTALL_BINDIR}
+            -DLIBDIR=${CMAKE_INSTALL_LIBDIR}
+            -P ${PROJECT_SOURCE_DIR}/cmake/PothosConsumerTest.cmake)
+    set_tests_properties(pothos.api_compat PROPERTIES FIXTURES_REQUIRED pothos_stage)
 
     #the core inside a parent project (not again from inside such a parent)
     if(PROJECT_IS_TOP_LEVEL)
