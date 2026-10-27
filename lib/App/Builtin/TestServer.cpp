@@ -204,6 +204,8 @@ POTHOS_TEST_BLOCK("/app/tests", test_app_windows_service)
     const SC_HANDLE scm = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CREATE_SERVICE);
     if (scm == nullptr)
     {
+        //on CI (GitHub Actions sets CI=true) the runner is elevated: the full cycle must run
+        POTHOS_TEST_TRUE(Pothos::Platform::getEnv("CI") != std::optional<std::string>("true"));
         std::cout << "skipped: not elevated (cannot open the service control manager)" << std::endl;
         return;
     }
