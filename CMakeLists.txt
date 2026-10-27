@@ -15,7 +15,7 @@ set(POTHOS_LIBVER "${CMAKE_MATCH_1}")
 # Project setup
 #
 # The core can be a subproject of another project (add_subdirectory,
-# FetchContent): options are prefixed with POTHOS_, and the globals,
+# or a content fetch by the parent): options are prefixed with POTHOS_, and the globals,
 # tests, summaries and the uninstall target are only for a top level build.
 ########################################################################
 project(Pothos VERSION ${POTHOS_LIBVER} LANGUAGES C CXX)

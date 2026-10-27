@@ -17,3 +17,4 @@ Final: minor (deferred): M-9 find_package(Pothos) after add_subdirectory(core) d
 Final: minor (deferred): M-10 INSTALL_RPATH_USE_LINK_PATH is hard-wired (packagers could turn CMAKE_INSTALL_RPATH_USE_LINK_PATH off before)
 Final: minor (deferred): M-11 pothos.subproject forwards only the generator and the compilers (no toolchain file / make program)
 Final: minor (deferred): M-12 CMP0144 policy warning from the in-tree find_package(Pothos) (also standalone)
+CI #1 on PR #7: every job failed in the 'no download' guard step: it greps for FetchContent and matched a comment in CMakeLists.txt; comment reworded, guard clean locally
