@@ -15,6 +15,16 @@ namespace Pothos {
 namespace Util {
 namespace Expr {
 
+/*!
+ * Nesting of parentheses, containers, calls and prefix operators.
+ * Parsing and evaluation recurse: the limits keep the stack use within
+ * small thread stacks (512 KiB secondary threads on macOS).
+ */
+constexpr std::size_t MaxNesting = 100;
+
+//! Height of the syntax tree (left-associative chains like 1+1+...+1 grow it without nesting)
+constexpr std::size_t MaxTreeDepth = 256;
+
 struct Node
 {
     enum class Kind

@@ -11,12 +11,6 @@ using namespace Pothos::Util::Expr;
 
 namespace {
 
-//! Nesting of parentheses, containers, calls and prefix operators
-constexpr std::size_t MaxNesting = 256;
-
-//! Height of the syntax tree (left-associative chains like 1+1+...+1 grow it without nesting)
-constexpr std::size_t MaxTreeDepth = 1024;
-
 using NodePtr = std::unique_ptr<Node>;
 
 bool isKeyword(const std::string_view name)
@@ -57,8 +51,6 @@ private:
         }
         Parser &p;
     };
-
-    using Level = NodePtr (Parser::*)(void);
 
     const Token &cur(void) const
     {
@@ -127,11 +119,11 @@ private:
     NodePtr expr(void)
     {
         Nest nest(*this);
-        auto body = this->orExpr();
+        auto body = this->logic(true);
         if (not isKw("if")) return body;
         const auto pos = cur().pos;
         _i++;
-        auto cond = this->orExpr();
+        auto cond = this->logic(true);
         if (not isKw("else")) this->unexpected();
         _i++;
         std::vector<NodePtr> children;
@@ -141,10 +133,12 @@ private:
         return this->make(Node::Kind::IfElse, pos, std::move(children));
     }
 
-    //a chain of 'and' or 'or' operands
-    NodePtr logicChain(const std::string_view kw, const Node::Kind kind, const Level next)
+    //or_expr := and_expr ('or' and_expr)*, and_expr := not_expr ('and' not_expr)*
+    //one function for both levels: fewer stack frames per nesting level
+    NodePtr logic(const bool orLevel)
     {
-        auto first = (this->*next)();
+        const std::string_view kw = orLevel? "or" : "and";
+        auto first = orLevel? this->logic(false) : this->notExpr();
         if (not isKw(kw)) return first;
         const auto pos = cur().pos;
         std::vector<NodePtr> children;
@@ -152,19 +146,9 @@ private:
         while (isKw(kw))
         {
             _i++;
-            children.push_back((this->*next)());
+            children.push_back(orLevel? this->logic(false) : this->notExpr());
         }
-        return this->make(kind, pos, std::move(children));
-    }
-
-    NodePtr orExpr(void)
-    {
-        return this->logicChain("or", Node::Kind::Or, &Parser::andExpr);
-    }
-
-    NodePtr andExpr(void)
-    {
-        return this->logicChain("and", Node::Kind::And, &Parser::notExpr);
+        return this->make(orLevel? Node::Kind::Or : Node::Kind::And, pos, std::move(children));
     }
 
     //not_expr := 'not' not_expr | compare
@@ -177,10 +161,10 @@ private:
         return this->make(Node::Kind::Not, pos, this->notExpr());
     }
 
-    //compare := bit_or (cmp_op bit_or)*
+    //compare := binary (cmp_op binary)*
     NodePtr compare(void)
     {
-        auto first = this->bitOr();
+        auto first = this->binary(1);
         const auto isCmp = [this]{return isAnyOp({"<", ">", "==", "!=", "<=", ">="});};
         if (not isCmp()) return first;
         const auto pos = cur().pos;
@@ -191,56 +175,42 @@ private:
         {
             ops.emplace_back(cur().text);
             _i++;
-            children.push_back(this->bitOr());
+            children.push_back(this->binary(1));
         }
         auto node = this->make(Node::Kind::Compare, pos, std::move(children));
         node->ops = std::move(ops);
         return node;
     }
 
-    //left-associative binary operators of one precedence level
-    NodePtr binaryLevel(const std::initializer_list<std::string_view> ops, const Level next)
+    //! Precedence of the binary operator at the current token, 0 when it is not one
+    int precedence(void) const
     {
-        auto left = (this->*next)();
-        while (isAnyOp(ops))
+        if (cur().kind != Tok::Op) return 0;
+        const auto op = cur().text;
+        if (op == "|") return 1;
+        if (op == "^") return 2;
+        if (op == "&") return 3;
+        if (op == "<<" or op == ">>") return 4;
+        if (op == "+" or op == "-") return 5;
+        if (op == "*" or op == "/" or op == "//" or op == "%") return 6;
+        return 0;
+    }
+
+    //left-associative binary operators by precedence climbing:
+    //bit_or < bit_xor < bit_and < shift < arith < term, operands are unary
+    NodePtr binary(const int minPrecedence)
+    {
+        auto left = this->unary();
+        while (true)
         {
+            const int prec = this->precedence();
+            if (prec < minPrecedence or prec == 0) return left;
             const auto pos = cur().pos;
             std::string op(cur().text);
             _i++;
-            left = this->make(Node::Kind::Binary, pos, std::move(left), (this->*next)());
+            left = this->make(Node::Kind::Binary, pos, std::move(left), this->binary(prec+1));
             left->op = std::move(op);
         }
-        return left;
-    }
-
-    NodePtr bitOr(void)
-    {
-        return this->binaryLevel({"|"}, &Parser::bitXor);
-    }
-
-    NodePtr bitXor(void)
-    {
-        return this->binaryLevel({"^"}, &Parser::bitAnd);
-    }
-
-    NodePtr bitAnd(void)
-    {
-        return this->binaryLevel({"&"}, &Parser::shift);
-    }
-
-    NodePtr shift(void)
-    {
-        return this->binaryLevel({"<<", ">>"}, &Parser::arith);
-    }
-
-    NodePtr arith(void)
-    {
-        return this->binaryLevel({"+", "-"}, &Parser::term);
-    }
-
-    NodePtr term(void)
-    {
-        return this->binaryLevel({"*", "/", "//", "%"}, &Parser::unary);
     }
 
     //unary := ('-'|'+'|'~') unary | power
