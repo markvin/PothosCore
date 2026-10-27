@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include "Framework/TopologyImpl.hpp"
+#include "Framework/TopologyToolkitBlocks.hpp"
 #include <future>
 #include <iostream>
 #include <algorithm>
@@ -82,7 +83,7 @@ static Pothos::Proxy getCopierForDomainCrossing(
 {
     if (isDomainCrossingAcceptable(mainPort, subPorts, isInput)) return Pothos::Proxy();
     auto registry = mainPort.obj.getEnvironment()->findProxy("Pothos/BlockRegistry");
-    auto copier = registry.call("/blocks/copier");
+    auto copier = makeToolkitBlock(registry, "/blocks/copier", "A connection between incompatible port domains");
     copier.call("setName", "DomainBridge");
     return copier;
 }

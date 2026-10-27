@@ -187,6 +187,14 @@ public:
      * Once commit is called, actual data flow processing begins.
      * At this point the scheduler will call the block's work()
      * functions when the data at its inputs becomes available.
+     *
+     * Some flows need blocks from the blocks toolkit (PothosBlocks),
+     * which is not part of the core library:
+     *   - a connection between incompatible port domains inserts /blocks/copier;
+     *   - a connection between blocks on different hosts inserts
+     *     /blocks/network_sink and /blocks/network_source.
+     *
+     * \throws TopologyConnectError when such a block is not installed
      */
     void commit(void);
 
