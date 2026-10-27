@@ -87,7 +87,7 @@ public:
     }
 
 protected:
-    int _fd;
+    int _fd = -1; //setFileDescriptor()/setFilePath() deactivate before the first activate
 };
 
 class BinaryFileDescriptorSource: public BinaryFileSourceBase
