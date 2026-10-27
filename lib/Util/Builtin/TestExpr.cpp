@@ -544,3 +544,131 @@ POTHOS_TEST_BLOCK("/util/tests", test_expr_elementwise)
     POTHOS_TEST_EQUAL(errorPos([]{ev("-{}");}), 0);
     POTHOS_TEST_EQUAL(errorPos([]{ev("[1] + {}");}), 4);
 }
+
+namespace {
+
+double fl(const std::string &expr)
+{
+    const auto v = ev(expr);
+    if (not v.is<double>()) throw std::runtime_error(expr + " is not a float: " + v.repr());
+    return std::get<double>(v.data);
+}
+
+} //namespace
+
+POTHOS_TEST_BLOCK("/util/tests", test_expr_math)
+{
+    const double pi = 3.141592653589793;
+    POTHOS_TEST_TRUE(same(ev("pow(2, 3)"), Value(8)));
+    POTHOS_TEST_TRUE(same(ev("pow(2, 0.5)"), Value(std::sqrt(2.0))));
+    POTHOS_TEST_TRUE(same(ev("sqrt(4)"), Value(2.0)));
+    POTHOS_TEST_TRUE(std::isnan(fl("sqrt(-1)")));
+    POTHOS_TEST_TRUE(same(ev("sqrt(-1+0j)"), Value(C(0.0, 1.0))));
+    POTHOS_TEST_TRUE(same(ev("log2(8)"), Value(3.0)));
+    POTHOS_TEST_TRUE(same(ev("log10(1000)"), Value(3.0)));
+    POTHOS_TEST_CLOSE(fl("log(e)"), 1.0, 1e-15);
+    POTHOS_TEST_CLOSE(fl("log(8, 2)"), 3.0, 1e-12);
+    POTHOS_TEST_TRUE(same(ev("ln(1)"), Value(0.0)));
+    POTHOS_TEST_CLOSE(fl("exp(1)"), 2.718281828459045, 1e-15);
+    POTHOS_TEST_CLOSE(fl("atan2(1, 1)"), pi/4, 1e-15);
+    POTHOS_TEST_CLOSE(fl("sin(pi/2) + cos(0) + tan(0)"), 2.0, 1e-15);
+    POTHOS_TEST_CLOSE(fl("asin(1) + acos(1) + atan(0)"), pi/2, 1e-15);
+    POTHOS_TEST_CLOSE(fl("sinh(0) + cosh(0) + tanh(0)"), 1.0, 1e-15);
+    POTHOS_TEST_TRUE(same(ev("abs(-3)"), Value(3)));
+    POTHOS_TEST_TRUE(same(ev("abs(-2.5)"), Value(2.5)));
+    POTHOS_TEST_TRUE(same(ev("abs(3+4j)"), Value(5.0)));
+    POTHOS_TEST_THROWS(ev("abs(-9223372036854775807-1)"), ExprError);
+    POTHOS_TEST_TRUE(same(ev("round(2.5)"), Value(2)));
+    POTHOS_TEST_TRUE(same(ev("round(3.5)"), Value(4)));
+    POTHOS_TEST_TRUE(same(ev("round(-0.5)"), Value(0)));
+    POTHOS_TEST_TRUE(same(ev("round(2.567, 2)"), Value(2.57)));
+    POTHOS_TEST_TRUE(same(ev("round(7)"), Value(7)));
+    POTHOS_TEST_TRUE(same(ev("round(1250, -2)"), Value(1200)));
+    POTHOS_TEST_TRUE(same(ev("round(1350, -2)"), Value(1400)));
+    POTHOS_TEST_TRUE(same(ev("round(-1351, -2)"), Value(-1400)));
+    POTHOS_TEST_THROWS(ev("round(nan)"), ExprError);
+    POTHOS_TEST_TRUE(same(ev("floor(-1.5)"), Value(-2)));
+    POTHOS_TEST_TRUE(same(ev("ceil(1.2)"), Value(2)));
+    POTHOS_TEST_TRUE(same(ev("floor(3)"), Value(3)));
+    POTHOS_TEST_THROWS(ev("floor(inf)"), ExprError);
+    POTHOS_TEST_THROWS(ev("ceil(1e300)"), ExprError);
+    POTHOS_TEST_TRUE(same(ev("real(1+2j)"), Value(1.0)));
+    POTHOS_TEST_TRUE(same(ev("imag(1+2j)"), Value(2.0)));
+    POTHOS_TEST_TRUE(same(ev("imag(5)"), Value(0.0)));
+    POTHOS_TEST_TRUE(same(ev("conj(1+2j)"), Value(C(1.0, -2.0))));
+    POTHOS_TEST_CLOSE(fl("arg(1j)"), pi/2, 1e-15);
+    const auto sins = ev("sin([0, pi/2])");
+    POTHOS_TEST_TRUE(sins.is<List>());
+    POTHOS_TEST_EQUAL(std::get<List>(sins.data).size(), 2);
+    POTHOS_TEST_CLOSE(std::get<double>(std::get<List>(sins.data)[0].data), 0.0, 1e-15);
+    POTHOS_TEST_CLOSE(std::get<double>(std::get<List>(sins.data)[1].data), 1.0, 1e-15);
+    POTHOS_TEST_TRUE(same(ev("abs([-1, [2.5, -3]])"), Value(List{Value(1), Value(List{Value(2.5), Value(3)})})));
+    POTHOS_TEST_EQUAL(errorPos([]{ev("1 + sin('a')");}), 4);
+    POTHOS_TEST_TRUE(errorMessage("sin('a')").find("sin() argument must be a number, not 'str'") != std::string::npos);
+}
+
+POTHOS_TEST_BLOCK("/util/tests", test_expr_builtins)
+{
+    const auto list = [](std::initializer_list<Value> items){return Value(List(items));};
+    POTHOS_TEST_TRUE(same(ev("min(3, 1, 2)"), Value(1)));
+    POTHOS_TEST_TRUE(same(ev("max([1, 5, 2])"), Value(5)));
+    POTHOS_TEST_TRUE(same(ev("max(1, 2.5)"), Value(2.5)));
+    POTHOS_TEST_TRUE(same(ev("min('b', 'a')"), Value("a")));
+    POTHOS_TEST_THROWS(ev("min([])"), ExprError);
+    POTHOS_TEST_THROWS(ev("min(1, 'a')"), ExprError);
+    POTHOS_TEST_THROWS(ev("max(5)"), ExprError);
+    POTHOS_TEST_TRUE(same(ev("sum([1, 2.5])"), Value(3.5)));
+    POTHOS_TEST_TRUE(same(ev("sum([])"), Value(0)));
+    POTHOS_TEST_TRUE(same(ev("sum([[1, 2], [3, 4]])"), list({4, 6})));
+    POTHOS_TEST_TRUE(same(ev("len([1, 2])"), Value(2)));
+    POTHOS_TEST_TRUE(same(ev("len('abc')"), Value(3)));
+    POTHOS_TEST_TRUE(same(ev("len({})"), Value(0)));
+    POTHOS_TEST_THROWS(ev("len(5)"), ExprError);
+    POTHOS_TEST_TRUE(same(ev("int(3.9)"), Value(3)));
+    POTHOS_TEST_TRUE(same(ev("int(-3.9)"), Value(-3)));
+    POTHOS_TEST_TRUE(same(ev("int(True)"), Value(1)));
+    POTHOS_TEST_TRUE(same(ev("int('42')"), Value(42)));
+    POTHOS_TEST_TRUE(same(ev("int(' -7 ')"), Value(-7)));
+    POTHOS_TEST_THROWS(ev("int('4x')"), ExprError);
+    POTHOS_TEST_THROWS(ev("int('')"), ExprError);
+    POTHOS_TEST_THROWS(ev("int(1e300)"), ExprError);
+    POTHOS_TEST_THROWS(ev("int(1j)"), ExprError);
+    POTHOS_TEST_TRUE(same(ev("float('1e3')"), Value(1000.0)));
+    POTHOS_TEST_TRUE(same(ev("float(' -2.5')"), Value(-2.5)));
+    POTHOS_TEST_TRUE(same(ev("float(2)"), Value(2.0)));
+    POTHOS_TEST_TRUE(std::isinf(fl("float('-inf')")));
+    POTHOS_TEST_TRUE(std::isnan(fl("float('nan')")));
+    POTHOS_TEST_THROWS(ev("float('x1')"), ExprError);
+    POTHOS_TEST_THROWS(ev("float('1.5.2')"), ExprError);
+    POTHOS_TEST_TRUE(same(ev("complex(1, 2)"), Value(C(1.0, 2.0))));
+    POTHOS_TEST_TRUE(same(ev("complex(3)"), Value(C(3.0, 0.0))));
+    POTHOS_TEST_TRUE(same(ev("str(1.5)"), Value("1.5")));
+    POTHOS_TEST_TRUE(same(ev("str('a')"), Value("a")));
+    POTHOS_TEST_TRUE(same(ev("str([1, 'a'])"), Value("[1, 'a']")));
+    POTHOS_TEST_TRUE(same(ev("bool([])"), Value(false)));
+    POTHOS_TEST_TRUE(same(ev("bool('x')"), Value(true)));
+    POTHOS_TEST_TRUE(same(ev("range(3)"), list({0, 1, 2})));
+    POTHOS_TEST_TRUE(same(ev("range(1, 7, 2)"), list({1, 3, 5})));
+    POTHOS_TEST_TRUE(same(ev("range(5, 0, -2)"), list({5, 3, 1})));
+    POTHOS_TEST_TRUE(same(ev("range(0)"), list({})));
+    POTHOS_TEST_TRUE(same(ev("range(3, 1)"), list({})));
+    POTHOS_TEST_TRUE(same(ev("len(range(-9223372036854775807-1, -9223372036854775807-1+10))"), Value(10)));
+    POTHOS_TEST_THROWS(ev("range(0, 1, 0)"), ExprError);
+    POTHOS_TEST_THROWS(ev("range(10000000)"), ExprError);
+    POTHOS_TEST_THROWS(ev("range(-9223372036854775807-1, 9223372036854775807)"), ExprError);
+    POTHOS_TEST_THROWS(ev("range(1.5)"), ExprError);
+
+    POTHOS_TEST_EQUAL(errorPos([]{ev("1 + sin(1, 2)");}), 4);
+    POTHOS_TEST_TRUE(errorMessage("sin(1, 2)").find("sin() takes 1 argument (2 given)") != std::string::npos);
+    POTHOS_TEST_TRUE(errorMessage("atan2(1)").find("atan2() takes 2 arguments (1 given)") != std::string::npos);
+    POTHOS_TEST_TRUE(errorMessage("range()").find("range() takes 1 to 3 arguments (0 given)") != std::string::npos);
+    POTHOS_TEST_TRUE(errorMessage("min()").find("min() takes at least 1 argument (0 given)") != std::string::npos);
+    POTHOS_TEST_EQUAL(errorPos([]{ev("2 * foo(1)");}), 4);
+    POTHOS_TEST_TRUE(errorMessage("foo(1)").find("unknown function 'foo'") != std::string::npos);
+    POTHOS_TEST_TRUE(errorMessage("pi(1)").find("'pi' is not a function") != std::string::npos);
+    POTHOS_TEST_TRUE(errorMessage("sin").find("unknown name 'sin'") != std::string::npos);
+
+    //functions and constants are separate namespaces
+    POTHOS_TEST_TRUE(same(ev("sin(0) + sin", {{"sin", Value(1)}}), Value(1.0)));
+    POTHOS_TEST_TRUE(errorMessage("x(1)").find("unknown function 'x'") != std::string::npos);
+}

@@ -38,6 +38,15 @@ struct Token
  */
 std::vector<Token> tokenize(std::string_view expr);
 
+/*!
+ * Convert validated decimal digits to a double (locale independent).
+ * Out of range values become inf or 0 like Python.
+ * \param intPart digits before the point (may be empty)
+ * \param fracPart digits after the point (may be empty)
+ * \param expPart exponent digits with an optional sign (may be empty)
+ */
+double parseDecimalFloat(std::string_view intPart, std::string_view fracPart, std::string_view expPart);
+
 } //namespace Expr
 } //namespace Util
 } //namespace Pothos

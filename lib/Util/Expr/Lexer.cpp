@@ -38,29 +38,6 @@ int hexValue(const char ch)
     return -1;
 }
 
-//Parse a decimal float in the form digits[.digits][e[+-]digits]
-double parseDouble(const std::string &s)
-{
-    double value = 0.0;
-    bool outOfRange = false;
-#if defined(__cpp_lib_to_chars) && __cpp_lib_to_chars >= 201611L
-    const auto result = std::from_chars(s.data(), s.data()+s.size(), value);
-    outOfRange = result.ec == std::errc::result_out_of_range;
-#else
-    //no floating point from_chars (older libc++): classic locale stream
-    std::istringstream is(s);
-    is.imbue(std::locale::classic());
-    is >> value;
-    outOfRange = is.fail();
-#endif
-    if (not outOfRange) return value;
-
-    //too small underflows to zero, too large overflows to infinity (like Python)
-    const auto e = s.find_first_of("eE");
-    const bool negExp = e != std::string::npos and e+1 < s.size() and s[e+1] == '-';
-    return negExp? 0.0 : std::numeric_limits<double>::infinity();
-}
-
 class Lexer
 {
 public:
@@ -194,10 +171,7 @@ private:
 
         if (isImag or isFloat)
         {
-            std::string text = intPart.empty()? "0" : intPart;
-            if (not fracPart.empty()) text += "." + fracPart;
-            if (not expPart.empty()) text += "e" + expPart;
-            const double value = parseDouble(text);
+            const double value = parseDecimalFloat(intPart, fracPart, expPart);
             tok.kind = isImag? Tok::Imag : Tok::Float;
             tok.literal = isImag? Value(std::complex<double>(0.0, value)) : Value(value);
             return;
@@ -322,6 +296,30 @@ private:
 };
 
 } //namespace
+
+double Pothos::Util::Expr::parseDecimalFloat(const std::string_view intPart, const std::string_view fracPart, const std::string_view expPart)
+{
+    std::string s(intPart.empty()? "0" : intPart);
+    if (not fracPart.empty()) s += "." + std::string(fracPart);
+    if (not expPart.empty()) s += "e" + std::string(expPart);
+
+    double value = 0.0;
+    bool outOfRange = false;
+#if defined(__cpp_lib_to_chars) && __cpp_lib_to_chars >= 201611L
+    const auto result = std::from_chars(s.data(), s.data()+s.size(), value);
+    outOfRange = result.ec == std::errc::result_out_of_range;
+#else
+    //no floating point from_chars (older libc++): classic locale stream
+    std::istringstream is(s);
+    is.imbue(std::locale::classic());
+    is >> value;
+    outOfRange = is.fail();
+#endif
+    if (not outOfRange) return value;
+
+    //too small underflows to zero, too large overflows to infinity (like Python)
+    return expPart.starts_with('-')? 0.0 : std::numeric_limits<double>::infinity();
+}
 
 std::vector<Token> Pothos::Util::Expr::tokenize(const std::string_view expr)
 {

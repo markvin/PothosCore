@@ -3,6 +3,7 @@
 
 #include "Util/Expr/Eval.hpp"
 #include "Util/Expr/Ops.hpp"
+#include "Util/Expr/Builtins.hpp"
 #include <algorithm>
 #include <limits>
 #include <numbers>
@@ -89,9 +90,9 @@ public:
         }
         case Node::Kind::Dict: return this->dict(node);
         case Node::Kind::Index: return this->index(node);
-        case Node::Kind::Call: break;
+        case Node::Kind::Call: return this->call(node);
         }
-        throw ExprError("not implemented", node.pos);
+        throw ExprError("unknown syntax tree node", node.pos);
     }
 
 private:
@@ -101,6 +102,21 @@ private:
         if (v == nullptr) v = builtinConstant(node.name);
         if (v == nullptr) throw ExprError("unknown name '" + node.name + "'", node.pos);
         return *v;
+    }
+
+    //functions and constants are separate namespaces: a constant "sin" does not hide sin()
+    Value call(const Node &node) const
+    {
+        if (not isBuiltinFunction(node.name))
+        {
+            const bool isConstant = (_lookup and _lookup(node.name) != nullptr) or builtinConstant(node.name) != nullptr;
+            if (isConstant) throw ExprError("'" + node.name + "' is not a function", node.pos);
+            throw ExprError("unknown function '" + node.name + "'", node.pos);
+        }
+        List args;
+        args.reserve(node.children.size());
+        for (const auto &child : node.children) args.push_back(this->eval(*child));
+        return callBuiltin(node.name, args, node.pos);
     }
 
     Value dict(const Node &node) const
