@@ -205,15 +205,17 @@ PothosBase/
 
 ### Changes in the toolkits (in their repositories)
 
-- blocks and comms: remove the `CMP0144` warning with
-  `cmake_policy(SET CMP0144 OLD)` before `find_package(Pothos)`, and a
-  comment that tells why. Do not use the NEW behavior: with NEW,
-  `find_package(Pothos)` also searches the `POTHOS_ROOT` variable and the
-  `POTHOS_ROOT` environment variable. Users and the test environment set
-  `POTHOS_ROOT` for the runtime, so a standalone configure could find a
-  different core than `CMAKE_PREFIX_PATH` gives (decision of the
-  designer). The builder checks that the standalone build and the
-  PothosBase build do not change and give no warning.
+- blocks and comms: remove the `CMP0144` warning. Set the policy to NEW
+  (`if(POLICY CMP0144)`, the policy comes with CMake 3.27) and call
+  `find_package(Pothos CONFIG REQUIRED NO_PACKAGE_ROOT_PATH)`, with a
+  comment that tells why. `find_package` must not search the `POTHOS_ROOT`
+  variable or the `POTHOS_ROOT` environment variable: users and the test
+  environment set `POTHOS_ROOT` for the runtime, so a standalone configure
+  could find a different core than `CMAKE_PREFIX_PATH` gives. (Execution
+  ruling of 2026-10-28: the first design said the OLD behavior, but CMake
+  4.4 gives a "deprecated" warning for a policy set to OLD.) The builder
+  checks that the standalone build and the PothosBase build do not change
+  and give no warning.
 - A toolkit must not depend on its top-level position for its build.
   The spike found no such problem in blocks and comms. Each new toolkit
   port gets a check "builds in PothosBase" in its definition of done.
@@ -325,8 +327,9 @@ that moves both pointers.
 - Phase 11 starts after phase 10 is merged.
 - A missing submodule with its option ON is a configure error, not a
   silent OFF. comms without blocks (tests on) is a configure error.
-- CMP0144: OLD behavior in the toolkits (the standalone build does not
-  change). The comms change is a separate PR after phase 10.
+- CMP0144: NEW with `NO_PACKAGE_ROOT_PATH` in the toolkits (the
+  standalone build does not change, no warning). The comms change is a
+  separate PR after phase 10.
 - `base.modules` loads every module file of the stage prefix, so a
   module that does not load fails the tests.
 - SoapySDR becomes a submodule of PothosBase (upstream, fixed tag) when
