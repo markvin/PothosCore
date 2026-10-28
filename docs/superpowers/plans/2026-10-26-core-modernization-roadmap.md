@@ -84,6 +84,26 @@ in-tree зависимость (спека это разрешает).
   (система или Conan 2). CI зелёный: ядро 5/5, blocks 4/4. Дальше: comms
   по той же схеме (этап 10).
 
+## Решения для следующих этапов
+
+Решения пользователя (2026-10-28), принятые до начала этих этапов:
+
+- plotters (spuce `design_window` в Periodogram и Spectrogram): своя
+  маленькая копия кода окон в plotters. Замена spuce в comms остаётся
+  внутренней библиотекой comms и не устанавливается.
+- soapy: SoapySDR нет в ConanCenter. CI собирает SoapySDR из исходников
+  upstream `pothosware/SoapySDR` (зафиксированный тег или коммит) отдельным
+  шагом до сборки тулкита и ставит его в префикс зависимостей
+  (`actions/cache` по версии). Остальные зависимости — через Conan. Job
+  `linux-system` берёт `extra/soapysdr`. CMake тулкита: только
+  `find_package(SoapySDR CONFIG)`. Рецепт для ConanCenter — позже,
+  необязательно. Локальный клон `/home/mark/Projects/SoapySDR` смотрит в
+  корпоративное зеркало: CI его не использует.
+- PothosBase (репозиторий-агрегатор с сабмодулями, `add_subdirectory`) —
+  обсуждается, отдельным этапом не оформлен. Пробная сборка core + blocks +
+  comms прошла без изменений, 304 самотеста зелёные из одного префикса;
+  замечание — предупреждение CMake `CMP0144` (`POTHOS_ROOT`) в тулкитах.
+
 ## Заметки для плана этапа 2 (собраны при разведке)
 
 - `Topology::make()` (`lib/Framework/TopologyMakeJSON.cpp:16-36`) и
