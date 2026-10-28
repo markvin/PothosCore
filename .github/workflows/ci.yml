@@ -99,7 +99,11 @@ jobs:
   linux-system:
     name: linux-system (Arch packages)
     runs-on: ubuntu-24.04
-    container: archlinux:latest
+    container:
+      image: archlinux:latest
+      #an init process as PID 1 reaps orphans: the daemon tests of PothosUtil
+      #check that the daemon is gone, and a zombie still answers kill(pid, 0)
+      options: --init
     steps:
       - name: Install the toolchain and the dependencies
         run: pacman -Syu --noconfirm base-devel cmake ninja git asio nlohmann-json xsimd
