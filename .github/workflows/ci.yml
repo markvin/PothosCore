@@ -47,7 +47,7 @@ jobs:
       - name: No network access in the build
         shell: bash
         run: |
-          if grep -rnE 'file\s*\(\s*DOWNLOAD|FetchContent|ExternalProject' CMakeLists.txt lib apps cmake blocks; then
+          if grep -rnE 'file\s*\(\s*DOWNLOAD|FetchContent|ExternalProject' CMakeLists.txt lib apps cmake; then
             echo "build scripts must not download anything"; exit 1
           fi
 

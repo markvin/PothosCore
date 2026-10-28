@@ -11,64 +11,71 @@ Restore / update the project so it builds and works on a modern toolchain.
 
 - `lib/`, `include/` — core framework; `apps/` — PothosUtil; `cmake/` —
   build support (installed `PothosConfig.cmake`, `PothosUtil.cmake`);
-  `tests/` — CTest projects; `third_party/` — vendored dependencies;
-  `blocks/` — the blocks toolkit (phase 8, history of pothosware/PothosBlocks
-  merged in), built with the core
-- No submodules. The other toolkits (flow, comms, …) live in their own
-  repositories (pothosware/Pothos*). The topology needs `/blocks/copier` and
-  `/blocks/network_*` from `blocks/`; with `POTHOS_BUILD_BLOCKS=OFF` commit()
-  gives a clear error instead
+  `tests/` — CTest projects; `cmake/PothosDependencies.cmake` — finds the
+  dependencies; `conanfile.txt` — the dependencies for Conan 2
+- No submodules. The toolkits are in their own repositories
+  (pothosware/Pothos*). PothosBlocks (ported, phase 9) is the fork
+  markvin/PothosBlocks, branch `pothos2`, local clone
+  `/home/mark/Projects/PothosBlocks`. The topology needs `/blocks/copier` and
+  `/blocks/network_*` from PothosBlocks; without it commit() gives a clear
+  error
 
 ## Build
 
 Design and plans: `docs/superpowers/specs/2026-10-26-core-modernization-design.md`,
 `docs/superpowers/plans/` (roadmap + per-phase plans).
 
-Dependencies are vendored in `third_party/`; the build needs no network.
+Dependencies (nlohmann_json, Asio, xsimd) come from `find_package`: system
+packages, or Conan 2 with its toolchain file. CMake files must not refer to
+Conan.
 
 ```sh
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
-cmake --build build
-ctest --test-dir build --output-on-failure
+conan install . --output-folder=build/conan -s build_type=Debug -s compiler.cppstd=23 --build=missing
+cmake -S . -B build/conan-dbg -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_TOOLCHAIN_FILE=build/conan/conan_toolchain.cmake
+cmake --build build/conan-dbg
+ctest --test-dir build/conan-dbg --output-on-failure
 ```
 
+Without `CMAKE_TOOLCHAIN_FILE` the system packages are used (Arch: `asio
+nlohmann-json xsimd`; Asio has no CMake config: `cmake/Findasio.cmake`).
+
 - CMake options are prefixed `POTHOS_` (`POTHOS_BUILD_APPS`, `POTHOS_BUILD_DOCS`,
-  `POTHOS_BUILD_TESTS`, `POTHOS_BUILD_BLOCKS`, ...). The core must work as a subproject
+  `POTHOS_BUILD_TESTS`, ...). The core must work as a subproject
   (`pothos.subproject` test): no global `CMAKE_*` settings (use target
   properties, `pothos_target_settings()`), no generic option/target names,
   `PROJECT_BINARY_DIR`/`PROJECT_SOURCE_DIR` instead of `CMAKE_BINARY_DIR`,
   top-level-only behaviour under `PROJECT_IS_TOP_LEVEL`.
-- C++23, CMake >= 3.25 (works on 4.x). No network access during the build;
-  `third_party/` holds vendored code (nlohmann/json, standalone Asio, xsimd).
-- Internal dependencies (nlohmann/json, Asio, xsimd) are PRIVATE; they
-  must never appear in the exported `Pothos::Pothos` target (checked by
-  `pothos.consumer`). Poco is gone (phase 5): do not reintroduce it.
+- C++23, CMake >= 3.25 (works on 4.x). No download during configure or
+  build (no FetchContent/ExternalProject/`file(DOWNLOAD)`).
+- Dependencies (nlohmann/json, Asio, xsimd) are PRIVATE through the internal
+  wrapper targets `pothos_json`, `pothos_asio`, `pothos_xsimd`; they must
+  never appear in the exported `Pothos::Pothos` target or in
+  `PothosConfig.cmake` (checked by `pothos.consumer`, which compiles each
+  public header alone; only `XSIMDCopy.hpp` is skipped). Minimum versions:
+  json 3.11, asio 1.38, xsimd 14.2 (ConanCenter has no 14.3: do not use
+  xsimd 14.3 API without a fallback). Poco is gone (phase 5): do not
+  reintroduce it.
 - `Pothos::init()` requires an installed layout, so CTest first runs
   `pothos.stage` (`cmake --install` into `build/stage`), then
   `pothos.selftests` runs `stage/bin/PothosUtil --self-tests` with
   `POTHOS_ROOT` and isolated `XDG_*`/`APPDATA` dirs (`cmake/PothosTestEnv.cmake`).
-- Blocks modules are added only through `pothos_blocks_module(TARGET SOURCES
-  [LIBRARIES] [TESTS])` (`blocks/CMakeLists.txt`): links `pothos_json`, adds
-  `blocks/` and `lib/` (internal header-only helpers) to the include path,
-  warnings as errors, and every name in `TESTS` (under `/blocks/tests`) is run
-  by `pothos.blocks.selftests`. Use `<nlohmann/json.hpp>`, never `<json.hpp>`;
-  shared helpers go to `blocks/common/` (`Testing.hpp`, `ByteOrder.hpp`).
-  A blocks test that needs blocks of another module goes in with that module.
+- Toolkits use only the public API: the network utilities for them are
+  `Pothos::Util::parseUri`/`resolveHost` (`Pothos/Util/Network.hpp`).
 - SIMD: a file compiled once per architecture (`pothos_multiarch`,
   `PothosGenerateSIMDSources`) includes `<Pothos/Util/XSIMDCopy.hpp>` first (own xsimd
   namespace per copy, AVX-512F workaround), never `<xsimd/xsimd.hpp>`
   directly; `Pothos::Util::XSIMDTraits<T>` follows the copy's xsimd arch.
-  Blocks SIMD kernels need `POTHOS_BUILD_APPS` (PothosUtil generates the
-  dispatchers).
+  Both headers are public; the toolkit gives its own xsimd.
 - Single self-test:
   `cmake -DPREFIX=build/stage -DTEST_HOME_DIR=build/test-home -DBINDIR=bin -DLIBDIR=lib -DTEST_PATH=/framework/tests/test_mmap_shared_buffer -P cmake/PothosRunSelfTests.cmake`
-- CI: `.github/workflows/ci.yml` (Linux GCC/Clang, macOS, Windows MSVC).
+- CI: `.github/workflows/ci.yml` (Linux GCC/Clang, macOS, Windows MSVC with
+  Conan; `linux-system` with the Arch packages, without Conan).
 - `build/compile_commands.json` is always generated (clangd finds it there).
 
 ## Conventions (modernization)
 
 - Networking goes through the internal layer `lib/Net/` (namespace
-  `Pothos::Net`, standalone Asio from `third_party/asio`): `ioContext()` (one
+  `Pothos::Net`, standalone Asio from `find_package(asio)`): `ioContext()` (one
   shared io_context + background thread), `Uri`/`HostPort` parsing,
   `resolveHost`, `TcpStream` (blocking `std::iostream`), `TcpServer` (thread
   per connection, protocol agnostic), syslog (`formatSyslog`/`parseSyslog`,
