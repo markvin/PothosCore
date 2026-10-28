@@ -1,214 +1,284 @@
-# Phase 9: build dependencies via find_package (Conan 2 optional), blocks out of the core
+# Phase 9: dependencies through find_package, blocks out of the core
 
-Date: 2026-10-28. Base branch: `pothos2` (after PR #10). Work branch: `phase9-conan-deps`.
+Date: 2026-10-28. Base branch: `pothos2` (after PR #10).
+Work branch: `phase9-conan-deps`.
 
 ## Intent
 
-Stop shipping third party code inside the repository. The core finds its
-build dependencies the ordinary CMake way (`find_package`), from the system
-or from a Conan 2 install; the build scripts know nothing about Conan. The
-toolkits (blocks now, comms next) are separate repositories that consume an
-installed core and declare their own dependencies the same way.
+The repository must not contain third party code. The core finds its build
+dependencies with `find_package`. The dependencies come from the system or
+from a Conan 2 install. The build scripts do not know about Conan.
 
-## Decisions (user)
+The toolkits (blocks now, comms next) are separate repositories. Each toolkit
+uses an installed core and declares its own dependencies in the same way.
 
-1. Conan 2 with a simple dependency configuration: a `conanfile.txt`
-   (`[requires]` + `[generators] CMakeDeps CMakeToolchain`), no `conanfile.py`.
-2. CMake uses `find_package` only and knows nothing about Conan (no
-   `conan_*` calls, no `CONAN_*` variables, no checks for the toolchain).
-3. Dependencies come from the system, or from Conan by passing
+## Decisions of the user
+
+1. Use Conan 2 with a simple configuration: one `conanfile.txt` with
+   `[requires]` and `[generators] CMakeDeps CMakeToolchain`. Do not use a
+   `conanfile.py`.
+2. CMake uses only `find_package`. CMake files do not contain `conan_*`
+   calls, `CONAN_*` variables or checks for the Conan toolchain.
+3. The dependencies come from the system. Alternatively, they come from
+   Conan when the user gives
    `-DCMAKE_TOOLCHAIN_FILE=<conan output>/conan_toolchain.cmake`.
-4. Toolkit modules (blocks, comms, ...) are external, each with its own
-   `conanfile.txt`. **Phase 8 is undone**: `blocks/` leaves the core and
-   goes back to its own repository, a fork `markvin/PothosBlocks`.
-5. `third_party/` is deleted.
-6. The core stays self-contained: build dependencies do not leak into the
-   API (installed headers, exported targets, `PothosConfig.cmake`).
-7. `include/Pothos/Util/XSIMDTraits.hpp` stays public in the core (it does
-   not include xsimd; a module that uses it brings its own xsimd). Modules do
-   not get copies of it.
-8. Blocks' network code must not depend on core internals: the public
-   `include/Pothos/Util/Network.hpp` is extended with `parseUri` and
-   `resolveHost` that use std types only (no Asio in the API).
-9. CI: the 4 existing jobs (linux-gcc, linux-clang, macos, windows) get
-   their dependencies from Conan; one additional job builds the core with
-   system packages (Arch Linux container: `asio`, `nlohmann-json`, `xsimd`
-   from `extra`) so the "no Conan" path is checked.
-10. Scope: core + external blocks. Comms is the next phase, same scheme.
-11. `lib/SIMD/XSIMDCopy.hpp` becomes public as `include/Pothos/Util/XSIMDCopy.hpp`
-    next to `XSIMDTraits.hpp` (needed by blocks' and later comms' SIMD kernels
-    built with `pothos_multiarch`). Like XSIMDTraits it is usable only by a
-    module with its own xsimd: the second documented exception to decision 6.
+4. The toolkit modules (blocks, comms and the other toolkits) are external.
+   Each module has its own `conanfile.txt`. **Phase 8 is cancelled**:
+   `blocks/` goes out of the core into the fork `markvin/PothosBlocks`.
+5. Delete `third_party/`.
+6. The core stays self-contained. The build dependencies must not go into
+   the API: the installed headers, the exported targets and
+   `PothosConfig.cmake`.
+7. `include/Pothos/Util/XSIMDTraits.hpp` stays public in the core. It does
+   not include xsimd. A module that uses it gives its own xsimd. The
+   modules do not get copies of this header.
+8. The network code of blocks must not use the internals of the core.
+   Add `parseUri` and `resolveHost` to the public
+   `include/Pothos/Util/Network.hpp`. These functions use only `std` types.
+   Asio must not be in the API.
+9. CI: the 4 current jobs (linux-gcc, linux-clang, macos, windows) get
+   their dependencies from Conan. One new job builds the core with system
+   packages in an Arch Linux container (`asio`, `nlohmann-json` and `xsimd`
+   from `extra`). This job checks the build without Conan.
+10. Scope: the core and the external blocks. Comms is the next phase, with
+    the same method.
+11. Move `lib/SIMD/XSIMDCopy.hpp` to the public
+    `include/Pothos/Util/XSIMDCopy.hpp`, next to `XSIMDTraits.hpp`. The SIMD
+    kernels of blocks (and later of comms) use it with `pothos_multiarch`.
+    Only a module with its own xsimd can use it. This header is the second
+    documented exception to decision 6.
 
 ## Goals
 
-- `third_party/` gone; `nlohmann_json`, `asio`, `xsimd` found with `find_package`.
-- Root `conanfile.txt` lists the core's three dependencies.
-- The installed `PothosConfig.cmake` has no `find_dependency` for them and
-  the exported `Pothos::Pothos` target does not reference them
-  (`pothos.consumer` keeps checking this).
-- Core builds and passes its tests both with Conan and with system packages.
-- `markvin/PothosBlocks` branch `pothos2` builds against an installed core,
-  with its own `conanfile.txt`, and its self-tests pass in its own CI.
+- `third_party/` does not exist. The core finds `nlohmann_json`, `asio` and
+  `xsimd` with `find_package`.
+- The root `conanfile.txt` contains the three dependencies of the core.
+- The installed `PothosConfig.cmake` does not call `find_dependency` for
+  these dependencies. The exported target `Pothos::Pothos` does not refer to
+  them. The test `pothos.consumer` continues to check this.
+- The core builds and passes its tests with Conan and with system packages.
+- The branch `pothos2` of `markvin/PothosBlocks` builds with an installed
+  core and its own `conanfile.txt`. Its self-tests pass in its own CI.
 
 ## Non-goals
 
-- Publishing the core (or blocks) as a Conan package (`conanfile.py`, ConanCenter).
-- Porting comms or other toolkits (next phases).
-- Changing the SIMD dispatch design, the plugin system, or the public API
-  beyond decision 8.
+- Do not make a Conan package of the core or of blocks (no `conanfile.py`,
+  no ConanCenter recipe).
+- Do not port comms or the other toolkits (these are the next phases).
+- Do not change the SIMD dispatch design or the plugin system.
+- Do not change the public API, except for decisions 8 and 11.
 
-## Anti-goals (would be a failure even if it builds)
+## Anti-goals
 
-- Any mention of Conan in CMake files (beyond docs/README/CI).
-- A dependency header or target appearing in the installed core API, or
-  `PothosConfig.cmake` requiring consumers to find the core's dependencies
-  (exceptions: `XSIMDTraits.hpp` and `XSIMDCopy.hpp`, decisions 7 and 11,
-  documented as requiring the consumer's own xsimd; `pothos.consumer` must
-  skip exactly these two headers in its leak check).
-- Downloading during configure/build (FetchContent, ExternalProject,
-  `file(DOWNLOAD)`); Conan downloads happen only in an explicit
-  `conan install` step before CMake.
-- Losing core fixes that came with phase 8 (see below).
+These results are failures, also when the build is correct:
 
-## Constraints / current state
+- A CMake file refers to Conan. Only the docs, the README and CI can
+  refer to Conan.
+- A header or target of a dependency is in the installed API of the core.
+  Exceptions: `XSIMDTraits.hpp` and `XSIMDCopy.hpp` (decisions 7 and 11).
+  The docs tell that these headers need the xsimd of the consumer. The
+  leak check of `pothos.consumer` skips only these two headers.
+- `PothosConfig.cmake` makes the consumers find the dependencies of the
+  core.
+- The configure step or the build step downloads files (FetchContent,
+  ExternalProject, `file(DOWNLOAD)`). Conan downloads files only in a
+  separate `conan install` step before CMake.
+- The core loses the fixes that came with phase 8 (refer to "Cancel
+  phase 8").
 
-- C++23, CMake >= 3.25, must keep working as a subproject (`pothos.subproject`
-  test: `add_subdirectory` and FetchContent with `SOURCE_DIR`). The parent
-  is responsible for making the dependencies findable; the nested configure
-  in `cmake/PothosSubprojectTest.cmake` must forward `CMAKE_TOOLCHAIN_FILE`
-  / `CMAKE_PREFIX_PATH` so the test works in both modes.
-- Current vendored versions: nlohmann/json 3.11.3, Asio 1.38.2, xsimd 14.3.0.
-  ConanCenter: `nlohmann_json/3.12.0`, `asio/1.38.2`, `xsimd/14.2.0` (no 14.3.0).
-  Arch `extra`: asio 1.38.2, nlohmann-json 3.12.0, xsimd 14.3.0.
-- Current internal targets (`third_party/CMakeLists.txt`): `pothos_json`,
-  `pothos_asio` (adds `ASIO_STANDALONE`, `ASIO_NO_DEPRECATED`, on Windows
-  `_WIN32_WINNT=0x0A00`, `ws2_32`, `mswsock`), `pothos_xsimd`. Used by
-  `lib/CMakeLists.txt` (PRIVATE on `Pothos`, `pothos_net` links `pothos_asio`)
-  and `apps/CMakeLists.txt`.
-- Packaged Asio has no CMake config (Arch, Debian/Ubuntu). Conan's CMakeDeps
-  generates `asio-config.cmake` with target `asio::asio`. The core therefore
-  ships its own `cmake/FindAsio.cmake` (header search + version from
-  `asio/version.hpp`) that defines the same `asio::asio` target, used only
-  when no config package is found. This is plain CMake, not Conan-specific.
-- xsimd is used inside the core only: CPU feature detection
-  (`lib/System/SIMD.cpp`) and the multi-arch buffer conversion
-  (`lib/SIMD/SIMDConvert.cpp` through the private `lib/SIMD/XSIMDCopy.hpp`).
-- CI guard "No network access" greps build scripts for
-  FetchContent/ExternalProject/`file(DOWNLOAD)`; keep it, drop `third_party`
-  and `blocks` from its path list. (It also matches the word in comments.)
+## Constraints and current state
 
-### Undoing phase 8 (what goes, what stays)
+- C++23 and CMake 3.25 or higher.
+- The core must continue to work as a subproject (test
+  `pothos.subproject`: `add_subdirectory` and FetchContent with
+  `SOURCE_DIR`). The parent project makes the dependencies available.
+  `cmake/PothosSubprojectTest.cmake` must give `CMAKE_TOOLCHAIN_FILE` and
+  `CMAKE_PREFIX_PATH` to the nested configure step. Then the test works with
+  Conan and without Conan.
+- Versions:
 
-Phase 8 (PR #10, merge 1f79019d) added `blocks/` and also fixed the core.
-Remove: `blocks/`, `POTHOS_BUILD_BLOCKS`, `pothos.blocks.selftests`, the
-blocks parts of `CLAUDE.md`, `README.md`, `Changelog.txt`, CI, and restore
-the phase-7 wording of the `Topology::commit()` error for missing
-`/blocks/copier` / `/blocks/network_*` ("install PothosBlocks"), incl.
-`lib/Framework/TopologyToolkitBlocks.hpp`, its test and `Topology.hpp` docs.
-Keep: the core fixes from that PR (`lib/Platform/Process*`, `lib/Net/TcpStream.cpp`,
-`lib/Plugin/ModuleSafeLoad.cpp`, `TestRemote.cpp`, XSIMDTraits on xsimd 14,
-`TestXSIMDTraits.cpp`, `XSIMDCopy.hpp`, SIMD dispatcher utils changes,
-`PothosUtil.cmake`/`PothosRunSelfTests.cmake` improvements that are not
-blocks-specific). The builder diffs `af8361bc..1f79019d` outside `blocks/`
-and decides file by file.
+  | Dependency | `third_party/` now | ConanCenter | Arch `extra` |
+  |---|---|---|---|
+  | nlohmann_json | 3.11.3 | 3.12.0 | 3.12.0 |
+  | asio | 1.38.2 | 1.38.2 | 1.38.2 |
+  | xsimd | 14.3.0 | 14.2.0 (no 14.3.0) | 14.3.0 |
 
-## The core: what changes
+- `third_party/CMakeLists.txt` defines the internal targets `pothos_json`,
+  `pothos_asio` and `pothos_xsimd`. `pothos_asio` adds `ASIO_STANDALONE` and
+  `ASIO_NO_DEPRECATED`. On Windows, it also adds `_WIN32_WINNT=0x0A00`,
+  `ws2_32` and `mswsock`. `lib/CMakeLists.txt` and `apps/CMakeLists.txt` use
+  these targets. `Pothos` links them as PRIVATE. `pothos_net` links
+  `pothos_asio`.
+- The Asio system packages (Arch, Debian, Ubuntu) do not have a CMake
+  config. The Conan generator CMakeDeps makes `asio-config.cmake` with the
+  target `asio::asio`. Thus the core has its own `cmake/FindAsio.cmake`. This
+  module finds the headers, reads the version from `asio/version.hpp` and
+  defines the same target `asio::asio`. CMake uses it only when it does not
+  find a config package. This module is plain CMake. It does not refer to
+  Conan.
+- The core uses xsimd only internally:
+  - CPU feature detection (`lib/System/SIMD.cpp`);
+  - the multi-architecture buffer conversion (`lib/SIMD/SIMDConvert.cpp`
+    with `XSIMDCopy.hpp`).
+- The CI guard "No network access" searches the build scripts for
+  FetchContent, ExternalProject and `file(DOWNLOAD)`. Keep this guard.
+  Remove `third_party` and `blocks` from its list of paths. The guard also
+  finds these words in comments.
 
-- Delete `third_party/`; in `CMakeLists.txt` replace `add_subdirectory(third_party)`
-  with `find_package(nlohmann_json ... REQUIRED)`, `find_package(asio ...)`
-  (config, then `FindAsio.cmake` fallback), `find_package(xsimd ... REQUIRED)`.
-  Link the imported targets PRIVATE; keep the Asio compile definitions and
-  Windows libraries on the core's side (they are the core's configuration,
-  not the package's). Internal wrapper targets may stay if they make linking
-  simpler; they must not be installed/exported.
-- Minimum versions in `find_package`: no higher than the lowest version CI
-  tests (xsimd 14.2.0 from Conan), and high enough that the code compiles
-  (xsimd 14 API; check json/asio minimums against the code). Builder's call.
+### Cancel phase 8
+
+Phase 8 (PR #10, merge `1f79019d`) added `blocks/`. It also fixed the core.
+
+Remove:
+
+- `blocks/`, the option `POTHOS_BUILD_BLOCKS` and the test
+  `pothos.blocks.selftests`;
+- the blocks text in `CLAUDE.md`, `README.md`, `Changelog.txt` and CI.
+
+Restore the phase 7 text of the `Topology::commit()` error for a missing
+`/blocks/copier` or `/blocks/network_*` ("install PothosBlocks"). This
+applies to `lib/Framework/TopologyToolkitBlocks.hpp`, its test and the docs
+in `Topology.hpp`.
+
+Keep the fixes of the core from PR #10:
+
+- `lib/Platform/Process*`, `lib/Net/TcpStream.cpp`,
+  `lib/Plugin/ModuleSafeLoad.cpp`, `TestRemote.cpp`;
+- `XSIMDTraits.hpp` on xsimd 14, `TestXSIMDTraits.cpp`, `XSIMDCopy.hpp`;
+- the changes of the SIMD dispatcher utilities;
+- the changes of `PothosUtil.cmake` and `PothosRunSelfTests.cmake` that are
+  not specific to blocks.
+
+The builder compares `af8361bc..1f79019d` outside `blocks/` and makes a
+decision for each file.
+
+## Changes in the core
+
+- Delete `third_party/`. In `CMakeLists.txt`, replace
+  `add_subdirectory(third_party)` with:
+  - `find_package(nlohmann_json ... REQUIRED)`;
+  - `find_package(asio ...)` (config package first, then `FindAsio.cmake`);
+  - `find_package(xsimd ... REQUIRED)`.
+- Link the imported targets as PRIVATE. The Asio compile definitions and
+  the Windows libraries are the configuration of the core, not of the
+  package. Keep them in the core. The internal wrapper targets can stay if
+  they make the linking simpler. Do not install or export them.
+- Minimum versions in `find_package`: not higher than the lowest version
+  that CI tests (xsimd 14.2.0 from Conan). The code must compile with these
+  versions. The builder selects the minimum versions of json and asio from
+  the code.
 - Root `conanfile.txt`:
-  `[requires] nlohmann_json/3.12.0 asio/1.38.2 xsimd/14.2.0`,
-  `[generators] CMakeDeps CMakeToolchain`, plus `[layout] cmake_layout`
-  only if it keeps the README command simple (builder's call).
-- `include/Pothos/Util/Network.hpp`: add `POTHOS_API` functions
-  - `parseUri(std::string_view)` returning a public struct
-    `{std::string scheme; std::string host; std::uint16_t port;}`
-    (port 0 when absent; IPv6 host without brackets; throws
-    `Pothos::InvalidArgumentException`), plus its `toString` if blocks needs it;
-  - `resolveHost(const std::string &host, std::chrono::microseconds timeout)`
-    returning the address as `std::string` (same semantics as
-    `Pothos::Net::resolveHost`: IPv4 first, timeout/IO exceptions).
-  Implemented on `lib/Net/Uri` / `lib/Net/Address`, which stay internal.
-  Exact names/namespace (`Pothos::Util::`) follow the existing header.
-- `pothos.api_compat` / `pothos.consumer` keep passing; add self-tests for
+  - `[requires]`: `nlohmann_json/3.12.0`, `asio/1.38.2`, `xsimd/14.2.0`;
+  - `[generators]`: `CMakeDeps`, `CMakeToolchain`;
+  - `[layout] cmake_layout` only if it makes the README command simpler
+    (decision of the builder).
+- Add these `POTHOS_API` functions to `include/Pothos/Util/Network.hpp`
+  (namespace `Pothos::Util`, names as in the current header):
+  - `parseUri(std::string_view)`. It returns a public struct
+    `{std::string scheme; std::string host; std::uint16_t port;}`. The port
+    is 0 when the string does not have a port. An IPv6 host has no
+    brackets. The function throws `Pothos::InvalidArgumentException` for an
+    incorrect string. Add `toString` for the struct if blocks needs it.
+  - `resolveHost(const std::string &host, std::chrono::microseconds timeout)`.
+    It returns the address as `std::string`. Its behavior is the same as
+    `Pothos::Net::resolveHost`: IPv4 first, and the same timeout and IO
+    exceptions.
+
+  The functions use `lib/Net/Uri` and `lib/Net/Address`. These files stay
+  internal.
+- `pothos.api_compat` and `pothos.consumer` must pass. Add self-tests for
   the new functions.
-- Docs: README build section with both ways (system packages; `conan install`
-  then `-DCMAKE_TOOLCHAIN_FILE=...`), `CLAUDE.md` updated, Changelog entry.
-  `XSIMDTraits.hpp` documented as "include after your own `<xsimd/xsimd.hpp>`".
+- Docs:
+  - The build section of the README shows the two methods: system packages,
+    and `conan install` followed by `-DCMAKE_TOOLCHAIN_FILE=...`.
+  - Update `CLAUDE.md` and add a Changelog entry.
+  - The docs of `XSIMDTraits.hpp` and `XSIMDCopy.hpp` tell the user to
+    include the xsimd of the module.
 
-## CI (core)
+## CI of the core
 
-- Jobs linux-gcc, linux-clang, macos, windows: install Conan 2 (pip),
-  `conan profile detect`, `conan install . --output-folder=... -s build_type=<config>
-  --build=missing`, then configure with the toolchain file. The profile must
-  use the job's compiler (`CC`/`CXX` / `-s compiler...`); with Ninja on
-  Windows the toolchain generator setting must match. Keep
-  `POTHOS_WARNINGS_AS_ERRORS` and the existing extras.
-- New job `linux-system` in an `archlinux` container: `pacman -S` toolchain +
-  `asio nlohmann-json xsimd`, configure without a toolchain file, build, ctest.
-- Caching the Conan cache is optional (builder's call).
+- Jobs linux-gcc, linux-clang, macos and windows:
+  1. Install Conan 2 with pip.
+  2. Run `conan profile detect`.
+  3. Run `conan install . --output-folder=... -s build_type=<config> --build=missing`.
+  4. Configure with the toolchain file.
+
+  The profile must use the compiler of the job (`CC`/`CXX` or
+  `-s compiler...`). On Windows with Ninja, the generator of the toolchain
+  must be Ninja. Keep `POTHOS_WARNINGS_AS_ERRORS` and the current extra
+  options.
+- New job `linux-system` in an `archlinux` container:
+  1. Install the toolchain and `asio nlohmann-json xsimd` with `pacman -S`.
+  2. Configure without a toolchain file.
+  3. Build and run `ctest`.
+- A cache for Conan is optional (decision of the builder).
 
 ## PothosBlocks (external)
 
-- Repository: fork `pothosware/PothosBlocks` → `markvin/PothosBlocks`
-  (create only with the user's go-ahead at that plan step). Branch `pothos2`
-  built from the history of `blocks/` (`git subtree split --prefix=blocks`
-  or equivalent) so the phase-8 commits are kept and the upstream history
-  stays the ancestor.
-- Own top-level `CMakeLists.txt`: `project()`, `find_package(Pothos CONFIG REQUIRED)`,
-  `find_package` for its dependencies, the `pothos_blocks_module()` helper
-  moved from the core's `blocks/CMakeLists.txt` (minus `${PROJECT_SOURCE_DIR}/lib`
-  include path and `pothos_json` → `nlohmann_json::nlohmann_json`).
-- Own `conanfile.txt`: `nlohmann_json`, `asio`, `xsimd` (same versions as core).
-  The core itself is not a Conan package: it comes from the system or from
-  `CMAKE_PREFIX_PATH` pointing at an installed core.
-- Uses of core internals to replace:
-  - `Net/Uri.hpp`, `Net/Address.hpp`, `Pothos::Net::ipv6Supported`
-    → `Pothos/Util/Network.hpp` (`parseUri`, `resolveHost`, `isIPv6Supported`)
-    + its own Asio (`asio::ip::make_address`);
-  - `SIMD/XSIMDCopy.hpp` (4 files in `stream/SIMD/`) → `<Pothos/Util/XSIMDCopy.hpp>`
-    (decision 11);
-  - `Util/TempFile.hpp` (`file/TestBinaryFileBlocks.cpp`) → a small local
-    helper in the test (builder's call).
-- Its own `FindAsio.cmake` copy (CMake module, not C++ code) — or the core
-  installs its `FindAsio.cmake`? Builder's call; must not make
-  `PothosConfig.cmake` depend on Asio.
-- Tests: stage-install blocks into a prefix and run `PothosUtil --self-test1`
-  for each blocks test with `POTHOS_ROOT` pointing at the installed core and
-  `POTHOS_PLUGIN_PATH` at the staged blocks modules (or install blocks into
-  the core's prefix in CI). Reuse the core's `PothosRunSelfTests.cmake`
-  approach; copying that CMake script is acceptable.
-- CI in the blocks repo: build + install the core from
-  `markvin/PothosCore@pothos2` (Conan), then blocks (Conan), run tests; at
-  least Linux; same 4-OS matrix if it does not cost much (builder's call).
+- Repository: fork `pothosware/PothosBlocks` to `markvin/PothosBlocks`.
+  Create the fork only after the user agrees at that step of the plan.
+- Make the branch `pothos2` from the history of `blocks/`
+  (`git subtree split --prefix=blocks` or an equivalent). The phase 8
+  commits must stay. The upstream history must stay the ancestor.
+- The repository has its own top-level `CMakeLists.txt`:
+  - `project()` and `find_package(Pothos CONFIG REQUIRED)`;
+  - `find_package` for its dependencies;
+  - the helper `pothos_blocks_module()` from `blocks/CMakeLists.txt` of the
+    core. Remove the include path `${PROJECT_SOURCE_DIR}/lib`. Replace
+    `pothos_json` with `nlohmann_json::nlohmann_json`.
+- The repository has its own `conanfile.txt` with `nlohmann_json`, `asio`
+  and `xsimd` (the same versions as the core). The core is not a Conan
+  package. The core comes from the system, or from `CMAKE_PREFIX_PATH` that
+  points to an installed core.
+- Replace the uses of the core internals:
+  - `Net/Uri.hpp`, `Net/Address.hpp` and `Pothos::Net::ipv6Supported`:
+    use `Pothos/Util/Network.hpp` (`parseUri`, `resolveHost`,
+    `isIPv6Supported`) and the Asio of blocks (`asio::ip::make_address`);
+  - `SIMD/XSIMDCopy.hpp` (4 files in `stream/SIMD/`): use
+    `<Pothos/Util/XSIMDCopy.hpp>` (decision 11);
+  - `Util/TempFile.hpp` (`file/TestBinaryFileBlocks.cpp`): use a small
+    local helper in the test.
+- `FindAsio.cmake`: blocks gets its own copy, or the core installs its
+  copy (decision of the builder). `PothosConfig.cmake` must not need Asio.
+- Tests:
+  1. Install blocks into a stage prefix.
+  2. For each blocks test, run `PothosUtil --self-test1`. Set `POTHOS_ROOT`
+     to the installed core. Set `POTHOS_PLUGIN_PATH` to the staged blocks
+     modules. Alternatively, install blocks into the prefix of the core in
+     CI.
 
-## Calls made by the designer (not user decisions; check them)
+  Use the method of `PothosRunSelfTests.cmake` of the core. A copy of this
+  CMake script is permitted.
+- CI of blocks:
+  1. Build and install the core from `markvin/PothosCore` (Conan).
+  2. Build blocks (Conan).
+  3. Run the tests.
 
-- One phase-9 PR into `pothos2`. Until it is merged, blocks CI builds the core
-  from `markvin/PothosCore@phase9-conan-deps`; after the merge it switches to
-  `pothos2`. Approval points: creating the fork, each first push (core branch,
-  blocks branch), the PR, the merge.
-- xsimd floor is 14.2.0 (newest on ConanCenter). If the core uses something
-  that appeared in 14.3, the internal code is changed to stay within 14.2;
-  no custom Conan recipe. `XSIMDTraits.hpp` only needs `has_simd_register`.
-- `Util/TempFile.hpp` in one blocks test is replaced by a local helper.
+  Linux is mandatory. Use the 4-OS matrix if the cost is low (decision of
+  the builder).
 
-## Order of work (suggested)
+## Decisions of the designer (the user must check them)
 
-1. Core: `find_package` + `FindAsio.cmake` + `conanfile.txt`, delete `third_party/`
-   (blocks still in tree, to keep tests green).
-2. Core: public `parseUri`/`resolveHost` and `Pothos/Util/XSIMDCopy.hpp`;
-   move blocks' code to them; replace `TempFile.hpp` in the blocks test.
-3. Split blocks history into `markvin/PothosBlocks@pothos2`, add its build
-   files, conanfile, CI.
-4. Core: remove `blocks/` and the phase-8 glue; docs, Changelog.
-5. CI: Conan in the 4 jobs + `linux-system`.
+- Phase 9 is one PR into `pothos2`. Before the merge, the CI of blocks
+  builds the core from `markvin/PothosCore@phase9-conan-deps`. After the
+  merge, it builds the core from `pothos2`.
+- The user approves these steps before they occur: the fork, the first push
+  of each branch (core, blocks), the PR and the merge.
+- The minimum version of xsimd is 14.2.0 (the newest version on
+  ConanCenter). If the core uses a feature of 14.3, change the internal code
+  to use only 14.2. Do not make a custom Conan recipe. `XSIMDTraits.hpp`
+  needs only `has_simd_register`.
+- A local helper replaces `Util/TempFile.hpp` in one blocks test.
+
+## Recommended order of work
+
+1. Core: `find_package`, `FindAsio.cmake` and `conanfile.txt`. Delete
+   `third_party/`. Keep blocks in the tree, so that the tests stay green.
+2. Core: the public `parseUri`, `resolveHost` and
+   `Pothos/Util/XSIMDCopy.hpp`. Change the blocks code to use them. Replace
+   `TempFile.hpp` in the blocks test.
+3. Move the blocks history to `markvin/PothosBlocks@pothos2`. Add its build
+   files, its `conanfile.txt` and its CI.
+4. Core: remove `blocks/` and the phase 8 integration. Update the docs and
+   the Changelog.
+5. CI: Conan in the 4 jobs and the new job `linux-system`.
