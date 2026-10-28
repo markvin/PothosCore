@@ -130,9 +130,22 @@ ctest --test-dir build/conan-dbg --output-on-failure
 ```
 
 Expected: the log shows `Asio: config package`; all tests pass, except
-`pothos.subproject` (Step 6 repairs it). If xsimd 14.2 does not compile, change
-the internal code (`lib/SIMD`, `lib/System/SIMD.cpp`, `blocks/stream/SIMD`)
-to use only the 14.2 API. Do not change the minimum version.
+`pothos.subproject` (Step 6 repairs it).
+
+Known incompatibility (checked 2026-10-28: core and blocks with xsimd 14.2.0,
+all 7 tests pass except for this one call): xsimd 14.2 has no
+`cpu_features::avx512vl()` (added in 14.3). In `lib/System/SIMD.cpp`, add a
+function `static bool cpuHasAVX512VL(const xsimd::cpu_features &cpu)`:
+- If `XSIMD_VERSION_MAJOR * 100 + XSIMD_VERSION_MINOR >= 1403`, return
+  `cpu.avx512vl()`.
+- If not, on x86 read CPUID leaf 7, subleaf 0, EBX bit 31 (`__cpuid_count`
+  from `<cpuid.h>` on GCC/Clang, `__cpuidex` from `<intrin.h>` on MSVC).
+  On other architectures, return false.
+
+The caller already requires `avx512f`, which checks the OS state (XCR0).
+Check: this machine has AVX-512VL. Thus `PothosUtil --simd-features` must
+show `x86_avx512vl` with xsimd 14.2.0 (Conan) and with 14.3.0 (system).
+Do not change the minimum version.
 
 - [ ] **Step 5: Check the error without dependencies**
 
