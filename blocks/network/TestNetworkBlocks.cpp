@@ -5,7 +5,6 @@
 #include <Pothos/Framework.hpp>
 #include <Pothos/Proxy.hpp>
 #include <Pothos/Util/Network.hpp>
-#include "Net/Address.hpp"
 #include <asio/connect.hpp>
 #include <asio/io_context.hpp>
 #include <asio/ip/tcp.hpp>
@@ -109,7 +108,7 @@ POTHOS_TEST_BLOCK("/blocks/tests", test_network_blocks)
 
 POTHOS_TEST_BLOCK("/blocks/tests", test_network_blocks_ipv6)
 {
-    if (not Pothos::Net::ipv6Supported())
+    if (not Pothos::Util::isIPv6Supported())
     {
         std::cout << "IPv6 is not supported on this host, skipped" << std::endl;
         return;

@@ -4,8 +4,7 @@
 #include "SocketEndpoint.hpp"
 #include "AsioWait.hpp"
 #include "common/ByteOrder.hpp"
-#include "Net/Address.hpp"
-#include "Net/Uri.hpp"
+#include <Pothos/Util/Network.hpp>
 #include <Pothos/Exception.hpp>
 #include <asio/connect.hpp>
 #include <asio/ip/tcp.hpp>
@@ -79,7 +78,7 @@ struct PothosPacketSocketEndpointTcp
         asio::error_code ec;
         const auto addr = asio::ip::make_address(host, ec);
         if (not ec) return addr;
-        return Pothos::Net::resolveHost(host, ConnectTimeout);
+        return asio::ip::make_address(Pothos::Util::resolveHost(host, ConnectTimeout));
     }
 
     std::string getPort(void) const
@@ -272,7 +271,7 @@ PothosPacketSocketEndpoint::PothosPacketSocketEndpoint(const std::string &uri, c
     if (opt == "DISCONNECT") return;
     if (opt == "BIND") _impl->state = EP_STATE_LISTEN;
     if (opt == "CONNECT") _impl->state = EP_STATE_CLOSED;
-    const auto uriObj = Pothos::Net::parseUri(uri);
+    const auto uriObj = Pothos::Util::parseUri(uri);
     if (uriObj.scheme != "tcp" or (opt != "BIND" and opt != "CONNECT"))
     {
         throw Pothos::InvalidArgumentException("PothosPacketSocketEndpoint("+uri+" -> "+opt+")",

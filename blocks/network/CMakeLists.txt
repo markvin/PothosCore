@@ -1,5 +1,5 @@
 ########################################################################
-# Network blocks module: Asio through the core's internal network layer
+# Network blocks module: Asio, and the public network utilities of the core
 ########################################################################
 pothos_blocks_module(
     TARGET NetworkBlocks
@@ -11,7 +11,7 @@ pothos_blocks_module(
         TestNetworkTopology.cpp
         DatagramIO.cpp
     LIBRARIES
-        pothos_net
+        pothos_asio
     TESTS
         test_network_blocks
         test_network_blocks_ipv6

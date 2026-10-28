@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include "AsioWait.hpp"
-#include "Net/Address.hpp"
-#include "Net/Uri.hpp"
+#include <Pothos/Util/Network.hpp>
 #include <Pothos/Framework.hpp>
 #include <Pothos/System/Logger.hpp>
 #include <asio/ip/udp.hpp>
@@ -134,10 +133,10 @@ public:
     {
         try
         {
-            const auto uriObj = Pothos::Net::parseUri(uri);
+            const auto uriObj = Pothos::Util::parseUri(uri);
             asio::error_code ec;
             auto host = asio::ip::make_address(uriObj.host, ec);
-            if (ec) host = Pothos::Net::resolveHost(uriObj.host, std::chrono::seconds(10));
+            if (ec) host = asio::ip::make_address(Pothos::Util::resolveHost(uriObj.host, std::chrono::seconds(10)));
             const asio::ip::udp::endpoint addr(host, uriObj.port);
             if (opt != "CONNECT" and opt != "BIND") throw Pothos::FileException("DatagramIO::setupSocket("+uri+" -> "+opt+")", "unknown option");
             _sock.close(ec);
