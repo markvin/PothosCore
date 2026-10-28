@@ -118,6 +118,26 @@ ctest --test-dir build --output-on-failure
 - No warnings: the Linux CI builds with `-DPOTHOS_WARNINGS_AS_ERRORS=ON`
   (GCC and Clang); fix warnings, do not silence them.
 
+## Writing style: ASD-STE100
+
+All English text in the repository is written in ASD-STE100 Simplified
+Technical English: code comments, Doxygen, README, Changelog, docs (specs,
+plans, ledgers), commit messages and PR descriptions. Identifiers, code,
+command lines and quoted messages stay as they are.
+
+- Use approved words with their one approved meaning. Technical names (API,
+  types, tools, protocols) and technical verbs are allowed.
+- Sentences: procedures max 20 words, descriptions max 25 words. One
+  instruction per sentence; one topic per paragraph, max 6 sentences.
+- Procedures (steps, how-to): imperative mood ("Run the self-tests").
+  Use numbered lists for steps.
+- Active voice in procedures, and as much as possible in descriptions.
+- Simple verb tenses only (present, past, future). No "-ing" forms as
+  verbs or nouns, except in technical names.
+- Do not omit articles ("the", "a") and verbs to make text shorter.
+- No more than 3 nouns in a noun cluster; split longer ones.
+- Write a warning or a condition before the instruction it applies to.
+
 ## Notes
 
 - Branches: `pothos2` is the integration branch of the modernization (new,
