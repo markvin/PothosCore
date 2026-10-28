@@ -18,7 +18,10 @@ Restore / update the project so it builds and works on a modern toolchain.
   markvin/PothosBlocks, branch `pothos2`, local clone
   `/home/mark/Projects/PothosBlocks`. The topology needs `/blocks/copier` and
   `/blocks/network_*` from PothosBlocks; without it commit() gives a clear
-  error
+  error. PothosComms (ported, phase 10) is the fork
+  markvin/PothosComms, branch `pothos2`, local clone
+  `/home/mark/Projects/PothosComms`. Its self-tests need PothosBlocks in the
+  prefix of the core
 
 ## Build
 
@@ -153,4 +156,6 @@ command lines and quoted messages stay as they are.
 - Remotes: `origin` = fork (markvin), `upstream` = pothosware/PothosCore.
 - spuce (filter design library of the toolkits, no longer a submodule): the old
   URL audiofilter/spuce is dead; commit `ad08df7` is in the fork
-  https://github.com/hayguen/spuce.git.
+  https://github.com/hayguen/spuce.git. Comms does not use spuce: it has its own
+  filter design code (`filter/design/`, a port of `ad08df7`). Plotters still
+  uses spuce until its phase.

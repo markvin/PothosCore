@@ -19,6 +19,7 @@ in-tree зависимость (спека это разрешает).
 | 7 | Чистка репозитория (решения пользователя, 2026-10-27) | в PothosCore остаётся только ядро (`lib`, `include`, `apps`); все сабмодули и их каталоги удаляются (ядро самодостаточно); `blocks`, `python`, `flow`, `widgets`, `soapy`, `plotters`, `comms`, `audio` переезжают в отдельные репозитории (`blocks` и `python` — тоже, уточнения пользователя 2026-10-27; раньше планировались в дерево ядра); README.md и Changelog.txt корректируются. Учесть для сборки «ядро + тулкиты» подпроектами: `find_package(Pothos)` у родителя/соседей после `add_subdirectory(ядра)` сейчас не находит конфигурацию (`Pothos_DIR` — обычная переменная в области ядра; замечание ревью 6a) | пишется после этапа 6 |
 | 8 | blocks в дереве ядра (решение пользователя, 2026-10-27) | история PothosBlocks в `blocks/`, сборка с ядром (`POTHOS_BUILD_BLOCKS`) на `third_party` ядра (json, xsimd, Asio через `lib/Net`), без Poco; copier и сетевые блоки поставляются с ядром | `2026-10-27-phase8-blocks-in-core.md` |
 | 9 | Зависимости через find_package, blocks снова отдельно (решение пользователя, 2026-10-28; отменяет этап 8) | `third_party/` удалён: nlohmann_json, Asio, xsimd через `find_package` (системные пакеты или Conan 2, `conanfile.txt`; CMake не знает о Conan); blocks — форк `markvin/PothosBlocks` (ветка `pothos2`, свой `conanfile.txt`), только публичный API ядра (`Pothos::Util::parseUri/resolveHost`, публичный `XSIMDCopy.hpp`); CI: 4 job'а через Conan + `linux-system` (Arch) | `2026-10-28-phase9-conan-deps.md` |
+| 10 | comms на ядре pothos2 (решения пользователя, 2026-10-28) | форк `markvin/PothosComms` (ветка `pothos2`): сборка против установленного ядра (`find_package`, nlohmann_json, xsimd; системные пакеты или Conan 2), без Poco; `math/SIMD` на `XSIMDCopy.hpp` и API xsimd 14; spuce заменён своей внутренней библиотекой `comms_filter_design` (`filter/design/`, порт spuce `ad08df7`, эталонные данные из spuce); самотесты требуют PothosBlocks в префиксе ядра; CI: 4 job'а через Conan + `linux-system` (Arch) | `2026-10-28-phase10-comms.md` |
 
 Порядок 2 ↔ 3 можно поменять. **Решение пользователя (2026-10-26): этап 3
 выполняется раньше этапа 2.**
@@ -83,6 +84,16 @@ in-tree зависимость (спека это разрешает).
   этапов 8–9); `third_party/` удалён, зависимости через `find_package`
   (система или Conan 2). CI зелёный: ядро 5/5, blocks 4/4. Дальше: comms
   по той же схеме (этап 10).
+
+- Этап 10 (решения пользователя, 2026-10-28) — выполнен в форке
+  `markvin/PothosComms` (спецификация `2026-10-28-phase10-comms-design.md`,
+  план `2026-10-28-phase10-comms.md`, PR #1 `phase10-comms` → `pothos2`):
+  comms собирается против установленного ядра без Poco и без spuce. Своя
+  библиотека расчёта фильтров `filter/design/` даёт те же отводы, что spuce
+  `ad08df7` (эталонные данные, генератор в `filter/design/tools/`). Изменения
+  поведения: `IIRFilter.setTaps` с 1 отводом и `IIRDesigner` с неизвестным
+  типом или полосой дают исключение; границы Remez, где у spuce было UB, —
+  ошибку. CI зелёный: 5/5, по 60 самотестов. Ядро не менялось.
 
 ## Решения для следующих этапов
 
