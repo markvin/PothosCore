@@ -26,6 +26,10 @@ namespace Util {
 // whether to build SIMD implementations for a given function or fall back
 // on to a default implementation.
 //
+// The core does not install xsimd: the module that uses this header must
+// find its own xsimd (find_package(xsimd)) and link it. In a file that
+// pothos_multiarch compiles, include <Pothos/Util/XSIMDCopy.hpp> instead.
+//
 
 namespace Detail {
 

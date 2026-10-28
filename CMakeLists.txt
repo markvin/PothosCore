@@ -23,7 +23,6 @@ project(Pothos VERSION ${POTHOS_LIBVER} LANGUAGES C CXX)
 option(POTHOS_BUILD_APPS "Build PothosUtil (needed by the self-tests and module safe-loading)" ON)
 option(POTHOS_BUILD_DOCS "Build the Doxygen documentation (when Doxygen is found)" ${PROJECT_IS_TOP_LEVEL})
 option(POTHOS_BUILD_TESTS "Register the CTest tests of the core" ${PROJECT_IS_TOP_LEVEL})
-option(POTHOS_BUILD_BLOCKS "Build the blocks toolkit (blocks/): the copier and network blocks of the topology" ON)
 option(POTHOS_WARNINGS_AS_ERRORS "Treat compiler warnings in the core as errors (GCC and Clang)" OFF)
 
 if(PROJECT_IS_TOP_LEVEL)
@@ -104,9 +103,9 @@ function(pothos_target_settings target)
 endfunction()
 
 ########################################################################
-# Third party libraries in the source tree
+# Third party libraries (find_package, see cmake/PothosDependencies.cmake)
 ########################################################################
-add_subdirectory(third_party)
+include(${PROJECT_SOURCE_DIR}/cmake/PothosDependencies.cmake)
 
 ########################################################################
 # Build the framework library
@@ -119,9 +118,6 @@ add_subdirectory(lib)
 add_subdirectory(cmake/Modules)
 if(POTHOS_BUILD_APPS)
     add_subdirectory(apps)
-endif()
-if(POTHOS_BUILD_BLOCKS)
-    add_subdirectory(blocks)
 endif()
 if(POTHOS_BUILD_DOCS)
     add_subdirectory(docs)
@@ -179,24 +175,10 @@ if(POTHOS_BUILD_TESTS)
             -P ${PROJECT_SOURCE_DIR}/cmake/PothosConsumerTest.cmake)
     set_tests_properties(pothos.api_compat PROPERTIES FIXTURES_REQUIRED pothos_stage)
 
-    #the self-tests of the blocks modules, one by one (see blocks/CMakeLists.txt)
-    get_property(blocks_tests GLOBAL PROPERTY POTHOS_BLOCKS_TESTS)
-    if(POTHOS_BUILD_APPS AND blocks_tests)
-        add_test(NAME pothos.blocks.selftests
-            COMMAND ${CMAKE_COMMAND}
-                -DPREFIX=${POTHOS_STAGE_DIR}
-                -DTEST_HOME_DIR=${PROJECT_BINARY_DIR}/test-home
-                -DBINDIR=${CMAKE_INSTALL_BINDIR}
-                -DLIBDIR=${CMAKE_INSTALL_LIBDIR}
-                "-DTEST_PATHS=${blocks_tests}"
-                -P ${PROJECT_SOURCE_DIR}/cmake/PothosRunSelfTests.cmake)
-        set_tests_properties(pothos.blocks.selftests PROPERTIES
-            FIXTURES_REQUIRED pothos_stage
-            TIMEOUT ${POTHOS_SELFTEST_TIMEOUT})
-    endif()
-
     #the core inside a parent project (not again from inside such a parent)
     if(PROJECT_IS_TOP_LEVEL)
+        #the parent must find the dependencies of the core as this build does
+        string(REPLACE ";" "|" pothos_subproject_prefix_path "${CMAKE_PREFIX_PATH}")
         add_test(NAME pothos.subproject
             COMMAND ${CMAKE_COMMAND}
                 -DSRC=${PROJECT_SOURCE_DIR}
@@ -204,6 +186,9 @@ if(POTHOS_BUILD_TESTS)
                 -DGENERATOR=${CMAKE_GENERATOR}
                 -DCXX=${CMAKE_CXX_COMPILER}
                 -DCC=${CMAKE_C_COMPILER}
+                "-DTOOLCHAIN=${CMAKE_TOOLCHAIN_FILE}"
+                "-DPREFIX_PATH=${pothos_subproject_prefix_path}"
+                "-DBUILD_TYPE=${CMAKE_BUILD_TYPE}"
                 -P ${PROJECT_SOURCE_DIR}/cmake/PothosSubprojectTest.cmake)
     endif()
 

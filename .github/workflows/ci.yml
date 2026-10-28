@@ -47,7 +47,7 @@ jobs:
       - name: No network access in the build
         shell: bash
         run: |
-          if grep -rnE 'file\s*\(\s*DOWNLOAD|FetchContent|ExternalProject' CMakeLists.txt lib apps cmake third_party blocks; then
+          if grep -rnE 'file\s*\(\s*DOWNLOAD|FetchContent|ExternalProject' CMakeLists.txt lib apps cmake; then
             echo "build scripts must not download anything"; exit 1
           fi
 
@@ -63,6 +63,20 @@ jobs:
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
+      # the dependencies (conanfile.txt) come from Conan 2; CMake only gets
+      # the toolchain file. CC/CXX select the compiler of the Conan profile.
+      - name: Dependencies (Conan)
+        shell: bash
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+        run: |
+          pipx install "conan>=2,<3"
+          conan profile detect --force
+          conan install . --output-folder=build/conan \
+            -s build_type=${{ matrix.config }} -s compiler.cppstd=23 --build=missing \
+            -c tools.cmake.cmaketoolchain:generator=Ninja
+
       - name: Configure
         shell: bash
         run: >
@@ -70,6 +84,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=${{ matrix.config }}
           -DCMAKE_C_COMPILER=${{ matrix.cc }}
           -DCMAKE_CXX_COMPILER=${{ matrix.cxx }}
+          -DCMAKE_TOOLCHAIN_FILE=build/conan/conan_toolchain.cmake
           ${{ matrix.extra }}
 
       # keep going after the first error to report all of them in one run
@@ -78,4 +93,31 @@ jobs:
 
       - name: Test
         #-V: the output of every self-test (passed ones too, e.g. skipped tests)
+        run: ctest --test-dir build --output-on-failure -V
+
+  # the dependencies from the system packages, without Conan
+  linux-system:
+    name: linux-system (Arch packages)
+    runs-on: ubuntu-24.04
+    container:
+      image: archlinux:latest
+      #an init process as PID 1 reaps orphans: the daemon tests of PothosUtil
+      #check that the daemon is gone, and a zombie still answers kill(pid, 0)
+      options: --init
+    steps:
+      - name: Install the toolchain and the dependencies
+        run: pacman -Syu --noconfirm base-devel cmake ninja git asio nlohmann-json xsimd
+
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DPOTHOS_WARNINGS_AS_ERRORS=ON
+
+      - name: Build
+        run: cmake --build build -- -k 0
+
+      - name: Test
         run: ctest --test-dir build --output-on-failure -V

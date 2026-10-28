@@ -3,6 +3,10 @@
 #
 # Required: -DSRC=<core source> -DWORK=<scratch dir> -DGENERATOR=<generator>
 #           -DCXX=<C++ compiler> -DCC=<C compiler>
+# Optional: -DTOOLCHAIN=<toolchain file> -DPREFIX_PATH=<|-separated prefixes>
+#           -DBUILD_TYPE=<build type> to find the dependencies of the core as
+#           the calling build does (the package configurations of a toolchain
+#           file can need the build type)
 #
 # Configures tests/subproject (which checks the parent's cache and targets):
 #  - default: the parent's ctest lists only its own test
@@ -21,11 +25,23 @@ foreach(var SRC WORK GENERATOR CXX CC)
     endif ()
 endforeach()
 
+#an initial cache: a list of prefixes stays one value
+set(dependency_args)
+if (TOOLCHAIN OR PREFIX_PATH)
+    string(REPLACE "|" ";" prefix_path "${PREFIX_PATH}")
+    file(WRITE "${WORK}/dependencies.cmake"
+        "set(CMAKE_TOOLCHAIN_FILE \"${TOOLCHAIN}\" CACHE FILEPATH \"\")\n"
+        "set(CMAKE_PREFIX_PATH \"${prefix_path}\" CACHE STRING \"\")\n"
+        "set(CMAKE_BUILD_TYPE \"${BUILD_TYPE}\" CACHE STRING \"\")\n")
+    set(dependency_args -C "${WORK}/dependencies.cmake")
+endif ()
+
 function(configure_parent dir)
     file(REMOVE_RECURSE "${dir}")
     execute_process(
         COMMAND ${CMAKE_COMMAND} -S "${SRC}/tests/subproject" -B "${dir}" -G "${GENERATOR}"
-            "-DPOTHOS_SOURCE=${SRC}" "-DCMAKE_CXX_COMPILER=${CXX}" "-DCMAKE_C_COMPILER=${CC}" ${ARGN}
+            "-DPOTHOS_SOURCE=${SRC}" "-DCMAKE_CXX_COMPILER=${CXX}" "-DCMAKE_C_COMPILER=${CC}"
+            ${dependency_args} ${ARGN}
         RESULT_VARIABLE rc OUTPUT_VARIABLE out ERROR_VARIABLE err)
     if (NOT rc EQUAL 0 OR NOT out MATCHES "PARENT_CHECK OK" OR NOT out MATCHES "SIBLING_CHECK OK")
         message(FATAL_ERROR "configuring the parent (${ARGN}) failed (${rc}):\n${out}\n${err}")

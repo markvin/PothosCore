@@ -10,19 +10,26 @@ Repository:
   debian packaging are removed; the toolkits live in their own repositories
 - find_package(Pothos) finds the core added with add_subdirectory or
   FetchContent (for the parent and the toolkits next to it)
-- The blocks toolkit moved into the core tree (blocks/, PothosBlocks history
-  merged): built with the core (POTHOS_BUILD_BLOCKS, ON) on the core's
-  vendored json, xsimd and Asio; no Poco
+- The blocks toolkit is a separate repository again
+  (https://github.com/markvin/PothosBlocks, branch pothos2, with the
+  PothosBlocks history): it builds against an installed core and uses only
+  the public API of the core
 - Topology::commit() throws TopologyConnectError naming the missing block
   when a domain crossing (/blocks/copier) or a flow across processes/hosts
-  (/blocks/network_*) needs the blocks modules and they are not installed
+  (/blocks/network_*) needs PothosBlocks and it is not installed
 
-Blocks:
+Dependencies:
 
-- Network blocks on Asio with timeouts: a stalled peer ends with an error
-  instead of blocking commit(); IPv6 loopback tested; datagram IO tested
-- Stream SIMD kernels on xsimd 14; results match the scalar code
-  (isnormal excludes subnormals, isnegative is signbit, minmax fixed)
+- third_party/ is removed: CMake finds nlohmann_json (3.11+), standalone
+  Asio (1.38+) and xsimd (14.2+) with find_package. They come from the
+  system packages or from Conan 2 (conanfile.txt and the Conan toolchain
+  file). CMake does not refer to Conan
+- cmake/Findasio.cmake finds Asio when it has no package configuration
+- The dependencies stay private: the installed PothosConfig.cmake does not
+  need them. Only Pothos/Util/XSIMDTraits.hpp and Pothos/Util/XSIMDCopy.hpp
+  need xsimd, which the module that uses them gives
+- New public API for toolkits: Pothos::Util::parseUri, toString(Uri) and
+  resolveHost (Pothos/Util/Network.hpp), Pothos/Util/XSIMDCopy.hpp
 
 Fixes:
 
@@ -33,6 +40,9 @@ Fixes:
 - Pothos/Util/XSIMDTraits.hpp follows the xsimd 14 architecture (it reported
   no SIMD support for every type)
 - Generated SIMD dispatchers include <cstddef> and <cstdint>
+- POTHOS_MODULE_UTIL: a relative doc source is relative to the source
+  directory (the docs of generated SIMD copies failed after cmake ran again)
+- AVX-512VL is detected with xsimd 14.2 too
 
 Expressions (EvalEnvironment):
 
@@ -76,7 +86,7 @@ Public API (source compatible for blocks):
 
 SIMD:
 
-- libsimdpp replaced by xsimd (vendored in third_party/xsimd): CPU feature
+- libsimdpp replaced by xsimd (found with find_package): CPU feature
   detection and SIMD buffer conversion; the feature names stay the same
   (x86_sse2, x86_avx2, ...); x86_xop and mips_msa are no longer detected
 

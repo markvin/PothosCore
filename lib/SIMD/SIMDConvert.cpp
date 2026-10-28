@@ -6,7 +6,7 @@
 //(PothosConfigSIMD.cmake) with that architecture's flags; each copy lives in
 //its own POTHOS_SIMD_NAMESPACE and SIMDConvertDispatch.cpp picks one at runtime.
 
-#include "SIMD/XSIMDCopy.hpp"
+#include <Pothos/Util/XSIMDCopy.hpp>
 #include "SIMD/SIMDConvertTypes.hpp"
 #include <complex>
 #include <cstddef>

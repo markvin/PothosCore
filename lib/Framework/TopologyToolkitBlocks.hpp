@@ -21,7 +21,7 @@ inline std::string toolkitBlockLocation(const Pothos::ProxyEnvironment::Sptr &en
 /*!
  * Make a block that the topology inserts on its own (a copier for a domain
  * crossing, network blocks between hosts). These blocks come from the blocks
- * modules of the core (blocks/, POTHOS_BUILD_BLOCKS): when the block is not
+ * toolkit (PothosBlocks), which is not part of the core: when the block is not
  * installed in the registry's environment, throw a TopologyConnectError
  * that says so instead of a bare plugin registry error.
  */
@@ -30,8 +30,7 @@ Pothos::Proxy makeToolkitBlock(const Pothos::Proxy &registry, const std::string 
 {
     const bool exists = registry.call("doesBlockExist", path);
     if (not exists) throw Pothos::TopologyConnectError("Pothos::Topology::commit()", std::format(
-        "{} needs the block {} from the blocks modules, which are not installed {} "
-        "(build the core with POTHOS_BUILD_BLOCKS=ON)",
+        "{} needs the block {} from the blocks toolkit (PothosBlocks), which is not installed {}",
         purpose, path, toolkitBlockLocation(registry.getEnvironment())));
     return registry.call(path, std::forward<ArgsType>(args)...);
 }

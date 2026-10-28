@@ -165,6 +165,7 @@ add_library(Pothos SHARED
     Util/Builtin/TestErrorCodeHandling.cpp
     Util/Builtin/TestEvalExpression.cpp
     Util/Builtin/TestExpr.cpp
+    Util/Builtin/TestNetworkUtils.cpp
     Util/Builtin/TestPropertyFile.cpp
     Util/Builtin/TestTesting.cpp
     Util/Builtin/TestSpinLock.cpp

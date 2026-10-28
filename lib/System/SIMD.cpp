@@ -5,9 +5,47 @@
 #include <Pothos/System/SIMD.hpp>
 
 #include "System/SIMDFeatures.hpp"
+#include <xsimd/config/xsimd_config.hpp> //XSIMD_VERSION_*
 #include <xsimd/config/xsimd_cpu_features.hpp>
 #include <algorithm>
 #include <sstream>
+
+#if defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
+#define POTHOS_SIMD_X86
+#ifdef _MSC_VER
+#include <intrin.h>
+#else
+#include <cpuid.h>
+#endif
+#endif
+
+//xsimd 14.2 does not detect AVX-512VL (14.3 does): then read CPUID leaf 7,
+//subleaf 0, EBX bit 31. The caller also requires AVX-512F, which xsimd
+//checks with the state that the OS enables (XCR0).
+static bool cpuHasAVX512VL(const xsimd::cpu_features &cpu)
+{
+#if XSIMD_VERSION_MAJOR * 100 + XSIMD_VERSION_MINOR >= 1403
+    return cpu.avx512vl();
+#else
+    (void)cpu;
+#ifdef POTHOS_SIMD_X86
+#ifdef _MSC_VER
+    int regs[4] = {};
+    __cpuidex(regs, 0, 0);
+    if (regs[0] < 7) return false;
+    __cpuidex(regs, 7, 0);
+    const unsigned ebx = static_cast<unsigned>(regs[1]);
+#else
+    if (__get_cpuid_max(0, nullptr) < 7) return false;
+    unsigned eax = 0, ebx = 0, ecx = 0, edx = 0;
+    __cpuid_count(7, 0, eax, ebx, ecx, edx);
+#endif
+    return (ebx & (1u << 31)) != 0;
+#else
+    return false;
+#endif
+#endif
+}
 
 std::vector<std::string> Pothos::System::Detail::detectSIMDFeatures(void)
 {
@@ -19,7 +57,7 @@ std::vector<std::string> Pothos::System::Detail::detectSIMDFeatures(void)
     const bool sse2 = cpu.sse2(), sse3 = sse2 and cpu.sse3(), ssse3 = sse3 and cpu.ssse3();
     const bool sse4_1 = ssse3 and cpu.sse4_1(), avx = sse4_1 and cpu.avx(), avx2 = avx and cpu.avx2();
     const bool avx512f = avx2 and cpu.avx512f();
-    add(avx512f and cpu.avx512vl(), "x86_avx512vl");
+    add(avx512f and cpuHasAVX512VL(cpu), "x86_avx512vl");
     add(avx512f and cpu.avx512dq(), "x86_avx512dq");
     add(avx512f and cpu.avx512bw(), "x86_avx512bw");
     add(avx512f, "x86_avx512f");
