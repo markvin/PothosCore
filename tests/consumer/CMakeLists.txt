@@ -25,6 +25,11 @@ endif ()
 
 #compile every public header on its own
 file(GLOB_RECURSE public_headers RELATIVE "${pothos_include_dir}" "${pothos_include_dir}/Pothos/*.hpp")
+#XSIMDCopy.hpp needs the module's xsimd and POTHOS_SIMD_NAMESPACE (pothos_multiarch)
+list(REMOVE_ITEM public_headers "Pothos/Util/XSIMDCopy.hpp")
+if (NOT EXISTS "${pothos_include_dir}/Pothos/Util/XSIMDCopy.hpp")
+    message(FATAL_ERROR "Pothos/Util/XSIMDCopy.hpp is not installed")
+endif ()
 set(header_sources)
 foreach(header ${public_headers})
     string(MAKE_C_IDENTIFIER "${header}" name)

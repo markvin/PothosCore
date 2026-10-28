@@ -1,7 +1,7 @@
 ########################################################################
-# The blocks toolkit, built with the core: the modules link the core's
-# third party targets (json, xsimd, Asio through lib/Net), which stay
-# private to this build and are never installed
+# The blocks toolkit, built with the core: the modules use only the public
+# API of the core, and link the third party targets of this build (json,
+# xsimd, Asio), which are never installed
 ########################################################################
 
 #pothos_blocks_module(TARGET <name> SOURCES <sources...>
@@ -21,10 +21,9 @@ function(pothos_blocks_module)
         DESTINATION blocks
         ${docs})
     set_target_properties(${BLOCKS_TARGET} PROPERTIES CXX_EXTENSIONS OFF)
-    #blocks/ for common/, lib/ for the core's internal header-only helpers
+    #blocks/ for common/ (the modules use only the public API of the core)
     target_include_directories(${BLOCKS_TARGET} PRIVATE
-        ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
-        ${PROJECT_SOURCE_DIR}/lib)
+        ${CMAKE_CURRENT_FUNCTION_LIST_DIR})
     pothos_warnings_as_errors(${BLOCKS_TARGET})
     foreach(test IN LISTS BLOCKS_TESTS)
         set_property(GLOBAL APPEND PROPERTY POTHOS_BLOCKS_TESTS /blocks/tests/${test})

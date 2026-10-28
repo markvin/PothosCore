@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 //One copy per SIMD architecture (PothosGenerateSIMDSources)
-#include "SIMD/XSIMDCopy.hpp"
+#include <Pothos/Util/XSIMDCopy.hpp>
 
 #include <algorithm>
 #include <cstddef>

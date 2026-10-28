@@ -128,14 +128,14 @@ function(POTHOS_MODULE_UTIL)
     #setup json doc file generation and install
     if (POTHOS_MODULE_UTIL_ENABLE_DOCS)
 
-        #turn sources into an absolute path
+        #turn sources into an absolute path: a relative path is relative to
+        #the source directory (EXISTS with a relative path would use the
+        #working directory of cmake, which is the build directory when the
+        #build runs cmake again, and doc-parse runs in another directory)
         unset(__POTHOS_SOURCES)
         foreach(source ${POTHOS_MODULE_UTIL_DOC_SOURCES})
-            if (EXISTS ${source})
-                list(APPEND __POTHOS_SOURCES ${source})
-            else()
-                list(APPEND __POTHOS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/${source})
-            endif()
+            get_filename_component(source "${source}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+            list(APPEND __POTHOS_SOURCES ${source})
         endforeach(source)
         set(POTHOS_MODULE_UTIL_DOC_SOURCES ${__POTHOS_SOURCES})
 

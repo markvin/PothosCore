@@ -55,7 +55,7 @@ ctest --test-dir build --output-on-failure
   shared helpers go to `blocks/common/` (`Testing.hpp`, `ByteOrder.hpp`).
   A blocks test that needs blocks of another module goes in with that module.
 - SIMD: a file compiled once per architecture (`pothos_multiarch`,
-  `PothosGenerateSIMDSources`) includes `SIMD/XSIMDCopy.hpp` first (own xsimd
+  `PothosGenerateSIMDSources`) includes `<Pothos/Util/XSIMDCopy.hpp>` first (own xsimd
   namespace per copy, AVX-512F workaround), never `<xsimd/xsimd.hpp>`
   directly; `Pothos::Util::XSIMDTraits<T>` follows the copy's xsimd arch.
   Blocks SIMD kernels need `POTHOS_BUILD_APPS` (PothosUtil generates the

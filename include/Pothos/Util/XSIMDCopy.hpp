@@ -1,9 +1,11 @@
 // Copyright (c) 2026 Pothos contributors
 // SPDX-License-Identifier: BSL-1.0
 
-//Internal: xsimd for a file that pothos_multiarch (PothosConfigSIMD.cmake)
+//Public: xsimd for a file that pothos_multiarch (PothosConfigSIMD.cmake)
 //compiles once per SIMD architecture, each copy in its own POTHOS_SIMD_NAMESPACE.
-//Include it first, instead of <xsimd/xsimd.hpp>. Not installed.
+//Include it first, instead of <xsimd/xsimd.hpp>. The core does not install
+//xsimd: the module that includes this header must find its own xsimd
+//(find_package(xsimd)) and link it.
 
 #pragma once
 

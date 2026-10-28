@@ -11,10 +11,14 @@
 
 #include <nlohmann/json.hpp>
 
-#include "Util/TempFile.hpp"
 #include <algorithm>
+#include <atomic>
 #include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <random>
+#include <string>
+#include <system_error>
 #include <thread>
 
 #include <iostream>
@@ -56,9 +60,37 @@ static void testBinaryFileBlocksCommon(
     collector.call("verifyTestPlan", expected);
 }
 
+//an empty file with a unique name in the system temporary directory,
+//removed by the destructor
+struct TempFile
+{
+    TempFile(void)
+    {
+        static std::atomic<unsigned long long> counter(0);
+        std::random_device rd;
+        const auto dir = std::filesystem::temp_directory_path();
+        do _path = dir / ("pothos-blocks-" + std::to_string(rd()) + "-" + std::to_string(counter++) + ".tmp");
+        while (std::filesystem::exists(_path));
+        std::ofstream(_path, std::ios::binary);
+    }
+    ~TempFile(void)
+    {
+        std::error_code ec;
+        std::filesystem::remove(_path, ec);
+    }
+    TempFile(const TempFile &) = delete;
+    TempFile &operator=(const TempFile &) = delete;
+    const std::filesystem::path &path(void) const
+    {
+        return _path;
+    }
+private:
+    std::filesystem::path _path;
+};
+
 static void testBinaryFileBlocks(bool optimizeSourceForStandardFile)
 {
-    Pothos::Util::Detail::TempFile tempFile;
+    TempFile tempFile;
 
     auto fileSource = Pothos::BlockRegistry::make(
                           "/blocks/binary_file_source",
@@ -84,7 +116,7 @@ POTHOS_TEST_BLOCK("/blocks/tests", test_binary_file_blocks)
 
 POTHOS_TEST_BLOCK("/blocks/tests", test_binary_file_descriptor_blocks)
 {
-    Pothos::Util::Detail::TempFile tempFile;
+    TempFile tempFile;
 
     int readFD = openFileForRead(tempFile.path().string().c_str());
     if(readFD < 0) throw Pothos::Util::ErrnoException<Pothos::OpenFileException>();
@@ -119,7 +151,7 @@ POTHOS_TEST_BLOCK("/blocks/tests", test_circular_binary_file_source)
     auto feeder = Pothos::BlockRegistry::make("/blocks/feeder_source", "int");
     auto collector = Pothos::BlockRegistry::make("/blocks/collector_sink", "int");
 
-    Pothos::Util::Detail::TempFile tempFile;
+    TempFile tempFile;
 
     auto fileSource = Pothos::BlockRegistry::make(
                           "/blocks/binary_file_source",
