@@ -18,6 +18,7 @@ in-tree зависимость (спека это разрешает).
 | 6 | Модернизация публичного API | проход по `include/Pothos/**` (std::span/optional/стандартные примитивы), чистка предупреждений; CMake-гигиена для подключения ядра подпроектом (решение пользователя, 2026-10-27, до этапа 7): опции с префиксом `POTHOS_` вместо `ENABLE_LIBRARY*` (и будущих `ENABLE_PYTHON`/`ENABLE_BLOCKS*`), тесты/документация/`feature_summary`/глобальные `CMAKE_*` только при `PROJECT_IS_TOP_LEVEL`, `PROJECT_BINARY_DIR` вместо `CMAKE_BINARY_DIR` (сейчас `pothos.stage` в подпроекте установил бы весь родительский проект), стандарт и rpath — свойствами целей, CI-проверка «ядро через `add_subdirectory`» с одноимёнными опциями родителя | пишется после этапа 5 |
 | 7 | Чистка репозитория (решения пользователя, 2026-10-27) | в PothosCore остаётся только ядро (`lib`, `include`, `apps`); все сабмодули и их каталоги удаляются (ядро самодостаточно); `blocks`, `python`, `flow`, `widgets`, `soapy`, `plotters`, `comms`, `audio` переезжают в отдельные репозитории (`blocks` и `python` — тоже, уточнения пользователя 2026-10-27; раньше планировались в дерево ядра); README.md и Changelog.txt корректируются. Учесть для сборки «ядро + тулкиты» подпроектами: `find_package(Pothos)` у родителя/соседей после `add_subdirectory(ядра)` сейчас не находит конфигурацию (`Pothos_DIR` — обычная переменная в области ядра; замечание ревью 6a) | пишется после этапа 6 |
 | 8 | blocks в дереве ядра (решение пользователя, 2026-10-27) | история PothosBlocks в `blocks/`, сборка с ядром (`POTHOS_BUILD_BLOCKS`) на `third_party` ядра (json, xsimd, Asio через `lib/Net`), без Poco; copier и сетевые блоки поставляются с ядром | `2026-10-27-phase8-blocks-in-core.md` |
+| 9 | Зависимости через find_package, blocks снова отдельно (решение пользователя, 2026-10-28; отменяет этап 8) | `third_party/` удалён: nlohmann_json, Asio, xsimd через `find_package` (системные пакеты или Conan 2, `conanfile.txt`; CMake не знает о Conan); blocks — форк `markvin/PothosBlocks` (ветка `pothos2`, свой `conanfile.txt`), только публичный API ядра (`Pothos::Util::parseUri/resolveHost`, публичный `XSIMDCopy.hpp`); CI: 4 job'а через Conan + `linux-system` (Arch) | `2026-10-28-phase9-conan-deps.md` |
 
 Порядок 2 ↔ 3 можно поменять. **Решение пользователя (2026-10-26): этап 3
 выполняется раньше этапа 2.**
@@ -74,6 +75,14 @@ in-tree зависимость (спека это разрешает).
   SIMD-диспетчеров. Из прочих тулкитов xsimd нужен только Comms.
 - Этап 5a (решение пользователя, 2026-10-27): libsimdpp заменяется на xsimd
   (копия в `third_party/xsimd`, не Highway — тулкиты уже используют xsimd).
+
+- Этап 9 (решения пользователя, 2026-10-28) — выполнен на ветке
+  `phase9-conan-deps` (спецификация `2026-10-28-phase9-conan-deps-design.md`,
+  план `2026-10-28-phase9-conan-deps.md`): этап 8 отменён, blocks — форк
+  `markvin/PothosBlocks` (ветка `pothos2`, история upstream `4aef23f` + коммиты
+  этапов 8–9); `third_party/` удалён, зависимости через `find_package`
+  (система или Conan 2). CI зелёный: ядро 5/5, blocks 4/4. Дальше: comms
+  по той же схеме (этап 10).
 
 ## Заметки для плана этапа 2 (собраны при разведке)
 
