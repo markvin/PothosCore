@@ -104,9 +104,9 @@ function(pothos_target_settings target)
 endfunction()
 
 ########################################################################
-# Third party libraries in the source tree
+# Third party libraries (find_package, see cmake/PothosDependencies.cmake)
 ########################################################################
-add_subdirectory(third_party)
+include(${PROJECT_SOURCE_DIR}/cmake/PothosDependencies.cmake)
 
 ########################################################################
 # Build the framework library
@@ -197,6 +197,8 @@ if(POTHOS_BUILD_TESTS)
 
     #the core inside a parent project (not again from inside such a parent)
     if(PROJECT_IS_TOP_LEVEL)
+        #the parent must find the dependencies of the core as this build does
+        string(REPLACE ";" "|" pothos_subproject_prefix_path "${CMAKE_PREFIX_PATH}")
         add_test(NAME pothos.subproject
             COMMAND ${CMAKE_COMMAND}
                 -DSRC=${PROJECT_SOURCE_DIR}
@@ -204,6 +206,9 @@ if(POTHOS_BUILD_TESTS)
                 -DGENERATOR=${CMAKE_GENERATOR}
                 -DCXX=${CMAKE_CXX_COMPILER}
                 -DCC=${CMAKE_C_COMPILER}
+                "-DTOOLCHAIN=${CMAKE_TOOLCHAIN_FILE}"
+                "-DPREFIX_PATH=${pothos_subproject_prefix_path}"
+                "-DBUILD_TYPE=${CMAKE_BUILD_TYPE}"
                 -P ${PROJECT_SOURCE_DIR}/cmake/PothosSubprojectTest.cmake)
     endif()
 

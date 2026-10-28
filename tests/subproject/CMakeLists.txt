@@ -38,7 +38,9 @@ find_package(Pothos CONFIG REQUIRED)
 set(errors)
 
 #new cache entries must belong to the core (POTHOS_/Pothos prefix) or to CMake
-#itself, including what its standard find modules cache (Doxygen with the docs)
+#itself, including what its standard find modules cache (Doxygen with the docs),
+#or be the find_package result of a dependency of the core (<package>_DIR, and
+#asio_INCLUDE_DIR from cmake/Findasio.cmake): the parent can find the same package
 get_cmake_property(cache_after CACHE_VARIABLES)
 foreach(var ${cache_after})
     if(var IN_LIST cache_before)
@@ -46,6 +48,9 @@ foreach(var ${cache_after})
     endif()
     get_property(type CACHE ${var} PROPERTY TYPE)
     if(var MATCHES "^(POTHOS_|Pothos|CMAKE_|FETCHCONTENT_|_|DOXYGEN_|FIND_PACKAGE_MESSAGE_DETAILS_)" OR type STREQUAL "STATIC")
+        continue()
+    endif()
+    if(var MATCHES "^(nlohmann_json|asio|xsimd)_DIR$" OR var STREQUAL "asio_INCLUDE_DIR")
         continue()
     endif()
     list(APPEND errors "new cache entry ${var}=${${var}}")
