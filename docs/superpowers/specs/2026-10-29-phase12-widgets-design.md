@@ -97,7 +97,7 @@ These results are failures, also when the build is correct:
    fork only after the user agrees at that step of the plan.
 2. Make the branch `pothos2` from upstream `master` (`33a3a75`). Upstream
    history stays the ancestor.
-3. The local clone is `/home/mark/Projects/PothosWidgets`.
+3. The local clone is `../PothosWidgets`.
 4. The work goes into a work branch and a PR into `pothos2` of the fork
    (the same as blocks and comms). The user approves the fork, the first
    push and each merge.
@@ -221,7 +221,7 @@ After `pothos2` of the fork has widgets:
 ## Decisions of the designer (the user must check them)
 
 - Fork `markvin/PothosWidgets`, branch `pothos2` from upstream `33a3a75`,
-  local clone `/home/mark/Projects/PothosWidgets`.
+  local clone `../PothosWidgets`.
 - The minimum Qt version is 6.5 (LTS).
 - The fix of `indicator.cpp` and other Qt 6 fixes: only what the build
   with Qt 6 needs, or what removes a warning.

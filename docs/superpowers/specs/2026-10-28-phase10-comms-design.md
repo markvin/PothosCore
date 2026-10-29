@@ -125,7 +125,7 @@ These results are failures, also when the build is correct:
    only after the user agrees at that step of the plan.
 2. Make the branch `pothos2` from upstream `master` (`f8a5fd0`). Upstream
    history stays the ancestor.
-3. The local clone is `/home/mark/Projects/PothosComms` (already made from
+3. The local clone is `../PothosComms` (already made from
    upstream, no fork remote yet).
 4. The user approves these steps before they occur: the fork, the first
    push, and pushes to `master` (none are planned).

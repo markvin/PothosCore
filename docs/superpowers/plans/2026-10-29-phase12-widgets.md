@@ -20,7 +20,7 @@ local Arch 6.12, CI 6.5.3), Conan 2 (core only), GitHub Actions.
 
 ## Global Constraints
 
-- Repository: `/home/mark/Projects/PothosWidgets`, cloned from upstream
+- Repository: `../PothosWidgets`, cloned from upstream
   `pothosware/PothosWidgets`. Branch `pothos2` from upstream `master`
   (`33a3a75`); work branch `phase12-widgets` from `pothos2`. The fork
   `markvin/PothosWidgets` is made in Task 4, after the user agrees.
@@ -117,8 +117,8 @@ local Arch 6.12, CI 6.5.3), Conan 2 (core only), GitHub Actions.
 - [ ] **Step 1: Clone and branch**
 
 ```sh
-git clone https://github.com/pothosware/PothosWidgets.git /home/mark/Projects/PothosWidgets
-cd /home/mark/Projects/PothosWidgets
+git clone https://github.com/pothosware/PothosWidgets.git ../PothosWidgets
+cd ../PothosWidgets
 git switch -c pothos2 33a3a75 && git switch -c phase12-widgets
 ```
 
@@ -146,7 +146,7 @@ directory, go into the install RPATH). Keep the RPATH that
 
 - [ ] **Step 4: Build to see the Qt 6 failure (RED)**
 
-Run: `cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=/home/mark/Projects/PothosBase/build/stage -DWIDGETS_WARNINGS_AS_ERRORS=ON && cmake --build build`
+Run: `cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=../PothosBase/build/stage -DWIDGETS_WARNINGS_AS_ERRORS=ON && cmake --build build`
 Expected: FAIL in `indicator.cpp`, "No Q_OBJECT in the class passed to QObject::findChildren".
 
 - [ ] **Step 5: Fix `indicator.cpp`, then build and test (GREEN)**
@@ -161,7 +161,7 @@ pass (2 tests).
 
 - [ ] **Step 6: Check the missing-Qt error**
 
-Run: `cmake -S . -B build-noqt -G Ninja -DCMAKE_PREFIX_PATH=/home/mark/Projects/PothosBase/build/stage -DCMAKE_DISABLE_FIND_PACKAGE_Qt6=ON`
+Run: `cmake -S . -B build-noqt -G Ninja -DCMAKE_PREFIX_PATH=../PothosBase/build/stage -DCMAKE_DISABLE_FIND_PACKAGE_Qt6=ON`
 Expected: configure fails with "Qt 6 (>= 6.5) with the Widgets component is missing". Delete `build-noqt`.
 
 - [ ] **Step 7: Check the install RPATH and CMake 3.25**
@@ -317,7 +317,7 @@ Merge only on the user's word.
 
 ### Task 5: widgets in PothosBase
 
-**Files (in `/home/mark/Projects/PothosBase`, branch `add-widgets` from `main`):**
+**Files (in `../PothosBase`, branch `add-widgets` from `main`):**
 - Modify: `.gitmodules` (submodule `widgets`), `CMakeLists.txt`
   (`pothos_base_all_toolkits blocks comms widgets`,
   `set(WIDGETS_WARNINGS_AS_ERRORS ...)`, `ENVIRONMENT
@@ -357,7 +357,7 @@ Merge only on the user's word.
 **Files (core, branch `phase12-widgets`):**
 - Modify: `docs/superpowers/plans/2026-10-26-core-modernization-roadmap.md`
   (row 12 and status), `CLAUDE.md` (a note about the widgets fork, branch
-  `pothos2`, local clone `/home/mark/Projects/PothosWidgets`, Qt 6 from
+  `pothos2`, local clone `../PothosWidgets`, Qt 6 from
   the system or `install-qt-action`, not Conan).
 
 - [ ] **Step 1: Edit and commit**
