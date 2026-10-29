@@ -331,7 +331,7 @@ git commit -am "simd: public Pothos/Util/XSIMDCopy.hpp; blocks needs no core int
 
 ### Task 4: PothosBlocks as a separate repository
 
-**Files (in `/home/mark/Projects/PothosBlocks`, branch `pothos2`):**
+**Files (in `../PothosBlocks`, branch `pothos2`):**
 - Create: `CMakeLists.txt` (top level), `conanfile.txt`, `cmake/Findasio.cmake` (copy of the core),
   `cmake/PothosTestEnv.cmake` and `cmake/PothosRunSelfTests.cmake` (copies of the core),
   `.github/workflows/ci.yml`, `README.md` (build section)
@@ -351,7 +351,7 @@ git commit -am "simd: public Pothos/Util/XSIMDCopy.hpp; blocks needs no core int
   upstream commit `4aef23f` is an ancestor
   (`git merge-base --is-ancestor 4aef23f phase9-blocks-split`).
 
-- [ ] **Step 2: Make the local repository.** `git init /home/mark/Projects/PothosBlocks`, then
+- [ ] **Step 2: Make the local repository.** `git init ../PothosBlocks`, then
   `git fetch <core worktree> phase9-blocks-split:pothos2` and `git checkout pothos2`.
   Add `upstream` = `https://github.com/pothosware/PothosBlocks.git`.
 

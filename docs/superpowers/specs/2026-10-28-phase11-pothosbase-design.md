@@ -40,7 +40,7 @@ one CMake tree with `add_subdirectory`. It gives a consistent build, one
    (Decision for the soapy port, recorded in the roadmap.)
 5. PothosBase can build existing local clones in place of its submodules,
    with one source directory option for each repository. The developer
-   edits in the usual clones (`/home/mark/Projects/Pothos*`) and checks
+   edits in the usual clones (`../Pothos*`) and checks
    them together. CI always builds the submodules.
 
 ## Current state (spike, 2026-10-28)
@@ -180,7 +180,7 @@ PothosBase/
     `COMMS`, ...): the source directory (cache `PATH`). The default is the
     submodule directory `${PROJECT_SOURCE_DIR}/<name>`. A developer gives
     a local clone, for example
-    `-DPOTHOS_BASE_CORE_DIR=/home/mark/Projects/PothosCore` (decision 5).
+    `-DPOTHOS_BASE_CORE_DIR=../PothosCore` (decision 5).
     `add_subdirectory(<dir> <name>)` always gives the binary directory,
     because the source can be outside the PothosBase tree.
   - When a `_DIR` option is not the submodule directory, configure prints

@@ -150,7 +150,7 @@ These results are failures, also when the build is correct:
    fork only after the user agrees at that step of the plan.
 2. Make the branch `pothos2` from upstream `master` (`142c4a8`). Upstream
    history stays the ancestor.
-3. The local clone is `/home/mark/Projects/PothosSoapy`. Its `origin` is
+3. The local clone is `../PothosSoapy`. Its `origin` is
    upstream now; after the fork, `origin` is the fork and `upstream` is
    `pothosware/PothosSoapy` (as in the core).
 4. The work goes into the work branch `phase13-soapy` and a PR into
@@ -358,7 +358,7 @@ After `pothos2` of the fork has soapy:
 ## Decisions of the designer (the user must check them)
 
 - Fork `markvin/PothosSoapy`, branch `pothos2` from upstream `142c4a8`,
-  local clone `/home/mark/Projects/PothosSoapy`, work branch
+  local clone `../PothosSoapy`, work branch
   `phase13-soapy`.
 - CMake as in comms and widgets: CMake 3.25, `CMP0144` NEW,
   `NO_PACKAGE_ROOT_PATH`, `-Wall -Wextra`, the options `SOAPY_*`, a

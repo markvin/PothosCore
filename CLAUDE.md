@@ -14,21 +14,22 @@ Restore / update the project so it builds and works on a modern toolchain.
   `tests/` — CTest projects; `cmake/PothosDependencies.cmake` — finds the
   dependencies; `conanfile.txt` — the dependencies for Conan 2
 - No submodules. The toolkits are in their own repositories
-  (pothosware/Pothos*). PothosBlocks (ported, phase 9) is the fork
-  markvin/PothosBlocks, branch `pothos2`, local clone
-  `/home/mark/Projects/PothosBlocks`. The topology needs `/blocks/copier` and
+  (pothosware/Pothos*). The local clones of the toolkits and of PothosBase
+  are next to the clone of the core (paths `../Pothos*`). PothosBlocks
+  (ported, phase 9) is the fork markvin/PothosBlocks, branch `pothos2`,
+  local clone `../PothosBlocks`. The topology needs `/blocks/copier` and
   `/blocks/network_*` from PothosBlocks; without it commit() gives a clear
   error. PothosComms (ported, phase 10) is the fork
   markvin/PothosComms, branch `pothos2`, local clone
-  `/home/mark/Projects/PothosComms`. Its self-tests need PothosBlocks in the
+  `../PothosComms`. Its self-tests need PothosBlocks in the
   prefix of the core
 - PothosWidgets (ported, phase 12) is the fork markvin/PothosWidgets,
-  branch `pothos2`, local clone `/home/mark/Projects/PothosWidgets`. It
+  branch `pothos2`, local clone `../PothosWidgets`. It
   needs Qt 6 (6.5 or higher) from the system or from the Qt installer
   (`install-qt-action` in CI), not from Conan. Its self-tests use the Qt
   platform `offscreen` and need no display
 - PothosSoapy (ported, phase 13) is the fork markvin/PothosSoapy, branch
-  `pothos2`, local clone `/home/mark/Projects/PothosSoapy`. It needs
+  `pothos2`, local clone `../PothosSoapy`. It needs
   SoapySDR 0.8 or higher from the system or built from the upstream
   source (CI: tag `soapy-sdr-0.9.0` of pothosware/SoapySDR), not from
   Conan. Its self-tests need no SDR hardware: a test driver of SoapySDR
@@ -37,7 +38,7 @@ Restore / update the project so it builds and works on a modern toolchain.
   uses only upstream pothosware/SoapySDR
 - PothosBase (phase 11) is the aggregate build: repository
   markvin/PothosBase (branch `main`), local clone
-  `/home/mark/Projects/PothosBase`. The core, blocks, comms, widgets and
+  `../PothosBase`. The core, blocks, comms, widgets and
   soapy are submodules on `pothos2`, built with `add_subdirectory`.
   `-DPOTHOS_BASE_CORE_DIR=...` (and `_BLOCKS_DIR`, `_COMMS_DIR`,
   `_WIDGETS_DIR`, `_SOAPY_DIR`) builds a local clone in place of a

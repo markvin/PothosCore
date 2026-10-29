@@ -26,7 +26,7 @@ comms and can start earlier. Task 6 adds comms.
 
 ## Global Constraints
 
-- Repository: `/home/mark/Projects/PothosBase` (new, local), remote
+- Repository: `../PothosBase` (new, local), remote
   `markvin/PothosBase`, branch `main`. Create the remote only after the
   user agrees (Task 7).
 - Submodules: `core` → `https://github.com/markvin/PothosCore.git`,
@@ -99,14 +99,14 @@ of item 2: no copy of the core runner.
 
 ### Task 1: CMP0144 in blocks (OLD behavior)
 
-**Files (repository `/home/mark/Projects/PothosBlocks`, new branch
+**Files (repository `../PothosBlocks`, new branch
 `cmp0144-old` from `pothos2`):**
 - Modify: `CMakeLists.txt` (before `find_package(Pothos CONFIG REQUIRED)`)
 
 - [ ] **Step 1: Show the warning (RED)**
 
 Configure the spike superbuild again
-(`/tmp/claude-1000/-home-mark-Projects-PothosCore/403d5907-4b68-45cd-a0ec-c2013c1a73b6/scratchpad/base-spike`,
+(`<scratch dir>/base-spike`,
 fresh build dir). Expected: `grep -c CMP0144 cfg.log` ≥ 1, the warning is
 at `PothosBlocks/CMakeLists.txt:14`.
 
@@ -139,12 +139,12 @@ git commit -am "build: keep the old find_package behavior for POTHOS_ROOT (CMP01
 
 Ask the user. Then push `cmp0144-old` and open the PR into `pothos2` of
 `markvin/PothosBlocks`. Tasks 2–5 do not wait for the merge: they use
-`-DPOTHOS_BASE_BLOCKS_DIR=/home/mark/Projects/PothosBlocks` with this
+`-DPOTHOS_BASE_BLOCKS_DIR=../PothosBlocks` with this
 branch checked out.
 
 ### Task 2: Repository, submodules, top-level CMake
 
-**Files (repository `/home/mark/Projects/PothosBase`):**
+**Files (repository `../PothosBase`):**
 - Create: `CMakeLists.txt`, `conanfile.txt`, `.gitignore`
   (`/build/`, `/CMakeUserPresets.json`), `.gitmodules` (by `git submodule add`)
 - Create: `tests/configure_checks.cmake` (a `cmake -P` script)
@@ -172,7 +172,7 @@ result code and the output:
 | `default` | none | success; no `CMP0144`; no "not the fixed set" warning |
 | `missing` | a copy of the top-level files of `SRC` (`CMakeLists.txt`, `conanfile.txt`, `cmake/`) in `${WORK}/src-missing`, with empty `core/` and `blocks/` dirs (as after a clone without `--recursive`); configure that copy | failure; output contains `git submodule update --init core` |
 | `bad_dir` | `-DPOTHOS_BASE_CORE_DIR=${WORK}/nonexistent` | failure; output contains the path |
-| `override` | `-DPOTHOS_BASE_BLOCKS_DIR=/home/mark/Projects/PothosBlocks` (from `-DBLOCKS_CLONE=`, the case is skipped when it is not given) | success; output contains the path and "not the fixed set of the submodule pointers" |
+| `override` | `-DPOTHOS_BASE_BLOCKS_DIR=../PothosBlocks` (from `-DBLOCKS_CLONE=`, the case is skipped when it is not given) | success; output contains the path and "not the fixed set of the submodule pointers" |
 | `override_reset` | the `override` build dir again with `-UPOTHOS_BASE_BLOCKS_DIR` | success; no "not the fixed set" warning |
 | `without_blocks` | `-DPOTHOS_BASE_WITH_BLOCKS=OFF` | success |
 
@@ -182,7 +182,7 @@ first wrong result. Run it now: Expected: FAIL (no `CMakeLists.txt` yet).
 - [ ] **Step 2: Make the repository and the submodules**
 
 ```sh
-mkdir /home/mark/Projects/PothosBase && cd /home/mark/Projects/PothosBase && git init -b main
+mkdir ../PothosBase && cd ../PothosBase && git init -b main
 git submodule add -b pothos2 https://github.com/markvin/PothosCore.git core
 git submodule add -b pothos2 https://github.com/markvin/PothosBlocks.git blocks
 ```
@@ -214,7 +214,7 @@ git submodule add -b pothos2 https://github.com/markvin/PothosBlocks.git blocks
 - [ ] **Step 4: Run the configure checks (GREEN)**
 
 ```sh
-cmake -DSRC=$PWD -DWORK=$S/pbase-checks -DBLOCKS_CLONE=/home/mark/Projects/PothosBlocks -P tests/configure_checks.cmake
+cmake -DSRC=$PWD -DWORK=$S/pbase-checks -DBLOCKS_CLONE=../PothosBlocks -P tests/configure_checks.cmake
 ```
 
 Expected: all 6 cases pass (`default` passes only with the Task 1 branch
@@ -225,7 +225,7 @@ with `-DPOTHOS_BASE_BLOCKS_DIR` and record this in the ledger).
 
 `cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
 -DPOTHOS_BASE_WARNINGS_AS_ERRORS=ON
--DPOTHOS_BASE_BLOCKS_DIR=/home/mark/Projects/PothosBlocks` and
+-DPOTHOS_BASE_BLOCKS_DIR=../PothosBlocks` and
 `cmake --build build`. Expected: no errors, no warnings;
 `build/compile_commands.json` has entries under `core/` and under the
 blocks dir.
@@ -451,6 +451,6 @@ toolkit PRs. Fix the findings.
 - [ ] **Step 3: Core docs (core branch with the phase 11 docs)**
 
 Roadmap: phase 11 row and status. `CLAUDE.md`: PothosBase (repository,
-local clone `/home/mark/Projects/PothosBase`, the `_DIR` options).
+local clone `../PothosBase`, the `_DIR` options).
 Commit `docs: phase 11 in the roadmap`. Ask the user, then push and open
 the PR of the core docs.
