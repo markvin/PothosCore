@@ -13,7 +13,7 @@
 ## Decisions of the user (2026-10-27)
 
 1. Do not duplicate the third-party libraries in the `third_party` of the toolkits: **move blocks into the tree of the core**, and use the `third_party` of the core.
-2. The fork `markvin/PothosBlocks` and the clone `/home/mark/Projects/PothosBlocks` are not used. Their future is a separate question to the user (do not delete anything without an answer).
+2. The fork `markvin/PothosBlocks` and the clone `../PothosBlocks` are not used. Their future is a separate question to the user (do not delete anything without an answer).
 
 ## Decisions that the plan proposes (approved together with the plan)
 
