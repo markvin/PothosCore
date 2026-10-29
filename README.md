@@ -29,19 +29,24 @@ system packages, or from Conan 2 (`conanfile.txt`). Refer to "Building".
 
 ## Toolkits
 
-The toolkits are separate CMake projects in their own repositories
-(except PothosBlocks, they are not yet ported to the pothos2 API of this
-branch):
+The toolkits are separate CMake projects in their own repositories. The
+forks with the branch `pothos2` are ported to the pothos2 API of this
+branch. The other toolkits are not yet ported:
 
 * [PothosAudio](https://github.com/pothosware/PothosAudio)
 * [PothosBlocks](https://github.com/markvin/PothosBlocks) - ported to
   pothos2 (branch `pothos2`)
-* [PothosComms](https://github.com/pothosware/PothosComms)
+* [PothosComms](https://github.com/markvin/PothosComms) - ported to
+  pothos2 (branch `pothos2`)
 * [PothosFlow](https://github.com/pothosware/PothosFlow)
 * [PothosPlotters](https://github.com/pothosware/PothosPlotters)
 * [PothosPython](https://github.com/pothosware/PothosPython)
 * [PothosSoapy](https://github.com/pothosware/PothosSoapy)
-* [PothosWidgets](https://github.com/pothosware/PothosWidgets)
+* [PothosWidgets](https://github.com/markvin/PothosWidgets) - ported to
+  pothos2 (branch `pothos2`), needs Qt 6 (6.5 or higher)
+
+[PothosBase](https://github.com/markvin/PothosBase) builds the core and
+the ported toolkits in one CMake tree (the repositories are submodules).
 
 A toolkit finds the core with `find_package(Pothos)`, either installed or
 next to it in the same parent project (see below).
