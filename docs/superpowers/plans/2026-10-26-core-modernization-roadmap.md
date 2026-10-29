@@ -21,6 +21,7 @@ in-tree зависимость (спека это разрешает).
 | 9 | Зависимости через find_package, blocks снова отдельно (решение пользователя, 2026-10-28; отменяет этап 8) | `third_party/` удалён: nlohmann_json, Asio, xsimd через `find_package` (системные пакеты или Conan 2, `conanfile.txt`; CMake не знает о Conan); blocks — форк `markvin/PothosBlocks` (ветка `pothos2`, свой `conanfile.txt`), только публичный API ядра (`Pothos::Util::parseUri/resolveHost`, публичный `XSIMDCopy.hpp`); CI: 4 job'а через Conan + `linux-system` (Arch) | `2026-10-28-phase9-conan-deps.md` |
 | 10 | comms на ядре pothos2 (решения пользователя, 2026-10-28) | форк `markvin/PothosComms` (ветка `pothos2`): сборка против установленного ядра (`find_package`, nlohmann_json, xsimd; системные пакеты или Conan 2), без Poco; `math/SIMD` на `XSIMDCopy.hpp` и API xsimd 14; spuce заменён своей внутренней библиотекой `comms_filter_design` (`filter/design/`, порт spuce `ad08df7`, эталонные данные из spuce); самотесты требуют PothosBlocks в префиксе ядра; CI: 4 job'а через Conan + `linux-system` (Arch) | `2026-10-28-phase10-comms.md` |
 | 11 | PothosBase — агрегирующая сборка (решения пользователя, 2026-10-28) | репозиторий `markvin/PothosBase` (ветка `main`): core, blocks, comms — сабмодули на `pothos2`, одно дерево CMake (`add_subdirectory`), `POTHOS_BASE_<NAME>_DIR` подставляет локальный клон; тесты `base.stage`/`base.modules`/`base.selftests` из одного префикса; `build/pothos-env.sh` для отладки; в тулкитах `CMP0144` NEW + `NO_PACKAGE_ROOT_PATH`; CI: Linux (Conan) + `linux-system` (Arch) | `2026-10-28-phase11-pothosbase.md` |
+| 12 | widgets на ядре pothos2 (решения пользователя, 2026-10-29) | форк `markvin/PothosWidgets` (ветка `pothos2`): сборка против установленного ядра (CMake 3.25, `CMP0144` NEW), только Qt 6 (≥ 6.5) из системы или установщика Qt, не из Conan; без Qt 6 configure останавливается с понятной ошибкой; install RPATH на каталог Qt вне системных каталогов; смоук-тест 11 виджетов на платформе `offscreen` (без дисплея); CI: 4 job'а (Conan для ядра + `install-qt-action`) + `linux-system` (Arch, `qt6-base`); widgets — сабмодуль PothosBase | `2026-10-29-phase12-widgets.md` |
 
 Порядок 2 ↔ 3 можно поменять. **Решение пользователя (2026-10-26): этап 3
 выполняется раньше этапа 2.**
@@ -106,6 +107,18 @@ in-tree зависимость (спека это разрешает).
   Ядро не менялось. Дальше: следующие тулкиты по одному (widgets → soapy →
   python → plotters → flow), каждый — в PothosBase после переноса.
 
+- Этап 12 (решения пользователя, 2026-10-29) — выполнен в форке
+  `markvin/PothosWidgets` (спецификация `2026-10-29-phase12-widgets-design.md`,
+  план `2026-10-29-phase12-widgets.md`, PR #1 `phase12-widgets` → `pothos2`)
+  и в PothosBase (PR #2 `add-widgets` → `main`). Только Qt 6 (≥ 6.5); исправление
+  Qt 6 в `indicator.cpp` (цифры в списке вместо `findChildren`). Смоук-тест
+  11 виджетов на `offscreen` падает на предупреждениях Qt о неудачном вызове
+  (`QMetaObject::invokeMethod`, `Cannot queue arguments`). CI widgets
+  зелёный: 5/5, по 13 самотестов; Qt 6.5.3 на Linux и macOS, Qt 6.8.3 на
+  Windows (заголовки Qt 6.5.3 не собираются с текущим MSVC, решение
+  пользователя). PothosBase: 329 самотестов из одного префикса. Ядро не
+  менялось. Дальше: soapy.
+
 ## Решения для следующих этапов
 
 Решения пользователя (2026-10-28), принятые до начала этих этапов:
@@ -123,7 +136,7 @@ in-tree зависимость (спека это разрешает).
   корпоративное зеркало: CI его не использует.
 - PothosBase — оформлен этапом 11 (см. таблицу и статус).
 - PothosBase, следующие тулкиты: добавлять после их переноса, по одному
-  (widgets → soapy → python → plotters → flow). Проверки `base.modules` и
+  (widgets — этап 12; дальше soapy → python → plotters → flow). Проверки `base.modules` и
   `base.selftests` предполагают каталог модулей `/<toolkit>/` и тесты в
   `/<toolkit>/tests/`; для python (`proxy/environment`) и flow нужна
   настройка для тулкита (отложенное замечание ревью этапа 11).
