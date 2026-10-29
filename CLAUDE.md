@@ -33,9 +33,8 @@ Restore / update the project so it builds and works on a modern toolchain.
   source (CI: tag `soapy-sdr-0.9.0` of pothosware/SoapySDR), not from
   Conan. Its self-tests need no SDR hardware: a test driver of SoapySDR
   (`pothos_soapy_test`) is registered only while a test runs.
-  `-DSOAPY_TEST_DEVICE=driver=...` adds a test with a real device.
-  Warning: `/home/mark/Projects/SoapySDR` is a clone of a corporate
-  mirror. Never push there; CI uses only upstream pothosware/SoapySDR
+  `-DSOAPY_TEST_DEVICE=driver=...` adds a test with a real device. CI
+  uses only upstream pothosware/SoapySDR
 - PothosBase (phase 11) is the aggregate build: repository
   markvin/PothosBase (branch `main`), local clone
   `/home/mark/Projects/PothosBase`. The core, blocks, comms, widgets and

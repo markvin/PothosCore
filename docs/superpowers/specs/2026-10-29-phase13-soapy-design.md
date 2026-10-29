@@ -28,9 +28,7 @@ is a submodule of PothosBase.
    CMake of the toolkit uses only `find_package(SoapySDR CONFIG)`. A
    ConanCenter recipe is optional and comes later. (Decision of
    2026-10-28.)
-2. Warning: the local clone `/home/mark/Projects/SoapySDR` is a clone of
-   a corporate mirror. Never push to it. CI uses only upstream
-   `pothosware/SoapySDR`.
+2. CI uses only upstream `pothosware/SoapySDR`.
 3. CI tests the blocks with a test driver of our own. The driver is a
    part of the test code of soapy. It is not an external module.
    (SoapyLoopback of JuliaTelecom is a sample only: it gives no data and
@@ -132,7 +130,7 @@ These results are failures, also when the build is correct:
   step with a clear message.
 - A CMake file refers to Conan, or the configure or build step downloads
   files.
-- CI uses the corporate mirror of SoapySDR, or a push goes to it.
+- CI uses a SoapySDR source other than upstream `pothosware/SoapySDR`.
 - The test driver is visible to the user: it is in the device list of
   SoapySDR (`SoapySDR::Device::enumerate()`, `/devices/soapy/info`)
   outside of a running test, or it is installed as a SoapySDR module.
@@ -353,8 +351,7 @@ After `pothos2` of the fork has soapy:
   of `markvin/PothosCore`.
 - Roadmap: phase 13 row and status.
 - `CLAUDE.md`: a short note about the soapy fork, its branch, its local
-  clone, the SoapySDR version in CI and the warning about the corporate
-  mirror.
+  clone and the SoapySDR version in CI.
 - No code changes are expected. If soapy needs a change of the public
   API, stop and ask the user.
 
