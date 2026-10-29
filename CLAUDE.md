@@ -27,12 +27,20 @@ Restore / update the project so it builds and works on a modern toolchain.
   needs Qt 6 (6.5 or higher) from the system or from the Qt installer
   (`install-qt-action` in CI), not from Conan. Its self-tests use the Qt
   platform `offscreen` and need no display
+- PothosSoapy (ported, phase 13) is the fork markvin/PothosSoapy, branch
+  `pothos2`, local clone `/home/mark/Projects/PothosSoapy`. It needs
+  SoapySDR 0.8 or higher from the system or built from the upstream
+  source (CI: tag `soapy-sdr-0.9.0` of pothosware/SoapySDR), not from
+  Conan. Its self-tests need no SDR hardware: a test driver of SoapySDR
+  (`pothos_soapy_test`) is registered only while a test runs.
+  `-DSOAPY_TEST_DEVICE=driver=...` adds a test with a real device. CI
+  uses only upstream pothosware/SoapySDR
 - PothosBase (phase 11) is the aggregate build: repository
   markvin/PothosBase (branch `main`), local clone
-  `/home/mark/Projects/PothosBase`. The core, blocks, comms and widgets are
-  submodules on `pothos2`, built with `add_subdirectory`.
+  `/home/mark/Projects/PothosBase`. The core, blocks, comms, widgets and
+  soapy are submodules on `pothos2`, built with `add_subdirectory`.
   `-DPOTHOS_BASE_CORE_DIR=...` (and `_BLOCKS_DIR`, `_COMMS_DIR`,
-  `_WIDGETS_DIR`) builds a local clone in place of a
+  `_WIDGETS_DIR`, `_SOAPY_DIR`) builds a local clone in place of a
   submodule. `ctest` runs all self-tests from one stage prefix. A toolkit
   must build both standalone and in PothosBase; its `find_package(Pothos)`
   uses `NO_PACKAGE_ROOT_PATH` (CMP0144 NEW)

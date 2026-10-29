@@ -22,6 +22,7 @@ in-tree зависимость (спека это разрешает).
 | 10 | comms на ядре pothos2 (решения пользователя, 2026-10-28) | форк `markvin/PothosComms` (ветка `pothos2`): сборка против установленного ядра (`find_package`, nlohmann_json, xsimd; системные пакеты или Conan 2), без Poco; `math/SIMD` на `XSIMDCopy.hpp` и API xsimd 14; spuce заменён своей внутренней библиотекой `comms_filter_design` (`filter/design/`, порт spuce `ad08df7`, эталонные данные из spuce); самотесты требуют PothosBlocks в префиксе ядра; CI: 4 job'а через Conan + `linux-system` (Arch) | `2026-10-28-phase10-comms.md` |
 | 11 | PothosBase — агрегирующая сборка (решения пользователя, 2026-10-28) | репозиторий `markvin/PothosBase` (ветка `main`): core, blocks, comms — сабмодули на `pothos2`, одно дерево CMake (`add_subdirectory`), `POTHOS_BASE_<NAME>_DIR` подставляет локальный клон; тесты `base.stage`/`base.modules`/`base.selftests` из одного префикса; `build/pothos-env.sh` для отладки; в тулкитах `CMP0144` NEW + `NO_PACKAGE_ROOT_PATH`; CI: Linux (Conan) + `linux-system` (Arch) | `2026-10-28-phase11-pothosbase.md` |
 | 12 | widgets на ядре pothos2 (решения пользователя, 2026-10-29) | форк `markvin/PothosWidgets` (ветка `pothos2`): сборка против установленного ядра (CMake 3.25, `CMP0144` NEW), только Qt 6 (≥ 6.5) из системы или установщика Qt, не из Conan; без Qt 6 configure останавливается с понятной ошибкой; install RPATH на каталог Qt вне системных каталогов; смоук-тест 11 виджетов на платформе `offscreen` (без дисплея); CI: 4 job'а (Conan для ядра + `install-qt-action`) + `linux-system` (Arch, `qt6-base`); widgets — сабмодуль PothosBase | `2026-10-29-phase12-widgets.md` |
+| 13 | soapy на ядре pothos2 (решения пользователя, 2026-10-28 и 2026-10-29) | форк `markvin/PothosSoapy` (ветка `pothos2`): сборка против установленного ядра (CMake 3.25, `CMP0144` NEW), без Poco (лог SoapySDR — в логгер Pothos); SoapySDR ≥ 0.8 из системы или из исходников upstream, не из Conan; без SoapySDR configure останавливается с понятной ошибкой; с SoapySDR < 0.9 цели soapy игнорируют `#warning` о `<ciso646>` (GCC ≥ 15); install RPATH на каталог SoapySDR вне системных каталогов; самотесты без железа через свой тестовый драйвер SoapySDR (`pothos_soapy_test`, регистрируется только внутри теста); ручной тест `soapy.device` с реальным устройством; CI: 4 job'а (Conan + SoapySDR `soapy-sdr-0.9.0` из исходников, `actions/cache`) + `linux-system` (Arch, `soapysdr` 0.8.1); soapy — сабмодуль PothosBase | `2026-10-29-phase13-soapy.md` |
 
 Порядок 2 ↔ 3 можно поменять. **Решение пользователя (2026-10-26): этап 3
 выполняется раньше этапа 2.**
@@ -119,6 +120,22 @@ in-tree зависимость (спека это разрешает).
   пользователя). PothosBase: 329 самотестов из одного префикса. Ядро не
   менялось. Дальше: soapy.
 
+- Этап 13 (решения пользователя, 2026-10-28 и 2026-10-29) — выполнен в форке
+  `markvin/PothosSoapy` (спецификация `2026-10-29-phase13-soapy-design.md`,
+  план `2026-10-29-phase13-soapy.md`, PR #1 `phase13-soapy` → `pothos2`,
+  merge `94e1d7f`) и в PothosBase (PR #3 `add-soapy` → `main`). Poco убран;
+  CI собирает SoapySDR `soapy-sdr-0.9.0` из upstream (в 0.9 нет `<ciso646>`),
+  `linux-system` — Arch SoapySDR 0.8.1 с обходом `#warning`. Самотесты без
+  железа: свой драйвер `pothos_soapy_test` в модуле `SoapySupport`
+  (регистрация только на время теста, Find отвечает только на свой
+  `driver=`); 11 самотестов (10 в `/soapy/tests` и
+  `/soapy/device_tests/test_source`). Ручная проверка `soapy.device` на
+  Ettus USRP B210 (SoapyUHD): 950 640 отсчётов за 1 с при 1 MSps (только
+  приём). Исправлено при переносе: недостающие `#include` (`<exception>` в
+  `SoapyBlock.hpp`, сборка с libc++ на macOS). CI soapy зелёный: 5/5.
+  PothosBase: 340 самотестов из одного префикса. Ядро не менялось.
+  Дальше: python.
+
 ## Решения для следующих этапов
 
 Решения пользователя (2026-10-28), принятые до начала этих этапов:
@@ -132,11 +149,11 @@ in-tree зависимость (спека это разрешает).
   (`actions/cache` по версии). Остальные зависимости — через Conan. Job
   `linux-system` берёт `extra/soapysdr`. CMake тулкита: только
   `find_package(SoapySDR CONFIG)`. Рецепт для ConanCenter — позже,
-  необязательно. Локальный клон `/home/mark/Projects/SoapySDR` смотрит в
-  корпоративное зеркало: CI его не использует.
+  необязательно. Выполнено в этапе 13 (тег `soapy-sdr-0.9.0`, решение
+  пользователя 2026-10-29).
 - PothosBase — оформлен этапом 11 (см. таблицу и статус).
 - PothosBase, следующие тулкиты: добавлять после их переноса, по одному
-  (widgets — этап 12; дальше soapy → python → plotters → flow). Проверки `base.modules` и
+  (widgets — этап 12, soapy — этап 13; дальше python → plotters → flow). Проверки `base.modules` и
   `base.selftests` предполагают каталог модулей `/<toolkit>/` и тесты в
   `/<toolkit>/tests/`; для python (`proxy/environment`) и flow нужна
   настройка для тулкита (отложенное замечание ревью этапа 11).
