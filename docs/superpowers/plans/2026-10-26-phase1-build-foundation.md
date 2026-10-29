@@ -123,7 +123,7 @@ The script does these actions. It clears and creates `HOME_DIR/data` and `HOME_D
 - [ ] **Step 4: Run**
 
 Run: `cmake --build build && ctest --test-dir build --output-on-failure`
-Expected: `pothos.stage` PASS. `pothos.selftests` FAIL. The output has `Failed 1 out of 88 tests` and `FAIL: /framework/tests/test_mmap_shared_buffer` (a defect from before the modernization, fixed in Task 3). The home directory is not touched: `ls ~/.local/share/Pothos ~/.config/Pothos` shows no files newer than the run.
+Expected: `pothos.stage` PASS. `pothos.selftests` FAIL. The output has `Failed 1 out of 88 tests` and `FAIL: /framework/tests/test_mmap_shared_buffer` (a defect from before the modernization, fixed in Task 3). The user data and config directories of Pothos get no files newer than the run.
 
 - [ ] **Step 5: Commit**
 

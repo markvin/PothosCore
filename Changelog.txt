@@ -14,9 +14,10 @@ Repository:
   (https://github.com/markvin/PothosBlocks, branch pothos2, with the
   PothosBlocks history): it builds against an installed core and uses only
   the public API of the core
-- PothosComms and PothosWidgets are ported in the same way
-  (https://github.com/markvin/PothosComms and
-  https://github.com/markvin/PothosWidgets, branch pothos2). PothosBase
+- PothosComms, PothosWidgets and PothosSoapy are ported in the same way
+  (https://github.com/markvin/PothosComms,
+  https://github.com/markvin/PothosWidgets and
+  https://github.com/markvin/PothosSoapy, branch pothos2). PothosBase
   (https://github.com/markvin/PothosBase) builds the core and the ported
   toolkits in one CMake tree
 - Topology::commit() throws TopologyConnectError naming the missing block
