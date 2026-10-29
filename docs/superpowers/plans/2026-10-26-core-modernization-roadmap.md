@@ -20,6 +20,7 @@ in-tree зависимость (спека это разрешает).
 | 8 | blocks в дереве ядра (решение пользователя, 2026-10-27) | история PothosBlocks в `blocks/`, сборка с ядром (`POTHOS_BUILD_BLOCKS`) на `third_party` ядра (json, xsimd, Asio через `lib/Net`), без Poco; copier и сетевые блоки поставляются с ядром | `2026-10-27-phase8-blocks-in-core.md` |
 | 9 | Зависимости через find_package, blocks снова отдельно (решение пользователя, 2026-10-28; отменяет этап 8) | `third_party/` удалён: nlohmann_json, Asio, xsimd через `find_package` (системные пакеты или Conan 2, `conanfile.txt`; CMake не знает о Conan); blocks — форк `markvin/PothosBlocks` (ветка `pothos2`, свой `conanfile.txt`), только публичный API ядра (`Pothos::Util::parseUri/resolveHost`, публичный `XSIMDCopy.hpp`); CI: 4 job'а через Conan + `linux-system` (Arch) | `2026-10-28-phase9-conan-deps.md` |
 | 10 | comms на ядре pothos2 (решения пользователя, 2026-10-28) | форк `markvin/PothosComms` (ветка `pothos2`): сборка против установленного ядра (`find_package`, nlohmann_json, xsimd; системные пакеты или Conan 2), без Poco; `math/SIMD` на `XSIMDCopy.hpp` и API xsimd 14; spuce заменён своей внутренней библиотекой `comms_filter_design` (`filter/design/`, порт spuce `ad08df7`, эталонные данные из spuce); самотесты требуют PothosBlocks в префиксе ядра; CI: 4 job'а через Conan + `linux-system` (Arch) | `2026-10-28-phase10-comms.md` |
+| 11 | PothosBase — агрегирующая сборка (решения пользователя, 2026-10-28) | репозиторий `markvin/PothosBase` (ветка `main`): core, blocks, comms — сабмодули на `pothos2`, одно дерево CMake (`add_subdirectory`), `POTHOS_BASE_<NAME>_DIR` подставляет локальный клон; тесты `base.stage`/`base.modules`/`base.selftests` из одного префикса; `build/pothos-env.sh` для отладки; в тулкитах `CMP0144` NEW + `NO_PACKAGE_ROOT_PATH`; CI: Linux (Conan) + `linux-system` (Arch) | `2026-10-28-phase11-pothosbase.md` |
 
 Порядок 2 ↔ 3 можно поменять. **Решение пользователя (2026-10-26): этап 3
 выполняется раньше этапа 2.**
@@ -95,6 +96,16 @@ in-tree зависимость (спека это разрешает).
   типом или полосой дают исключение; границы Remez, где у spuce было UB, —
   ошибку. CI зелёный: 5/5, по 60 самотестов. Ядро не менялось.
 
+- Этап 11 (решения пользователя, 2026-10-28) — выполнен в репозитории
+  `markvin/PothosBase` (спецификация `2026-10-28-phase11-pothosbase-design.md`,
+  план `2026-10-28-phase11-pothosbase.md`, PR #1 `add-comms` → `main`): core,
+  blocks и comms — сабмодули на концах `pothos2`, одно дерево CMake. В blocks
+  (PR #1) и comms (PR #2) `CMP0144` NEW и `find_package(Pothos ...
+  NO_PACKAGE_ROOT_PATH)`: тулкит не ищет ядро по `POTHOS_ROOT`. CI зелёный:
+  2/2 (Conan и Arch), 316 самотестов из одного префикса, 0 предупреждений.
+  Ядро не менялось. Дальше: следующие тулкиты по одному (widgets → soapy →
+  python → plotters → flow), каждый — в PothosBase после переноса.
+
 ## Решения для следующих этапов
 
 Решения пользователя (2026-10-28), принятые до начала этих этапов:
@@ -110,10 +121,12 @@ in-tree зависимость (спека это разрешает).
   `find_package(SoapySDR CONFIG)`. Рецепт для ConanCenter — позже,
   необязательно. Локальный клон `/home/mark/Projects/SoapySDR` смотрит в
   корпоративное зеркало: CI его не использует.
-- PothosBase (репозиторий-агрегатор с сабмодулями, `add_subdirectory`) —
-  обсуждается, отдельным этапом не оформлен. Пробная сборка core + blocks +
-  comms прошла без изменений, 304 самотеста зелёные из одного префикса;
-  замечание — предупреждение CMake `CMP0144` (`POTHOS_ROOT`) в тулкитах.
+- PothosBase — оформлен этапом 11 (см. таблицу и статус).
+- PothosBase, следующие тулкиты: добавлять после их переноса, по одному
+  (widgets → soapy → python → plotters → flow). Проверки `base.modules` и
+  `base.selftests` предполагают каталог модулей `/<toolkit>/` и тесты в
+  `/<toolkit>/tests/`; для python (`proxy/environment`) и flow нужна
+  настройка для тулкита (отложенное замечание ревью этапа 11).
 
 ## Заметки для плана этапа 2 (собраны при разведке)
 

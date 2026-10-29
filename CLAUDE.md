@@ -22,6 +22,14 @@ Restore / update the project so it builds and works on a modern toolchain.
   markvin/PothosComms, branch `pothos2`, local clone
   `/home/mark/Projects/PothosComms`. Its self-tests need PothosBlocks in the
   prefix of the core
+- PothosBase (phase 11) is the aggregate build: repository
+  markvin/PothosBase (branch `main`), local clone
+  `/home/mark/Projects/PothosBase`. The core, blocks and comms are submodules
+  on `pothos2`, built with `add_subdirectory`. `-DPOTHOS_BASE_CORE_DIR=...`
+  (and `_BLOCKS_DIR`, `_COMMS_DIR`) builds a local clone in place of a
+  submodule. `ctest` runs all self-tests from one stage prefix. A toolkit
+  must build both standalone and in PothosBase; its `find_package(Pothos)`
+  uses `NO_PACKAGE_ROOT_PATH` (CMP0144 NEW)
 
 ## Build
 
