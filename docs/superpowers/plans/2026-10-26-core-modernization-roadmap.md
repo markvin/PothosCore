@@ -1,176 +1,189 @@
-# Модернизация ядра — дорожная карта
+# Core modernization — roadmap
 
 **Spec:** `docs/superpowers/specs/2026-10-26-core-modernization-design.md`
 
-Работа разбита на этапы; у каждого свой план, после каждого ядро собирается
-и `PothosUtil --self-tests` зелёные в CI на Linux/macOS/Windows. Poco
-убирается постепенно — промежуточные этапы держат его как **приватную**
-in-tree зависимость (спека это разрешает).
+The work has phases. Each phase has its own plan. After each phase the core
+builds, and `PothosUtil --self-tests` is green in CI on Linux/macOS/Windows.
+Poco goes away step by step: the intermediate phases keep it as a
+**private** in-tree dependency (the spec permits this).
 
-| # | Этап | Результат | План |
-|---|------|-----------|------|
-| 1 | Фундамент сборки | CMake ≥ 3.25 / работает на 4.x, C++23, json в дереве, Poco и muparserx приватные, самотесты через CTest, экспорт `Pothos::Pothos` без Poco, CI на GitHub Actions | `2026-10-26-phase1-build-foundation.md` |
-| 2 | Свой вычислитель выражений | `EvalEnvironment` без muparserx, сабмодуль muparserx удалён | пишется после этапа 1 |
-| 3 | Замена Poco Foundation | `std::format`/`filesystem`/…, внутренний платформенный слой (DynamicLibrary, Process+Pipe, Environment), публичный logging API; Poco остаётся только в Net/Util | пишется после этапа 2 |
-| 4 | Сеть на Asio | Asio в дереве, Remote (клиент/сервер/прокси), syslog-совместимые forward/listener, `Util/Network`; сетевой слой готов к будущему HTTP/WebSocket (web-UI) | пишется после этапа 3 |
-| 5 | PothosUtil без Poco::Util и удаление Poco | свой разбор аргументов, завершение по сигналам, `--daemon`/`--pidfile`/`--umask`, служба Windows; сабмодуль poco удалён | `2026-10-27-phase5-remove-poco.md` |
-| 5a | libsimdpp → xsimd | xsimd копией в `third_party/xsimd`: определение CPU и `SIMDConvert` на xsimd, `PothosConfigSIMD.cmake` без `SimdppMultiarch`, сабмодуль libsimdpp удалён; имена архитектур (`sse2`, `avx2`…) — сохранить или менять вместе с тулкитами | пишется после этапа 5 |
-| 6 | Модернизация публичного API | проход по `include/Pothos/**` (std::span/optional/стандартные примитивы), чистка предупреждений; CMake-гигиена для подключения ядра подпроектом (решение пользователя, 2026-10-27, до этапа 7): опции с префиксом `POTHOS_` вместо `ENABLE_LIBRARY*` (и будущих `ENABLE_PYTHON`/`ENABLE_BLOCKS*`), тесты/документация/`feature_summary`/глобальные `CMAKE_*` только при `PROJECT_IS_TOP_LEVEL`, `PROJECT_BINARY_DIR` вместо `CMAKE_BINARY_DIR` (сейчас `pothos.stage` в подпроекте установил бы весь родительский проект), стандарт и rpath — свойствами целей, CI-проверка «ядро через `add_subdirectory`» с одноимёнными опциями родителя | пишется после этапа 5 |
-| 7 | Чистка репозитория (решения пользователя, 2026-10-27) | в PothosCore остаётся только ядро (`lib`, `include`, `apps`); все сабмодули и их каталоги удаляются (ядро самодостаточно); `blocks`, `python`, `flow`, `widgets`, `soapy`, `plotters`, `comms`, `audio` переезжают в отдельные репозитории (`blocks` и `python` — тоже, уточнения пользователя 2026-10-27; раньше планировались в дерево ядра); README.md и Changelog.txt корректируются. Учесть для сборки «ядро + тулкиты» подпроектами: `find_package(Pothos)` у родителя/соседей после `add_subdirectory(ядра)` сейчас не находит конфигурацию (`Pothos_DIR` — обычная переменная в области ядра; замечание ревью 6a) | пишется после этапа 6 |
-| 8 | blocks в дереве ядра (решение пользователя, 2026-10-27) | история PothosBlocks в `blocks/`, сборка с ядром (`POTHOS_BUILD_BLOCKS`) на `third_party` ядра (json, xsimd, Asio через `lib/Net`), без Poco; copier и сетевые блоки поставляются с ядром | `2026-10-27-phase8-blocks-in-core.md` |
-| 9 | Зависимости через find_package, blocks снова отдельно (решение пользователя, 2026-10-28; отменяет этап 8) | `third_party/` удалён: nlohmann_json, Asio, xsimd через `find_package` (системные пакеты или Conan 2, `conanfile.txt`; CMake не знает о Conan); blocks — форк `markvin/PothosBlocks` (ветка `pothos2`, свой `conanfile.txt`), только публичный API ядра (`Pothos::Util::parseUri/resolveHost`, публичный `XSIMDCopy.hpp`); CI: 4 job'а через Conan + `linux-system` (Arch) | `2026-10-28-phase9-conan-deps.md` |
-| 10 | comms на ядре pothos2 (решения пользователя, 2026-10-28) | форк `markvin/PothosComms` (ветка `pothos2`): сборка против установленного ядра (`find_package`, nlohmann_json, xsimd; системные пакеты или Conan 2), без Poco; `math/SIMD` на `XSIMDCopy.hpp` и API xsimd 14; spuce заменён своей внутренней библиотекой `comms_filter_design` (`filter/design/`, порт spuce `ad08df7`, эталонные данные из spuce); самотесты требуют PothosBlocks в префиксе ядра; CI: 4 job'а через Conan + `linux-system` (Arch) | `2026-10-28-phase10-comms.md` |
-| 11 | PothosBase — агрегирующая сборка (решения пользователя, 2026-10-28) | репозиторий `markvin/PothosBase` (ветка `main`): core, blocks, comms — сабмодули на `pothos2`, одно дерево CMake (`add_subdirectory`), `POTHOS_BASE_<NAME>_DIR` подставляет локальный клон; тесты `base.stage`/`base.modules`/`base.selftests` из одного префикса; `build/pothos-env.sh` для отладки; в тулкитах `CMP0144` NEW + `NO_PACKAGE_ROOT_PATH`; CI: Linux (Conan) + `linux-system` (Arch) | `2026-10-28-phase11-pothosbase.md` |
-| 12 | widgets на ядре pothos2 (решения пользователя, 2026-10-29) | форк `markvin/PothosWidgets` (ветка `pothos2`): сборка против установленного ядра (CMake 3.25, `CMP0144` NEW), только Qt 6 (≥ 6.5) из системы или установщика Qt, не из Conan; без Qt 6 configure останавливается с понятной ошибкой; install RPATH на каталог Qt вне системных каталогов; смоук-тест 11 виджетов на платформе `offscreen` (без дисплея); CI: 4 job'а (Conan для ядра + `install-qt-action`) + `linux-system` (Arch, `qt6-base`); widgets — сабмодуль PothosBase | `2026-10-29-phase12-widgets.md` |
-| 13 | soapy на ядре pothos2 (решения пользователя, 2026-10-28 и 2026-10-29) | форк `markvin/PothosSoapy` (ветка `pothos2`): сборка против установленного ядра (CMake 3.25, `CMP0144` NEW), без Poco (лог SoapySDR — в логгер Pothos); SoapySDR ≥ 0.8 из системы или из исходников upstream, не из Conan; без SoapySDR configure останавливается с понятной ошибкой; с SoapySDR < 0.9 цели soapy игнорируют `#warning` о `<ciso646>` (GCC ≥ 15); install RPATH на каталог SoapySDR вне системных каталогов; самотесты без железа через свой тестовый драйвер SoapySDR (`pothos_soapy_test`, регистрируется только внутри теста); ручной тест `soapy.device` с реальным устройством; CI: 4 job'а (Conan + SoapySDR `soapy-sdr-0.9.0` из исходников, `actions/cache`) + `linux-system` (Arch, `soapysdr` 0.8.1); soapy — сабмодуль PothosBase | `2026-10-29-phase13-soapy.md` |
+| # | Phase | Result | Plan |
+|---|-------|--------|------|
+| 1 | Build foundation | CMake ≥ 3.25 / works on 4.x, C++23, json in the tree, Poco and muparserx private, self-tests through CTest, export of `Pothos::Pothos` without Poco, CI on GitHub Actions | `2026-10-26-phase1-build-foundation.md` |
+| 2 | Own expression evaluator | `EvalEnvironment` without muparserx, the muparserx submodule removed | `2026-10-27-phase2-expression-evaluator.md` |
+| 3 | Replace Poco Foundation | `std::format`/`filesystem`/…, an internal platform layer (DynamicLibrary, Process+Pipe, Environment), a public log API; Poco stays only in Net/Util | `2026-10-26-phase3-replace-poco-foundation.md` |
+| 4 | Network on Asio | Asio in the tree, Remote (client/server/proxy), syslog-compatible forward/listener, `Util/Network`; the network layer is ready for a future HTTP/WebSocket server (web UI) | `2026-10-27-phase4-network-asio.md` |
+| 5 | PothosUtil without Poco::Util, Poco removed | own argument parser, stop on signals, `--daemon`/`--pidfile`/`--umask`, Windows service; the poco submodule removed | `2026-10-27-phase5-remove-poco.md` |
+| 5a | libsimdpp → xsimd | xsimd as a copy in `third_party/xsimd`: CPU detection and `SIMDConvert` on xsimd, `PothosConfigSIMD.cmake` without `SimdppMultiarch`, the libsimdpp submodule removed; the architecture names (`sse2`, `avx2`…) stay, or change together with the toolkits | `2026-10-27-phase5a-xsimd.md` |
+| 6 | Public API modernization | examine `include/Pothos/**` (std::span/optional/standard primitives), remove the warnings; CMake hygiene for the core as a subproject (user decision, 2026-10-27, before phase 7): options with the prefix `POTHOS_` in place of `ENABLE_LIBRARY*` (and the future `ENABLE_PYTHON`/`ENABLE_BLOCKS*`), tests/docs/`feature_summary`/global `CMAKE_*` only with `PROJECT_IS_TOP_LEVEL`, `PROJECT_BINARY_DIR` in place of `CMAKE_BINARY_DIR` (now `pothos.stage` in a subproject installs all of the parent project), the standard and the rpath as target properties, a CI check "the core through `add_subdirectory`" with parent options of the same names | `2026-10-27-phase6a-cmake-subproject.md`, `2026-10-27-phase6b-public-api.md` |
+| 7 | Repository cleanup (user decisions, 2026-10-27) | PothosCore keeps only the core (`lib`, `include`, `apps`); all submodules and their directories are removed (the core is self-contained); `blocks`, `python`, `flow`, `widgets`, `soapy`, `plotters`, `comms`, `audio` move to separate repositories (`blocks` and `python` too, user clarifications 2026-10-27; before, the plan put them into the core tree); README.md and Changelog.txt are corrected. For a build "core + toolkits" as subprojects: after `add_subdirectory(core)`, `find_package(Pothos)` in the parent or in a sibling does not find the configuration now (`Pothos_DIR` is a normal variable in the core scope; review note of 6a) | `2026-10-27-phase7-repo-cleanup.md` |
+| 8 | blocks in the core tree (user decision, 2026-10-27) | the PothosBlocks history in `blocks/`, built with the core (`POTHOS_BUILD_BLOCKS`) on the `third_party` of the core (json, xsimd, Asio through `lib/Net`), without Poco; the copier and the network blocks come with the core | `2026-10-27-phase8-blocks-in-core.md` |
+| 9 | Dependencies through find_package, blocks separate again (user decision, 2026-10-28; cancels phase 8) | `third_party/` removed: nlohmann_json, Asio, xsimd through `find_package` (system packages or Conan 2, `conanfile.txt`; CMake does not know about Conan); blocks is the fork `markvin/PothosBlocks` (branch `pothos2`, its own `conanfile.txt`), only the public API of the core (`Pothos::Util::parseUri/resolveHost`, the public `XSIMDCopy.hpp`); CI: 4 jobs with Conan + `linux-system` (Arch) | `2026-10-28-phase9-conan-deps.md` |
+| 10 | comms on the pothos2 core (user decisions, 2026-10-28) | the fork `markvin/PothosComms` (branch `pothos2`): built against the installed core (`find_package`, nlohmann_json, xsimd; system packages or Conan 2), without Poco; `math/SIMD` on `XSIMDCopy.hpp` and the xsimd 14 API; its own internal library `comms_filter_design` replaces spuce (`filter/design/`, a port of spuce `ad08df7`, reference data from spuce); the self-tests require PothosBlocks in the prefix of the core; CI: 4 jobs with Conan + `linux-system` (Arch) | `2026-10-28-phase10-comms.md` |
+| 11 | PothosBase — the aggregate build (user decisions, 2026-10-28) | the repository `markvin/PothosBase` (branch `main`): core, blocks, comms are submodules on `pothos2`, one CMake tree (`add_subdirectory`), `POTHOS_BASE_<NAME>_DIR` puts a local clone in place of a submodule; the tests `base.stage`/`base.modules`/`base.selftests` from one prefix; `build/pothos-env.sh` for debug; in the toolkits `CMP0144` NEW + `NO_PACKAGE_ROOT_PATH`; CI: Linux (Conan) + `linux-system` (Arch) | `2026-10-28-phase11-pothosbase.md` |
+| 12 | widgets on the pothos2 core (user decisions, 2026-10-29) | the fork `markvin/PothosWidgets` (branch `pothos2`): built against the installed core (CMake 3.25, `CMP0144` NEW), only Qt 6 (≥ 6.5) from the system or from the Qt installer, not from Conan; without Qt 6 the configure step stops with a clear error; the install RPATH has the Qt directory when it is not a system directory; a smoke test of 11 widgets on the `offscreen` platform (no display); CI: 4 jobs (Conan for the core + `install-qt-action`) + `linux-system` (Arch, `qt6-base`); widgets is a submodule of PothosBase | `2026-10-29-phase12-widgets.md` |
+| 13 | soapy on the pothos2 core (user decisions, 2026-10-28 and 2026-10-29) | the fork `markvin/PothosSoapy` (branch `pothos2`): built against the installed core (CMake 3.25, `CMP0144` NEW), without Poco (the SoapySDR log goes to the Pothos logger); SoapySDR ≥ 0.8 from the system or from the upstream source, not from Conan; without SoapySDR the configure step stops with a clear error; with SoapySDR < 0.9 the soapy targets ignore the `#warning` about `<ciso646>` (GCC ≥ 15); the install RPATH has the SoapySDR directory when it is not a system directory; the self-tests need no hardware and use an own SoapySDR test driver (`pothos_soapy_test`, registered only during a test); a manual test `soapy.device` with a real device; CI: 4 jobs (Conan + SoapySDR `soapy-sdr-0.9.0` from the source, `actions/cache`) + `linux-system` (Arch, `soapysdr` 0.8.1); soapy is a submodule of PothosBase | `2026-10-29-phase13-soapy.md` |
 
-Порядок 2 ↔ 3 можно поменять. **Решение пользователя (2026-10-26): этап 3
-выполняется раньше этапа 2.**
+The order of phases 2 and 3 can change. **User decision (2026-10-26):
+phase 3 occurs before phase 2.**
 
-## Статус
+## Status
 
-- Этап 1 — выполнен (ветка `pothos2`, CI зелёный на Linux GCC/Clang,
-  Windows MSVC, macOS (Intel-раннер)).
-- Этап 3 — выполнен и слит в `pothos2` (PR #1, merge `e749d7c5`): Poco
-  остаётся в 10 файлах (только Net и Util), `cmake/poco-allowlist.txt`.
-- Журналы исполнения (все решения «Ruling:» и отложенные мелкие замечания):
-  `docs/superpowers/ledgers/`.
-- Этап 2 — выполнен и слит в `pothos2` (PR #2, merge `bd369e9b`): собственный
-  вычислитель `lib/Util/Expr/`, muparserx удалён.
-- Этап 4 — выполнен и слит в `pothos2` (PR #3, merge `34ea844e`): сетевой слой
-  `lib/Net/` на standalone Asio (`third_party/asio`), Remote и syslog без Poco,
-  Poco Net не собирается.
-- Этап 5 — выполнен и слит в `pothos2` (PR #4, merge `d3ecdda5`): Poco удалён
-  полностью; PothosUtil на собственной `pothos_app` (`lib/App/`).
-- Этап 5a — выполнен на ветке `phase5a-xsimd` (план `2026-10-27-phase5a-xsimd.md`):
-  xsimd 14.3.0 в `third_party/xsimd`, определение CPU и `SIMDConvert` на xsimd,
-  свой диспетчер, сабмодуль libsimdpp удалён — у ядра нет сабмодулей.
-  PR в `pothos2` — после ревью.
-- Этап 5a — слит в `pothos2` (PR #6, merge `f3db2df8`).
-- Этап 6 (решения пользователя, 2026-10-27): делится на **6a** — CMake-гигиена
-  для подключения ядра подпроектом (план `2026-10-27-phase6a-cmake-subproject.md`)
-  и **6b** — публичный API «умеренно» (самописное → стандартное без смены
-  абстракций; `std::span` дополнительными методами; сигнатуры, которыми
-  пользуются блоки, не ломаются). Пространство имён `Pothos::` сохраняется.
-- Этап 6a — выполнен на ветке `phase6-api-cmake`: ядро работает как CMake-подпроект
-  (опции `POTHOS_*`, глобальное — только на верхнем уровне, тест `pothos.subproject`).
-  Слит в `pothos2` (PR #7, merge `e9ebc24d`).
-- Этап 6b — выполнен на ветке `phase6b-public-api` (план
-  `2026-10-27-phase6b-public-api.md`): стандартные блокировки (`SpinLockRW`
-  удалён, `SpinLock` ждёт), алиасы `std::` в `Util/Templates.hpp`, `using`
-  вместо `typedef`, `BufferChunk::asSpan`, строки в `POTHOS_TEST_*`,
-  ядро без предупреждений (`POTHOS_WARNINGS_AS_ERRORS` в Linux CI), тест
-  `pothos.api_compat`. Этап 6 выполнен; следующий — этап 7 (чистка репозитория).
-  Известное вне этапа: гонки TSan в `ThreadEnvironment::_waitModeEnabled`
-  (обычный `bool`) и в тестах `TestTopology.cpp`.
-- Этап 6b — слит в `pothos2` (PR #8, merge `0d8e51e1`).
-- Этап 7 (решения пользователя, 2026-10-27: только удалить сабмодули; copier и
-  network-блоки остаются в PothosBlocks — понятная ошибка и документация;
-  `debian/` удалить) — выполнен на ветке `phase7-repo-cleanup` (план
-  `2026-10-27-phase7-repo-cleanup.md`): в репозитории только ядро, сабмодулей
-  нет, `find_package(Pothos)` находит ядро-подпроект (redirect в
-  `CMAKE_FIND_PACKAGE_REDIRECTS_DIR`). Все этапы roadmap выполнены; дальше —
-  перенос тулкитов на API pothos2 в их репозиториях.
-- Этап 8 (решение пользователя, 2026-10-27: не дублировать `third_party` в
-  тулкитах, blocks — в дерево ядра) — выполнен на ветке
-  `phase8-blocks-in-core` (план `2026-10-27-phase8-blocks-in-core.md`).
-  Попутно исправлены: safe load модулей (SIGPIPE), гонка чтения/записи
-  `TcpStream` в удалённых вызовах, `XSIMDTraits` под xsimd 14, генератор
-  SIMD-диспетчеров. Из прочих тулкитов xsimd нужен только Comms.
-- Этап 5a (решение пользователя, 2026-10-27): libsimdpp заменяется на xsimd
-  (копия в `third_party/xsimd`, не Highway — тулкиты уже используют xsimd).
+- Phase 1 — done (branch `pothos2`, CI green on Linux GCC/Clang,
+  Windows MSVC, macOS (Intel runner)).
+- Phase 3 — done and merged into `pothos2` (PR #1, merge `e749d7c5`): Poco
+  stays in 10 files (only Net and Util), `cmake/poco-allowlist.txt`.
+- Execution ledgers (all "Ruling:" decisions and the deferred minor notes)
+  of phases 1–7: `docs/superpowers/ledgers/`.
+- Phase 2 — done and merged into `pothos2` (PR #2, merge `bd369e9b`): an
+  own evaluator `lib/Util/Expr/`, muparserx removed.
+- Phase 4 — done and merged into `pothos2` (PR #3, merge `34ea844e`): the
+  network layer `lib/Net/` on standalone Asio (`third_party/asio`), Remote
+  and syslog without Poco, Poco Net is not built.
+- Phase 5 — done and merged into `pothos2` (PR #4, merge `d3ecdda5`): Poco
+  is fully removed; PothosUtil is on its own `pothos_app` (`lib/App/`).
+- Phase 5a — done on the branch `phase5a-xsimd` (plan
+  `2026-10-27-phase5a-xsimd.md`): xsimd 14.3.0 in `third_party/xsimd`, CPU
+  detection and `SIMDConvert` on xsimd, an own dispatcher, the libsimdpp
+  submodule removed — the core has no submodules. The PR into `pothos2`
+  comes after the review.
+- Phase 5a — merged into `pothos2` (PR #6, merge `f3db2df8`).
+- Phase 6 (user decisions, 2026-10-27): it has two parts. **6a** is the
+  CMake hygiene for the core as a subproject (plan
+  `2026-10-27-phase6a-cmake-subproject.md`). **6b** is a "moderate" public
+  API change: home-made constructs become standard ones, the abstractions
+  stay. `std::span` comes as additional methods. The signatures that the
+  blocks use do not break. The namespace `Pothos::` stays.
+- Phase 6a — done on the branch `phase6-api-cmake`: the core works as a
+  CMake subproject (options `POTHOS_*`, global settings only at the top
+  level, the test `pothos.subproject`). Merged into `pothos2` (PR #7, merge
+  `e9ebc24d`).
+- Phase 6b — done on the branch `phase6b-public-api` (plan
+  `2026-10-27-phase6b-public-api.md`): standard locks (`SpinLockRW`
+  removed, `SpinLock` waits), `std::` aliases in `Util/Templates.hpp`,
+  `using` in place of `typedef`, `BufferChunk::asSpan`, strings in
+  `POTHOS_TEST_*`, the core has no warnings (`POTHOS_WARNINGS_AS_ERRORS` in
+  the Linux CI), the test `pothos.api_compat`. Phase 6 is done; the next
+  one is phase 7 (repository cleanup). Known out of the phase: TSan races
+  in `ThreadEnvironment::_waitModeEnabled` (a plain `bool`) and in the
+  tests in `TestTopology.cpp`.
+- Phase 6b — merged into `pothos2` (PR #8, merge `0d8e51e1`).
+- Phase 7 (user decisions, 2026-10-27: only remove the submodules; the
+  copier and the network blocks stay in PothosBlocks — a clear error and
+  documentation; remove `debian/`) — done on the branch
+  `phase7-repo-cleanup` (plan `2026-10-27-phase7-repo-cleanup.md`): the
+  repository has only the core and no submodules. `find_package(Pothos)`
+  finds the core as a subproject (a redirect in
+  `CMAKE_FIND_PACKAGE_REDIRECTS_DIR`). All roadmap phases are done; the
+  next work is the port of the toolkits to the pothos2 API in their
+  repositories.
+- Phase 8 (user decision, 2026-10-27: do not copy `third_party` into the
+  toolkits, put blocks into the core tree) — done on the branch
+  `phase8-blocks-in-core` (plan `2026-10-27-phase8-blocks-in-core.md`).
+  Also fixed: the safe load of modules (SIGPIPE), a read/write race of
+  `TcpStream` in remote calls, `XSIMDTraits` for xsimd 14, the generator
+  of the SIMD dispatchers. Of the other toolkits, only Comms needs xsimd.
+- Phase 5a (user decision, 2026-10-27): xsimd replaces libsimdpp (a copy
+  in `third_party/xsimd`, not Highway — the toolkits already use xsimd).
 
-- Этап 9 (решения пользователя, 2026-10-28) — выполнен на ветке
-  `phase9-conan-deps` (спецификация `2026-10-28-phase9-conan-deps-design.md`,
-  план `2026-10-28-phase9-conan-deps.md`): этап 8 отменён, blocks — форк
-  `markvin/PothosBlocks` (ветка `pothos2`, история upstream `4aef23f` + коммиты
-  этапов 8–9); `third_party/` удалён, зависимости через `find_package`
-  (система или Conan 2). CI зелёный: ядро 5/5, blocks 4/4. Дальше: comms
-  по той же схеме (этап 10).
+- Phase 9 (user decisions, 2026-10-28) — done on the branch
+  `phase9-conan-deps` (spec `2026-10-28-phase9-conan-deps-design.md`, plan
+  `2026-10-28-phase9-conan-deps.md`): phase 8 is cancelled. blocks is the
+  fork `markvin/PothosBlocks` (branch `pothos2`, the upstream history
+  `4aef23f` and the commits of phases 8–9). `third_party/` is removed; the
+  dependencies come from `find_package` (the system or Conan 2). CI is
+  green: core 5/5, blocks 4/4. Next: comms with the same scheme (phase 10).
 
-- Этап 10 (решения пользователя, 2026-10-28) — выполнен в форке
-  `markvin/PothosComms` (спецификация `2026-10-28-phase10-comms-design.md`,
-  план `2026-10-28-phase10-comms.md`, PR #1 `phase10-comms` → `pothos2`):
-  comms собирается против установленного ядра без Poco и без spuce. Своя
-  библиотека расчёта фильтров `filter/design/` даёт те же отводы, что spuce
-  `ad08df7` (эталонные данные, генератор в `filter/design/tools/`). Изменения
-  поведения: `IIRFilter.setTaps` с 1 отводом и `IIRDesigner` с неизвестным
-  типом или полосой дают исключение; границы Remez, где у spuce было UB, —
-  ошибку. CI зелёный: 5/5, по 60 самотестов. Ядро не менялось.
+- Phase 10 (user decisions, 2026-10-28) — done in the fork
+  `markvin/PothosComms` (spec `2026-10-28-phase10-comms-design.md`, plan
+  `2026-10-28-phase10-comms.md`, PR #1 `phase10-comms` → `pothos2`): comms
+  builds against the installed core without Poco and without spuce. Its
+  own filter design library `filter/design/` gives the same taps as spuce
+  `ad08df7` (reference data, the generator in `filter/design/tools/`).
+  Behavior changes: `IIRFilter.setTaps` with 1 tap and `IIRDesigner` with
+  an unknown type or band throw an exception. The Remez limits where spuce
+  had UB give an error. CI is green: 5/5, 60 self-tests in each job. The
+  core did not change.
 
-- Этап 11 (решения пользователя, 2026-10-28) — выполнен в репозитории
-  `markvin/PothosBase` (спецификация `2026-10-28-phase11-pothosbase-design.md`,
-  план `2026-10-28-phase11-pothosbase.md`, PR #1 `add-comms` → `main`): core,
-  blocks и comms — сабмодули на концах `pothos2`, одно дерево CMake. В blocks
-  (PR #1) и comms (PR #2) `CMP0144` NEW и `find_package(Pothos ...
-  NO_PACKAGE_ROOT_PATH)`: тулкит не ищет ядро по `POTHOS_ROOT`. CI зелёный:
-  2/2 (Conan и Arch), 316 самотестов из одного префикса, 0 предупреждений.
-  Ядро не менялось. Дальше: следующие тулкиты по одному (widgets → soapy →
-  python → plotters → flow), каждый — в PothosBase после переноса.
+- Phase 11 (user decisions, 2026-10-28) — done in the repository
+  `markvin/PothosBase` (spec `2026-10-28-phase11-pothosbase-design.md`,
+  plan `2026-10-28-phase11-pothosbase.md`, PR #1 `add-comms` → `main`):
+  core, blocks and comms are submodules on the heads of `pothos2`, in one
+  CMake tree. blocks (PR #1) and comms (PR #2) use `CMP0144` NEW and
+  `find_package(Pothos ... NO_PACKAGE_ROOT_PATH)`: a toolkit does not find
+  the core through `POTHOS_ROOT`. CI is green: 2/2 (Conan and Arch), 316
+  self-tests from one prefix, 0 warnings. The core did not change. Next:
+  the other toolkits one by one (widgets → soapy → python → plotters →
+  flow), each goes into PothosBase after its port.
 
-- Этап 12 (решения пользователя, 2026-10-29) — выполнен в форке
-  `markvin/PothosWidgets` (спецификация `2026-10-29-phase12-widgets-design.md`,
-  план `2026-10-29-phase12-widgets.md`, PR #1 `phase12-widgets` → `pothos2`)
-  и в PothosBase (PR #2 `add-widgets` → `main`). Только Qt 6 (≥ 6.5); исправление
-  Qt 6 в `indicator.cpp` (цифры в списке вместо `findChildren`). Смоук-тест
-  11 виджетов на `offscreen` падает на предупреждениях Qt о неудачном вызове
-  (`QMetaObject::invokeMethod`, `Cannot queue arguments`). CI widgets
-  зелёный: 5/5, по 13 самотестов; Qt 6.5.3 на Linux и macOS, Qt 6.8.3 на
-  Windows (заголовки Qt 6.5.3 не собираются с текущим MSVC, решение
-  пользователя). PothosBase: 329 самотестов из одного префикса. Ядро не
-  менялось. Дальше: soapy.
+- Phase 12 (user decisions, 2026-10-29) — done in the fork
+  `markvin/PothosWidgets` (spec `2026-10-29-phase12-widgets-design.md`,
+  plan `2026-10-29-phase12-widgets.md`, PR #1 `phase12-widgets` →
+  `pothos2`) and in PothosBase (PR #2 `add-widgets` → `main`). Only Qt 6
+  (≥ 6.5); a Qt 6 fix in `indicator.cpp` (the digits are in a list, not
+  found with `findChildren`). The smoke test of 11 widgets on `offscreen`
+  fails on the Qt warnings about a failed call
+  (`QMetaObject::invokeMethod`, `Cannot queue arguments`). The widgets CI
+  is green: 5/5, 13 self-tests in each job. Qt 6.5.3 on Linux and macOS,
+  Qt 6.8.3 on Windows (the Qt 6.5.3 headers do not compile with the
+  current MSVC; user decision). PothosBase: 329 self-tests from one
+  prefix. The core did not change. Next: soapy.
 
-- Этап 13 (решения пользователя, 2026-10-28 и 2026-10-29) — выполнен в форке
-  `markvin/PothosSoapy` (спецификация `2026-10-29-phase13-soapy-design.md`,
-  план `2026-10-29-phase13-soapy.md`, PR #1 `phase13-soapy` → `pothos2`,
-  merge `94e1d7f`) и в PothosBase (PR #3 `add-soapy` → `main`). Poco убран;
-  CI собирает SoapySDR `soapy-sdr-0.9.0` из upstream (в 0.9 нет `<ciso646>`),
-  `linux-system` — Arch SoapySDR 0.8.1 с обходом `#warning`. Самотесты без
-  железа: свой драйвер `pothos_soapy_test` в модуле `SoapySupport`
-  (регистрация только на время теста, Find отвечает только на свой
-  `driver=`); 11 самотестов (10 в `/soapy/tests` и
-  `/soapy/device_tests/test_source`). Ручная проверка `soapy.device` на
-  Ettus USRP B210 (SoapyUHD): 950 640 отсчётов за 1 с при 1 MSps (только
-  приём). Исправлено при переносе: недостающие `#include` (`<exception>` в
-  `SoapyBlock.hpp`, сборка с libc++ на macOS). CI soapy зелёный: 5/5.
-  PothosBase: 340 самотестов из одного префикса. Ядро не менялось.
-  Дальше: python.
+- Phase 13 (user decisions, 2026-10-28 and 2026-10-29) — done in the fork
+  `markvin/PothosSoapy` (spec `2026-10-29-phase13-soapy-design.md`, plan
+  `2026-10-29-phase13-soapy.md`, PR #1 `phase13-soapy` → `pothos2`, merge
+  `94e1d7f`) and in PothosBase (PR #3 `add-soapy` → `main`). Poco is
+  removed. CI builds SoapySDR `soapy-sdr-0.9.0` from upstream (0.9 has no
+  `<ciso646>`). `linux-system` uses the Arch SoapySDR 0.8.1 with the
+  `#warning` workaround. The self-tests need no hardware: an own driver
+  `pothos_soapy_test` in the module `SoapySupport` (registered only for
+  the time of a test; Find replies only to its own `driver=`). There are
+  11 self-tests (10 in `/soapy/tests` and
+  `/soapy/device_tests/test_source`). The manual check `soapy.device` on
+  an Ettus USRP B210 (SoapyUHD): 950 640 samples in 1 s at 1 MSps (receive
+  only). Fixed during the port: missing `#include` lines (`<exception>` in
+  `SoapyBlock.hpp`, the build with libc++ on macOS). The soapy CI is
+  green: 5/5. PothosBase: 340 self-tests from one prefix. The core did not
+  change. Next: python.
 
-## Решения для следующих этапов
+## Decisions for the next phases
 
-Решения пользователя (2026-10-28), принятые до начала этих этапов:
+User decisions (2026-10-28), made before these phases started:
 
-- plotters (spuce `design_window` в Periodogram и Spectrogram): своя
-  маленькая копия кода окон в plotters. Замена spuce в comms остаётся
-  внутренней библиотекой comms и не устанавливается.
-- soapy: SoapySDR нет в ConanCenter. CI собирает SoapySDR из исходников
-  upstream `pothosware/SoapySDR` (зафиксированный тег или коммит) отдельным
-  шагом до сборки тулкита и ставит его в префикс зависимостей
-  (`actions/cache` по версии). Остальные зависимости — через Conan. Job
-  `linux-system` берёт `extra/soapysdr`. CMake тулкита: только
-  `find_package(SoapySDR CONFIG)`. Рецепт для ConanCenter — позже,
-  необязательно. Выполнено в этапе 13 (тег `soapy-sdr-0.9.0`, решение
-  пользователя 2026-10-29).
-- PothosBase — оформлен этапом 11 (см. таблицу и статус).
-- PothosBase, следующие тулкиты: добавлять после их переноса, по одному
-  (widgets — этап 12, soapy — этап 13; дальше python → plotters → flow). Проверки `base.modules` и
-  `base.selftests` предполагают каталог модулей `/<toolkit>/` и тесты в
-  `/<toolkit>/tests/`; для python (`proxy/environment`) и flow нужна
-  настройка для тулкита (отложенное замечание ревью этапа 11).
+- plotters (spuce `design_window` in Periodogram and Spectrogram): a small
+  own copy of the window code in plotters. The spuce replacement in comms
+  stays an internal library of comms and is not installed.
+- soapy: ConanCenter does not have SoapySDR. CI builds SoapySDR from the
+  upstream source `pothosware/SoapySDR` (a pinned tag or commit) in a
+  separate step before the toolkit build. It installs SoapySDR into the
+  dependency prefix (`actions/cache` keyed on the version). The other
+  dependencies come from Conan. The job `linux-system` uses
+  `extra/soapysdr`. The CMake code of the toolkit uses only
+  `find_package(SoapySDR CONFIG)`. A recipe for ConanCenter can come
+  later; it is optional. Done in phase 13 (the tag `soapy-sdr-0.9.0`, user
+  decision 2026-10-29).
+- PothosBase — done as phase 11 (refer to the table and the status).
+- PothosBase, the next toolkits: add them after their port, one at a time
+  (widgets is phase 12, soapy is phase 13; then python → plotters → flow). The checks
+  `base.modules` and `base.selftests` expect the module directory
+  `/<toolkit>/` and the tests in `/<toolkit>/tests/`. python
+  (`proxy/environment`) and flow need a setting for the toolkit (a
+  deferred review note of phase 11).
 
-## Заметки для плана этапа 2 (собраны при разведке)
+## Notes for the phase 2 plan (collected during the analysis)
 
-- `Topology::make()` (`lib/Framework/TopologyMakeJSON.cpp:16-36`) и
-  `ProxyBlockEval` (`lib/Util/Builtin/BlockEval.cpp:85`) вычисляют
-  `arg.dump()` для любых не-строковых JSON-значений → синтаксис обязан быть
-  надмножеством JSON: `true`/`false`/`null` в нижнем регистре, числа
-  `-3`, `1e-05`, массивы, объекты с ключами-строками.
-- Строковый аргумент, который не вычислился, становится литеральной строкой
-  (`TopologyMakeJSON.cpp:21-31`, документировано в `Topology.hpp:~95`) →
-  неизвестный идентификатор (`int32`, `hello`) **обязан** бросать исключение,
-  а не давать значение.
-- Пример из документации `Topology.hpp`: globals `{"name":"baz","value":"-fiz"}`
-  — унарный минус над константой.
-- Текущие хаки, которые уходят: `splitExpr` для списков/словарей
-  (`EvalEnvironmentListParsers.cpp`), кодирование словаря в матрицу с меткой
-  `__map__`, временные константы `__tmp__N`, `MupOctalValReader`.
+- `Topology::make()` (`lib/Framework/TopologyMakeJSON.cpp:16-36`) and
+  `ProxyBlockEval` (`lib/Util/Builtin/BlockEval.cpp:85`) calculate
+  `arg.dump()` for all JSON values that are not strings. Thus the syntax
+  must be a superset of JSON: `true`/`false`/`null` in lower case, the
+  numbers `-3`, `1e-05`, arrays, objects with string keys.
+- A string argument that does not evaluate becomes a literal string
+  (`TopologyMakeJSON.cpp:21-31`, documented in `Topology.hpp:~95`). Thus
+  an unknown identifier (`int32`, `hello`) **must** throw an exception, and
+  must not give a value.
+- An example from the `Topology.hpp` documentation: globals
+  `{"name":"baz","value":"-fiz"}` — a unary minus on a constant.
+- The current hacks that go away: `splitExpr` for lists/dictionaries
+  (`EvalEnvironmentListParsers.cpp`), the encoding of a dictionary into a
+  matrix with the label `__map__`, the temporary constants `__tmp__N`,
+  `MupOctalValReader`.

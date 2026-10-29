@@ -1,115 +1,115 @@
-# Этап 6a: CMake-гигиена (ядро как подпроект) — план реализации
+# Phase 6a: CMake hygiene (the core as a subproject) — implementation plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ядро можно подключить к другому проекту через `add_subdirectory`/`FetchContent`. Оно не меняет родителю опции, кеш, глобальные настройки, тесты и цели, а самостоятельная сборка ядра работает как прежде.
+**Goal:** Another project can include the core with `add_subdirectory`/`FetchContent`. The core does not change the options, the cache, the global settings, the tests and the targets of the parent. The standalone build of the core works as before.
 
-**Architecture:** Корневой `CMakeLists.txt` разделяет поведение по `PROJECT_IS_TOP_LEVEL`. Опции получают префикс `POTHOS_`, лишние опции-«компоненты» удаляются. Глобальные `CMAKE_*` заменяются свойствами целей, а `CMAKE_BINARY_DIR` — на `PROJECT_BINARY_DIR`. Новый тест `pothos.subproject` конфигурирует маленький родительский проект с `add_subdirectory(<ядро>)` и проверяет, что ядро ничего ему не испортило.
+**Architecture:** The root `CMakeLists.txt` splits the behavior with `PROJECT_IS_TOP_LEVEL`. The options get the prefix `POTHOS_`, and the extra "component" options are removed. The target properties replace the global `CMAKE_*` settings, and `PROJECT_BINARY_DIR` replaces `CMAKE_BINARY_DIR`. A new test `pothos.subproject` configures a small parent project with `add_subdirectory(<core>)` and checks that the core did not damage it.
 
-**Tech Stack:** CMake ≥ 3.25 (`PROJECT_IS_TOP_LEVEL` есть с 3.21), CTest.
+**Tech Stack:** CMake >= 3.25 (`PROJECT_IS_TOP_LEVEL` exists since 3.21), CTest.
 
-**Spec:** `docs/superpowers/specs/2026-10-26-core-modernization-design.md` («Структура CMake … на усмотрение исполнителя»; анти-цель: потребителю не должны требоваться внутренние зависимости). Roadmap: этап 6, пункт «CMake-гигиена» (решение пользователя 2026-10-27; этап 6 делится на 6a и 6b, пространство имён `Pothos::` сохраняется).
+**Spec:** `docs/superpowers/specs/2026-10-26-core-modernization-design.md` ("The CMake structure ... is at the discretion of the implementer"; anti-goal: the consumer must not need the internal dependencies). Roadmap: phase 6, the item "CMake hygiene" (decision of the user 2026-10-27; phase 6 is split into 6a and 6b, and the namespace `Pothos::` stays).
 
 ## Global Constraints
 
-- Самостоятельная сборка не меняется:
-  - те же цели;
-  - та же установка (раскладка, `PothosConfig.cmake`, `Pothos.pc`);
-  - те же тесты CTest;
-  - `compile_commands.json` создаётся;
-  - rpath установленных `libPothos` и `PothosUtil` прежний.
-- Linux GCC/Clang, macOS, Windows MSVC — все четыре CI-job зелёные.
-- Совместимость имён CMake-опций не требуется (спека: «Структура CMake … на усмотрение исполнителя»); переименования фиксируются в `Changelog.txt` и README.
-- Проверка каждой задачи: `cmake --build build && ctest --test-dir build --output-on-failure` → все PASS.
-- Push в `origin` — только с согласия пользователя.
+- The standalone build does not change:
+  - the same targets;
+  - the same install (layout, `PothosConfig.cmake`, `Pothos.pc`);
+  - the same CTest tests;
+  - `compile_commands.json` is created;
+  - the rpath of the installed `libPothos` and `PothosUtil` is the same as before.
+- Linux GCC/Clang, macOS and Windows MSVC: all four CI jobs are green.
+- The compatibility of the names of the CMake options is not necessary (spec: "The CMake structure ... is at the discretion of the implementer"). `Changelog.txt` and the README record the renames.
+- The check for each task: `cmake --build build && ctest --test-dir build --output-on-failure` -> all PASS.
+- Push to `origin` only with the consent of the user.
 
-## Решения (на утверждение)
+## Decisions (for approval)
 
-1. **Опции.**
-   - Удаляются `ENABLE_LIBRARY`, `ENABLE_LIBRARY_LIB`, `ENABLE_LIBRARY_INCLUDE`, `ENABLE_LIBRARY_CMAKE`: библиотека и есть проект, выключать её бессмысленно.
-   - Новые опции:
-     - `POTHOS_BUILD_APPS` (PothosUtil; по умолчанию ON — нужна самотестам и безопасной загрузке модулей);
-     - `POTHOS_BUILD_DOCS` (по умолчанию ON, если найден Doxygen и проект верхнего уровня);
-     - `POTHOS_BUILD_TESTS` (регистрация тестов CTest; по умолчанию `${PROJECT_IS_TOP_LEVEL}`).
-   - Уже есть с префиксом: `POTHOS_ENABLE_LIBNUMA`, `POTHOS_SELFTEST_TIMEOUT`, `POTHOS_ROOT`, `POTHOS_ROOT_ENV`. `APPDATA_ENV` переименовывается в `POTHOS_APPDATA_ENV`.
-2. **Только на верхнем уровне:**
-   - `enable_testing()` по умолчанию (через `POTHOS_BUILD_TESTS`);
+1. **Options.**
+   - These options are removed: `ENABLE_LIBRARY`, `ENABLE_LIBRARY_LIB`, `ENABLE_LIBRARY_INCLUDE`, `ENABLE_LIBRARY_CMAKE`. The library is the project, and it makes no sense to disable it.
+   - New options:
+     - `POTHOS_BUILD_APPS` (PothosUtil; the default is ON, because the self-tests and the safe load of the modules need it);
+     - `POTHOS_BUILD_DOCS` (the default is ON if Doxygen is found and the project is top level);
+     - `POTHOS_BUILD_TESTS` (the registration of the CTest tests; the default is `${PROJECT_IS_TOP_LEVEL}`).
+   - These options already have the prefix: `POTHOS_ENABLE_LIBNUMA`, `POTHOS_SELFTEST_TIMEOUT`, `POTHOS_ROOT`, `POTHOS_ROOT_ENV`. `APPDATA_ENV` is renamed to `POTHOS_APPDATA_ENV`.
+2. **Only at the top level:**
+   - `enable_testing()` by default (through `POTHOS_BUILD_TESTS`);
    - `feature_summary`;
    - `CMAKE_EXPORT_COMPILE_COMMANDS`;
-   - выбор `Release`, если `CMAKE_BUILD_TYPE` пуст;
-   - цель `uninstall`. В подпроекте вместо неё появляется `pothos_uninstall`.
-3. **Глобальные настройки → свойства целей.**
-   - `CMAKE_CXX_STANDARD`/`_REQUIRED`/`_EXTENSIONS` удаляются. Стандарт уже приходит через `target_compile_features(... cxx_std_23)`; `CXX_EXTENSIONS OFF` ставится на цели ядра.
-   - `option(CMAKE_SKIP_BUILD_RPATH…)`, `option(CMAKE_BUILD_WITH_INSTALL_RPATH…)`, `option(CMAKE_INSTALL_RPATH_USE_LINK_PATH…)`, `CMAKE_INSTALL_RPATH`, `CMAKE_MACOSX_RPATH` удаляются. `INSTALL_RPATH` (`$ORIGIN/../lib…`, `@loader_path/../lib…`) ставится на `Pothos` и `PothosUtil`.
-3a. **`PothosConfig.cmake` при сборке ядра в дереве** (`POTHOS_IN_TREE_SOURCE_DIR`) не трогает `CMAKE_BUILD_TYPE`. Для внешних потребителей (`find_package`) поведение прежнее.
-4. **`CMAKE_BINARY_DIR` → `PROJECT_BINARY_DIR`** во всех путях ядра: stage, test-home, consumer, test-env-guard.
+   - the selection of `Release` if `CMAKE_BUILD_TYPE` is empty;
+   - the target `uninstall`. In a subproject, `pothos_uninstall` appears in its place.
+3. **Global settings -> target properties.**
+   - `CMAKE_CXX_STANDARD`/`_REQUIRED`/`_EXTENSIONS` are removed. The standard already comes through `target_compile_features(... cxx_std_23)`. `CXX_EXTENSIONS OFF` is set on the core targets.
+   - `option(CMAKE_SKIP_BUILD_RPATH...)`, `option(CMAKE_BUILD_WITH_INSTALL_RPATH...)`, `option(CMAKE_INSTALL_RPATH_USE_LINK_PATH...)`, `CMAKE_INSTALL_RPATH` and `CMAKE_MACOSX_RPATH` are removed. `INSTALL_RPATH` (`$ORIGIN/../lib...`, `@loader_path/../lib...`) is set on `Pothos` and `PothosUtil`.
+3a. **`PothosConfig.cmake` in a build of the core in the tree** (`POTHOS_IN_TREE_SOURCE_DIR`) does not touch `CMAKE_BUILD_TYPE`. For the external consumers (`find_package`) the behavior is the same as before.
+4. **`CMAKE_BINARY_DIR` -> `PROJECT_BINARY_DIR`** in all paths of the core: stage, test-home, consumer, test-env-guard.
 
 ## Review Focus
 
-1. **Самостоятельная сборка не изменилась:**
-   - список установленных файлов до и после совпадает (diff `install_manifest.txt` старой и новой сборки);
-   - тесты CTest те же;
-   - rpath у `PothosUtil` и `libPothos` прежний (`readelf -d`/`otool -l`).
+1. **The standalone build did not change:**
+   - the list of the installed files is the same before and after (diff of `install_manifest.txt` of the old and the new build);
+   - the CTest tests are the same;
+   - the rpath of `PothosUtil` and `libPothos` is the same as before (`readelf -d`/`otool -l`).
 
-   Шаг проверки в Task 2.
-2. **Родитель с одноимёнными опциями и целями.** Родитель со своими `option(ENABLE_LIBRARY OFF)`, `option(BUILD_DOCS OFF)` и целью `uninstall`, а также с пустым `CMAKE_BUILD_TYPE`:
-   - конфигурируется;
-   - его значения не меняются;
-   - `Pothos::Pothos` доступна.
+   The check step is in Task 2.
+2. **A parent with options and targets of the same names.** A parent with its own `option(ENABLE_LIBRARY OFF)`, `option(BUILD_DOCS OFF)` and a target `uninstall`, and also with an empty `CMAKE_BUILD_TYPE`:
+   - configures;
+   - its values do not change;
+   - `Pothos::Pothos` is available.
 
-   Тест `pothos.subproject` (Task 1).
-3. **Тесты ядра не попадают в `ctest` родителя без `POTHOS_BUILD_TESTS=ON`.** С `ON` stage-каталог лежит в бинарном каталоге ядра, а не родителя. Тот же тест (Task 1).
-4. **Глобальные переменные родителя не меняются:** `CMAKE_CXX_STANDARD`, `CMAKE_INSTALL_RPATH`, `CMAKE_EXPORT_COMPILE_COMMANDS`, `CMAKE_BUILD_TYPE` до и после `add_subdirectory` совпадают. Тот же тест (Task 1).
-5. **Потребитель через `find_package`** (`pothos.consumer`) и самотесты из stage работают на всех платформах — CI.
+   Test `pothos.subproject` (Task 1).
+3. **The tests of the core do not go into the `ctest` of the parent without `POTHOS_BUILD_TESTS=ON`.** With `ON`, the stage directory is in the binary directory of the core, not of the parent. The same test (Task 1).
+4. **The global variables of the parent do not change:** `CMAKE_CXX_STANDARD`, `CMAKE_INSTALL_RPATH`, `CMAKE_EXPORT_COMPILE_COMMANDS` and `CMAKE_BUILD_TYPE` are the same before and after `add_subdirectory`. The same test (Task 1).
+5. **A consumer through `find_package`** (`pothos.consumer`) and the self-tests from stage work on all platforms - CI.
 
 ---
 
-### Task 1: Тест «ядро как подпроект» и исправления CMake
+### Task 1: Test "the core as a subproject" and the CMake corrections
 
 **Files:**
-- Create: `tests/subproject/CMakeLists.txt` (родительский проект), `cmake/PothosSubprojectTest.cmake` (cmake -P: конфигурирует родителя дважды — без и с `-DPOTHOS_BUILD_TESTS=ON`; проверяет выводом `message` и `ctest -N`)
+- Create: `tests/subproject/CMakeLists.txt` (the parent project), `cmake/PothosSubprojectTest.cmake` (cmake -P: it configures the parent two times, without and with `-DPOTHOS_BUILD_TESTS=ON`. It checks the `message` output and `ctest -N`)
 - Modify: `CMakeLists.txt`, `lib/CMakeLists.txt`, `apps/CMakeLists.txt`, `include/CMakeLists.txt`, `cmake/Modules/CMakeLists.txt`, `docs/CMakeLists.txt`, `cmake/Modules/PothosConfig.cmake`
 
 **Interfaces:**
 - `tests/subproject/CMakeLists.txt`: `project(Parent)`.
-  - До подключения ядра: `option(ENABLE_LIBRARY "" OFF)`, `option(BUILD_DOCS "" OFF)`, `add_custom_target(uninstall)`. Также запоминает `CMAKE_CXX_STANDARD`, `CMAKE_INSTALL_RPATH`, `CMAKE_EXPORT_COMPILE_COMMANDS`, `CMAKE_BUILD_TYPE`.
-  - Затем `add_subdirectory(${POTHOS_SOURCE} pothos)`.
-  - После него печатает `PARENT_CHECK name=value` для каждого из этих значений, а также `HAS_TARGET=$<TARGET_EXISTS:Pothos::Pothos>` (через `if(TARGET)`).
-- `pothos.subproject` (тест CTest, только на верхнем уровне при `POTHOS_BUILD_TESTS`), конфигурации в `${PROJECT_BINARY_DIR}/subproject[-tests]`.
-  - Ожидается: значения родителя не изменились, `Pothos::Pothos` существует.
-  - Без `POTHOS_BUILD_TESTS` `ctest -N` в каталоге родителя показывает 0 тестов.
-  - С ним — тесты `pothos.*`, а stage-путь в их командах лежит под `pothos/`.
+  - Before the core is included: `option(ENABLE_LIBRARY "" OFF)`, `option(BUILD_DOCS "" OFF)`, `add_custom_target(uninstall)`. It also saves `CMAKE_CXX_STANDARD`, `CMAKE_INSTALL_RPATH`, `CMAKE_EXPORT_COMPILE_COMMANDS` and `CMAKE_BUILD_TYPE`.
+  - Then `add_subdirectory(${POTHOS_SOURCE} pothos)`.
+  - After it, the project prints `PARENT_CHECK name=value` for each of these values, and also `HAS_TARGET=$<TARGET_EXISTS:Pothos::Pothos>` (through `if(TARGET)`).
+- `pothos.subproject` (a CTest test, only at the top level with `POTHOS_BUILD_TESTS`), the configurations are in `${PROJECT_BINARY_DIR}/subproject[-tests]`.
+  - Expected: the values of the parent did not change, and `Pothos::Pothos` exists.
+  - Without `POTHOS_BUILD_TESTS`, `ctest -N` in the directory of the parent shows 0 tests.
+  - With it, the tests are `pothos.*`, and the stage path in their commands is under `pothos/`.
 
-- [ ] **Step 1: Написать `tests/subproject/CMakeLists.txt`, `cmake/PothosSubprojectTest.cmake` и регистрацию `pothos.subproject`.**
-- [ ] **Step 2: Run** `ctest -R pothos.subproject` → FAIL (опция `ENABLE_LIBRARY=OFF` родителя выключает ядро / `uninstall` конфликтует / тесты ядра в родителе).
-- [ ] **Step 3: Реализовать решения 1–4.**
-- [ ] **Step 4: Run** полный `ctest` → PASS (тестов 5).
+- [ ] **Step 1: Write `tests/subproject/CMakeLists.txt`, `cmake/PothosSubprojectTest.cmake` and the registration of `pothos.subproject`.**
+- [ ] **Step 2: Run** `ctest -R pothos.subproject` -> FAIL (the option `ENABLE_LIBRARY=OFF` of the parent disables the core / `uninstall` is in conflict / the tests of the core are in the parent).
+- [ ] **Step 3: Implement** decisions 1-4.
+- [ ] **Step 4: Run** the complete `ctest` -> PASS (5 tests).
 - [ ] **Step 5: Commit** `build: the core works as a CMake subproject (POTHOS_ options, top-level only globals)`
 
 ---
 
-### Task 2: Самостоятельная сборка не изменилась; документация
+### Task 2: The standalone build did not change; documentation
 
 **Files:**
-- Modify: `README.md` (опции сборки, подключение подпроектом), `CLAUDE.md` (опции, правило «никаких глобальных `CMAKE_*`/общих имён»), `Changelog.txt` (pothos2: переименованные/удалённые опции)
+- Modify: `README.md` (the build options, the use as a subproject), `CLAUDE.md` (the options, the rule "no global `CMAKE_*`/common names"), `Changelog.txt` (pothos2: the renamed/removed options)
 
-- [ ] **Step 1: Сравнить установку:** чистая сборка `pothos2` (без этой ветки) и этой ветки в `/tmp`-подобные каталоги в scratchpad → `install_manifest.txt` совпадают; `readelf -d build-*/stage/bin/PothosUtil | grep -E 'RUNPATH|RPATH'` и для `libPothos.so` — одинаковые; `ctest -N` — одинаковый список, кроме нового `pothos.subproject`. Расхождения — исправить или записать решение в журнал.
-- [ ] **Step 2: Обновить документацию.**
-- [ ] **Step 3: Чистые сборки GCC и Clang** → полный `ctest` PASS; удалить каталоги.
+- [ ] **Step 1: Compare the install:** make a clean build of `pothos2` (without this branch) and of this branch in `/tmp`-like directories in the scratchpad -> the `install_manifest.txt` files are the same. `readelf -d build-*/stage/bin/PothosUtil | grep -E 'RUNPATH|RPATH'` and the same for `libPothos.so` give the same result. `ctest -N` gives the same list, except for the new `pothos.subproject`. Correct the differences or record the decision in the ledger.
+- [ ] **Step 2: Update the documentation.**
+- [ ] **Step 3: Clean GCC and Clang builds** -> the complete `ctest` PASS. Delete the directories.
 - [ ] **Step 4: Commit** `docs: CMake options and use as a subproject`
 
 ---
 
-### Task 3: Итог этапа
+### Task 3: End of the phase
 
 **Files:**
-- Modify: `docs/superpowers/plans/2026-10-26-core-modernization-roadmap.md` (6a выполнен; следующий — 6b), журнал `docs/superpowers/ledgers/2026-10-27-phase6a-cmake-subproject.md`
+- Modify: `docs/superpowers/plans/2026-10-26-core-modernization-roadmap.md` (6a is done; the next one is 6b), the ledger `docs/superpowers/ledgers/2026-10-27-phase6a-cmake-subproject.md`
 
-- [ ] **Step 1: Обновить roadmap и журнал. Commit** `docs: phase 6a complete — the core as a CMake subproject`
-- [ ] **Step 2: Свежее ревью всей ветки** (фокус — Review Focus), исправления отдельными коммитами.
-- [ ] **Step 3: С согласия пользователя — push ветки `phase6-api-cmake`, PR в `pothos2`, CI на всех четырёх job-ах.**
+- [ ] **Step 1: Update the roadmap and the ledger. Commit** `docs: phase 6a complete — the core as a CMake subproject`
+- [ ] **Step 2: Do a fresh review of the complete branch** (the focus is Review Focus). Make the corrections in separate commits.
+- [ ] **Step 3: With the consent of the user: push the branch `phase6-api-cmake`, make a PR to `pothos2`, and check that CI passes on all four jobs.**
 
-## Вне этапа
+## Out of scope
 
-- Публичный API (этап 6b): `SpinLock`/`SpinLockRW` → стандартные примитивы, `Templates.hpp` → `std::index_sequence`, `throw()` → `noexcept`, `typedef` → `using`, `std::span` рядом с существующими буферными методами; сигнатуры, которыми пользуются блоки, не ломаются (решение пользователя: «умеренно»).
-- `PothosConfig.cmake` для внешних потребителей (`find_package`) по-прежнему выставляет `CMAKE_BUILD_TYPE=Release` по умолчанию — это поведение тулкитов, этап 7.
+- The public API (phase 6b): `SpinLock`/`SpinLockRW` -> the standard primitives, `Templates.hpp` -> `std::index_sequence`, `throw()` -> `noexcept`, `typedef` -> `using`, `std::span` next to the existing buffer methods. The signatures that the blocks use do not break (decision of the user: "moderate").
+- `PothosConfig.cmake` for external consumers (`find_package`) still sets `CMAKE_BUILD_TYPE=Release` by default. This is the behavior of the toolkits, phase 7.
