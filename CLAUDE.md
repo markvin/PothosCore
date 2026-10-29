@@ -22,11 +22,17 @@ Restore / update the project so it builds and works on a modern toolchain.
   markvin/PothosComms, branch `pothos2`, local clone
   `/home/mark/Projects/PothosComms`. Its self-tests need PothosBlocks in the
   prefix of the core
+- PothosWidgets (ported, phase 12) is the fork markvin/PothosWidgets,
+  branch `pothos2`, local clone `/home/mark/Projects/PothosWidgets`. It
+  needs Qt 6 (6.5 or higher) from the system or from the Qt installer
+  (`install-qt-action` in CI), not from Conan. Its self-tests use the Qt
+  platform `offscreen` and need no display
 - PothosBase (phase 11) is the aggregate build: repository
   markvin/PothosBase (branch `main`), local clone
-  `/home/mark/Projects/PothosBase`. The core, blocks and comms are submodules
-  on `pothos2`, built with `add_subdirectory`. `-DPOTHOS_BASE_CORE_DIR=...`
-  (and `_BLOCKS_DIR`, `_COMMS_DIR`) builds a local clone in place of a
+  `/home/mark/Projects/PothosBase`. The core, blocks, comms and widgets are
+  submodules on `pothos2`, built with `add_subdirectory`.
+  `-DPOTHOS_BASE_CORE_DIR=...` (and `_BLOCKS_DIR`, `_COMMS_DIR`,
+  `_WIDGETS_DIR`) builds a local clone in place of a
   submodule. `ctest` runs all self-tests from one stage prefix. A toolkit
   must build both standalone and in PothosBase; its `find_package(Pothos)`
   uses `NO_PACKAGE_ROOT_PATH` (CMP0144 NEW)
