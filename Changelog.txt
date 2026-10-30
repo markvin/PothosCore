@@ -78,6 +78,9 @@ Public API (source compatible for blocks):
 
 - BufferChunk::asSpan<T>() gives a std::span<T> view of the buffer
   (length / sizeof(T) elements; as<T>() and the pointer conversion stay)
+- The implicit conversion of BufferChunk accepts only pointer types
+  (const float *p = buffer;). Before, it accepted any type, thus Qt 6 moc
+  found an order of BufferChunk through int and refused it in slots
 - Util::SpinLock waits (std::atomic_flag::wait) instead of spinning when
   contended; ports and registries use std::mutex/std::shared_mutex
 - Removed: Pothos/Util/SpinLockRW.hpp (use std::shared_mutex)

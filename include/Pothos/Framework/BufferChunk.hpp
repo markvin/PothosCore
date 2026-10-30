@@ -16,6 +16,7 @@
 #include <Pothos/Framework/SharedBuffer.hpp>
 #include <Pothos/Framework/ManagedBuffer.hpp>
 #include <span>
+#include <type_traits> //is_pointer_v
 #include <utility> //move
 
 namespace Pothos {
@@ -157,10 +158,14 @@ public:
      * \code
      * const int *ptr = buffer;
      * \endcode
+     * Only pointer types are accepted: the buffer does not convert to an
+     * integer or a class type (thus BufferChunk has no order through the
+     * conversion, which Qt 6 meta types examine).
      * \return the front of the buffer casted into the specified pointer type
      * \tparam ElementType the desired pointer type
      */
     template <typename ElementType>
+        requires std::is_pointer_v<ElementType>
     operator ElementType(void) const;
 
     /*!
@@ -443,6 +448,7 @@ std::span<ElementType> Pothos::BufferChunk::asSpan(void) const
 }
 
 template <typename ElementType>
+    requires std::is_pointer_v<ElementType>
 Pothos::BufferChunk::operator ElementType(void) const
 {
     return reinterpret_cast<ElementType>(address);
