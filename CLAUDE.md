@@ -36,12 +36,20 @@ Restore / update the project so it builds and works on a modern toolchain.
   (`pothos_soapy_test`) is registered only while a test runs.
   `-DSOAPY_TEST_DEVICE=driver=...` adds a test with a real device. CI
   uses only upstream pothosware/SoapySDR
+- PothosPlotters (ported, phase 14) is the fork markvin/PothosPlotters,
+  branch `pothos2`, local clone `../PothosPlotters`. It needs Qt 6 (6.5
+  or higher) and Qwt 6.3 or higher for Qt 6 from the system or built from
+  source (CI: the qmake build of the SourceForge archive), not from Conan.
+  `cmake/FindQwt.cmake` refuses a Qwt for Qt 5. The plotters make
+  `/comms/wave_trigger`: PothosComms at run time; its self-tests also
+  need PothosBlocks in the prefix of the core. It has its own window code
+  (a copy of the spuce port of comms)
 - PothosBase (phase 11) is the aggregate build: repository
   markvin/PothosBase (branch `main`), local clone
-  `../PothosBase`. The core, blocks, comms, widgets and
-  soapy are submodules on `pothos2`, built with `add_subdirectory`.
+  `../PothosBase`. The core, blocks, comms, widgets, soapy and
+  plotters are submodules on `pothos2`, built with `add_subdirectory`.
   `-DPOTHOS_BASE_CORE_DIR=...` (and `_BLOCKS_DIR`, `_COMMS_DIR`,
-  `_WIDGETS_DIR`, `_SOAPY_DIR`) builds a local clone in place of a
+  `_WIDGETS_DIR`, `_SOAPY_DIR`, `_PLOTTERS_DIR`) builds a local clone in place of a
   submodule. `ctest` runs all self-tests from one stage prefix. A toolkit
   must build both standalone and in PothosBase; its `find_package(Pothos)`
   uses `NO_PACKAGE_ROOT_PATH` (CMP0144 NEW)
@@ -180,5 +188,5 @@ command lines and quoted messages stay as they are.
 - spuce (filter design library of the toolkits, no longer a submodule): the old
   URL audiofilter/spuce is dead; commit `ad08df7` is in the fork
   https://github.com/hayguen/spuce.git. Comms does not use spuce: it has its own
-  filter design code (`filter/design/`, a port of `ad08df7`). Plotters still
-  uses spuce until its phase.
+  filter design code (`filter/design/`, a port of `ad08df7`). Plotters does
+  not use spuce either: it has a copy of the window code of comms.
