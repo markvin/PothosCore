@@ -23,6 +23,7 @@ Poco goes away step by step: the intermediate phases keep it as a
 | 11 | PothosBase — the aggregate build (user decisions, 2026-10-28) | the repository `markvin/PothosBase` (branch `main`): core, blocks, comms are submodules on `pothos2`, one CMake tree (`add_subdirectory`), `POTHOS_BASE_<NAME>_DIR` puts a local clone in place of a submodule; the tests `base.stage`/`base.modules`/`base.selftests` from one prefix; `build/pothos-env.sh` for debug; in the toolkits `CMP0144` NEW + `NO_PACKAGE_ROOT_PATH`; CI: Linux (Conan) + `linux-system` (Arch) | `2026-10-28-phase11-pothosbase.md` |
 | 12 | widgets on the pothos2 core (user decisions, 2026-10-29) | the fork `markvin/PothosWidgets` (branch `pothos2`): built against the installed core (CMake 3.25, `CMP0144` NEW), only Qt 6 (≥ 6.5) from the system or from the Qt installer, not from Conan; without Qt 6 the configure step stops with a clear error; the install RPATH has the Qt directory when it is not a system directory; a smoke test of 11 widgets on the `offscreen` platform (no display); CI: 4 jobs (Conan for the core + `install-qt-action`) + `linux-system` (Arch, `qt6-base`); widgets is a submodule of PothosBase | `2026-10-29-phase12-widgets.md` |
 | 13 | soapy on the pothos2 core (user decisions, 2026-10-28 and 2026-10-29) | the fork `markvin/PothosSoapy` (branch `pothos2`): built against the installed core (CMake 3.25, `CMP0144` NEW), without Poco (the SoapySDR log goes to the Pothos logger); SoapySDR ≥ 0.8 from the system or from the upstream source, not from Conan; without SoapySDR the configure step stops with a clear error; with SoapySDR < 0.9 the soapy targets ignore the `#warning` about `<ciso646>` (GCC ≥ 15); the install RPATH has the SoapySDR directory when it is not a system directory; the self-tests need no hardware and use an own SoapySDR test driver (`pothos_soapy_test`, registered only during a test); a manual test `soapy.device` with a real device; CI: 4 jobs (Conan + SoapySDR `soapy-sdr-0.9.0` from the source, `actions/cache`) + `linux-system` (Arch, `soapysdr` 0.8.1); soapy is a submodule of PothosBase | `2026-10-29-phase13-soapy.md` |
+| 14 | plotters on the pothos2 core (user decisions, 2026-10-28 and 2026-10-30; python is skipped for now) | the fork `markvin/PothosPlotters` (branch `pothos2`): built against the installed core (CMake 3.25, `CMP0144` NEW), only Qt 6 (≥ 6.5) and Qwt ≥ 6.3 for Qt 6 from `find_package` (`cmake/FindQwt.cmake`; a Qwt for Qt 5 is refused at the configure step), not from Conan; no `qwt6` submodule, no built-in Qwt, no spuce (an own copy of the window code of comms); the self-tests (windows, a smoke test of 9 blocks, data through the 5 plotters, `offscreen`) need PothosComms and PothosBlocks in the prefix; a core fix: `BufferChunk` converts implicitly only to pointer types (Qt 6 moc); CI: 4 jobs (Conan + `install-qt-action` + Qwt 6.3.0 built with qmake from the SourceForge archive, `actions/cache`) + `linux-system` (Arch, `qwt`); plotters is a submodule of PothosBase | `2026-10-30-phase14-plotters.md` |
 
 The order of phases 2 and 3 can change. **User decision (2026-10-26):
 phase 3 occurs before phase 2.**
@@ -146,13 +147,36 @@ phase 3 occurs before phase 2.**
   green: 5/5. PothosBase: 340 self-tests from one prefix. The core did not
   change. Next: python.
 
+- Phase 14 (user decisions, 2026-10-28 and 2026-10-30) — done in the core
+  (PR #18 `phase14-plotters`: spec `2026-10-30-phase14-plotters-design.md`,
+  plan `2026-10-30-phase14-plotters.md` and a fix of the public API, merge
+  `9c8df224`), in the fork `markvin/PothosPlotters` (PR #1
+  `phase14-plotters` → `pothos2`, merge `6186aa4`) and in
+  PothosBase (PR #4 `add-plotters` → `main`). python is skipped for now
+  (user decision, 2026-10-30). The core fix: `BufferChunk` converts
+  implicitly only to pointer types. Before, Qt 6 moc found an order of
+  `BufferChunk` through `int`, and each slot with a `BufferChunk` did not
+  compile. Qwt comes only from `find_package`; `FindQwt.cmake` examines
+  the libraries that the found Qwt uses and refuses a Qwt for Qt 5. The
+  window code is a copy of the spuce port of comms, with its reference
+  data. Fixed during the port: `~PothosPlotter` called its slot from
+  `~QwtPlot` (an abort in a debug build). There are 17 self-tests: the
+  windows, a smoke test of the 9 blocks, and data through the 5 plotters.
+  A test owns its `QApplication` only for the time of the test: when the
+  core unloaded the test module, `~QCoreApplication` waited for the Qt
+  thread pool (the spectrogram renders with `QtConcurrent`). That wait
+  hung on the loader lock on Windows and crashed on macOS. The plotters
+  CI is green: 5/5. PothosBase: 358 self-tests from one prefix. Next:
+  flow.
+
 ## Decisions for the next phases
 
 User decisions (2026-10-28), made before these phases started:
 
 - plotters (spuce `design_window` in Periodogram and Spectrogram): a small
   own copy of the window code in plotters. The spuce replacement in comms
-  stays an internal library of comms and is not installed.
+  stays an internal library of comms and is not installed. Done in phase
+  14.
 - soapy: ConanCenter does not have SoapySDR. CI builds SoapySDR from the
   upstream source `pothosware/SoapySDR` (a pinned tag or commit) in a
   separate step before the toolkit build. It installs SoapySDR into the
@@ -164,7 +188,8 @@ User decisions (2026-10-28), made before these phases started:
   decision 2026-10-29).
 - PothosBase — done as phase 11 (refer to the table and the status).
 - PothosBase, the next toolkits: add them after their port, one at a time
-  (widgets is phase 12, soapy is phase 13; then python → plotters → flow). The checks
+  (widgets is phase 12, soapy is phase 13, plotters is phase 14; python
+  is skipped for now (user decision 2026-10-30); then flow). The checks
   `base.modules` and `base.selftests` expect the module directory
   `/<toolkit>/` and the tests in `/<toolkit>/tests/`. python
   (`proxy/environment`) and flow need a setting for the toolkit (a
