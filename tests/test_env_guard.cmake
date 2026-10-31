@@ -1,7 +1,8 @@
 ########################################################################
 # Regression test for cmake/PothosTestEnv.cmake (cmake -P script):
-# pothos_test_env() must refuse to use the real home directory and
-# must never delete anything but its own data/config subdirectories.
+# pothos_test_env() must refuse to use the real home directory, must
+# never delete anything but its own data/config subdirectories, and must
+# unset the POTHOS_* variables of a developer shell.
 #
 # Required: -DWORK=<scratch dir>
 ########################################################################
@@ -43,4 +44,18 @@ pothos_test_env("${WORK}/stage" "${test_dir}" bin lib)
 if (NOT EXISTS "${test_dir}/other.txt" OR NOT IS_DIRECTORY "${test_dir}/data")
     message(FATAL_ERROR "pothos_test_env removed unrelated files or did not create data/")
 endif ()
+#the variables of a developer shell must not reach the tests: modules from
+#somewhere else, an other log level or channel, log forwarding
+set(developer_vars POTHOS_PLUGIN_PATH POTHOS_CONF_PATH POTHOS_LOG_LEVEL POTHOS_LOG_CHANNEL
+    POTHOS_LOG_FILE POTHOS_LOG_FORMAT POTHOS_LOG_TIMEZONE POTHOS_LOG_ASYNC POTHOS_SYSLOG_ADDR)
+foreach(var IN LISTS developer_vars)
+    set(ENV{${var}} "from-the-developer-shell")
+endforeach()
+pothos_test_env("${WORK}/stage" "${test_dir}" bin lib)
+foreach(var IN LISTS developer_vars)
+    if (DEFINED ENV{${var}})
+        message(FATAL_ERROR "pothos_test_env did not unset ${var} of the developer shell")
+    endif ()
+endforeach()
+
 message(STATUS "test_env_guard: OK")

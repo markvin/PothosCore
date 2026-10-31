@@ -132,9 +132,17 @@ if(POTHOS_BUILD_TESTS)
     set(POTHOS_STAGE_DIR ${PROJECT_BINARY_DIR}/stage)
     set(POTHOS_SELFTEST_TIMEOUT 900 CACHE STRING "Timeout in seconds for the self-tests")
 
+    #the stage removes the files of its previous install (cmake/PothosStage.cmake)
     add_test(NAME pothos.stage
-        COMMAND ${CMAKE_COMMAND} --install ${PROJECT_BINARY_DIR} --prefix ${POTHOS_STAGE_DIR} --config $<CONFIG>)
-    set_tests_properties(pothos.stage PROPERTIES FIXTURES_SETUP pothos_stage)
+        COMMAND ${CMAKE_COMMAND}
+            -DBUILD_DIR=${PROJECT_BINARY_DIR}
+            -DPREFIX=${POTHOS_STAGE_DIR}
+            -DCONFIG=$<CONFIG>
+            -P ${PROJECT_SOURCE_DIR}/cmake/PothosStage.cmake)
+    #an install writes install_manifest.txt of the build dir
+    set_tests_properties(pothos.stage PROPERTIES
+        FIXTURES_SETUP pothos_stage
+        RESOURCE_LOCK pothos_install_manifest)
 
     if(POTHOS_BUILD_APPS)
         add_test(NAME pothos.selftests
@@ -196,6 +204,15 @@ if(POTHOS_BUILD_TESTS)
         COMMAND ${CMAKE_COMMAND}
             -DWORK=${PROJECT_BINARY_DIR}/test-env-guard
             -P ${PROJECT_SOURCE_DIR}/tests/test_env_guard.cmake)
+
+    #the stage removes the files of its previous install
+    add_test(NAME pothos.stage_clean_check
+        COMMAND ${CMAKE_COMMAND}
+            -DWORK=${PROJECT_BINARY_DIR}/stage-clean-check
+            -DBUILD_DIR=${PROJECT_BINARY_DIR}
+            -DCONFIG=$<CONFIG>
+            -P ${PROJECT_SOURCE_DIR}/tests/stage_clean_check.cmake)
+    set_tests_properties(pothos.stage_clean_check PROPERTIES RESOURCE_LOCK pothos_install_manifest)
 endif()
 
 ########################################################################
