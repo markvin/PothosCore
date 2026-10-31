@@ -14,6 +14,7 @@ add_library(Pothos SHARED
     System/Logger.cpp
     System/LoggerSinks.cpp
     System/Builtin/TestLogger.cpp
+    System/Builtin/TestVersion.cpp
     System/HostInfo.cpp
     System/NumaInfo.cpp
     System/Exception.cpp
