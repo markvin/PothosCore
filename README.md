@@ -38,7 +38,8 @@ branch. The other toolkits are not yet ported:
   pothos2 (branch `pothos2`)
 * [PothosComms](https://github.com/markvin/PothosComms) - ported to
   pothos2 (branch `pothos2`)
-* [PothosFlow](https://github.com/pothosware/PothosFlow)
+* [PothosFlow](https://github.com/markvin/PothosFlow) - ported to
+  pothos2 (branch `pothos2`), needs Qt 6 (6.5 or higher)
 * [PothosPlotters](https://github.com/markvin/PothosPlotters) - ported to
   pothos2 (branch `pothos2`), needs Qt 6 (6.5 or higher), Qwt 6.3 or
   higher for Qt 6, and PothosComms at run time

@@ -24,6 +24,7 @@ Poco goes away step by step: the intermediate phases keep it as a
 | 12 | widgets on the pothos2 core (user decisions, 2026-10-29) | the fork `markvin/PothosWidgets` (branch `pothos2`): built against the installed core (CMake 3.25, `CMP0144` NEW), only Qt 6 (≥ 6.5) from the system or from the Qt installer, not from Conan; without Qt 6 the configure step stops with a clear error; the install RPATH has the Qt directory when it is not a system directory; a smoke test of 11 widgets on the `offscreen` platform (no display); CI: 4 jobs (Conan for the core + `install-qt-action`) + `linux-system` (Arch, `qt6-base`); widgets is a submodule of PothosBase | `2026-10-29-phase12-widgets.md` |
 | 13 | soapy on the pothos2 core (user decisions, 2026-10-28 and 2026-10-29) | the fork `markvin/PothosSoapy` (branch `pothos2`): built against the installed core (CMake 3.25, `CMP0144` NEW), without Poco (the SoapySDR log goes to the Pothos logger); SoapySDR ≥ 0.8 from the system or from the upstream source, not from Conan; without SoapySDR the configure step stops with a clear error; with SoapySDR < 0.9 the soapy targets ignore the `#warning` about `<ciso646>` (GCC ≥ 15); the install RPATH has the SoapySDR directory when it is not a system directory; the self-tests need no hardware and use an own SoapySDR test driver (`pothos_soapy_test`, registered only during a test); a manual test `soapy.device` with a real device; CI: 4 jobs (Conan + SoapySDR `soapy-sdr-0.9.0` from the source, `actions/cache`) + `linux-system` (Arch, `soapysdr` 0.8.1); soapy is a submodule of PothosBase | `2026-10-29-phase13-soapy.md` |
 | 14 | plotters on the pothos2 core (user decisions, 2026-10-28 and 2026-10-30; python is skipped for now) | the fork `markvin/PothosPlotters` (branch `pothos2`): built against the installed core (CMake 3.25, `CMP0144` NEW), only Qt 6 (≥ 6.5) and Qwt ≥ 6.3 for Qt 6 from `find_package` (`cmake/FindQwt.cmake`; a Qwt for Qt 5 is refused at the configure step), not from Conan; no `qwt6` submodule, no built-in Qwt, no spuce (an own copy of the window code of comms); the self-tests (windows, a smoke test of 9 blocks, data through the 5 plotters, `offscreen`) need PothosComms and PothosBlocks in the prefix; a core fix: `BufferChunk` converts implicitly only to pointer types (Qt 6 moc); CI: 4 jobs (Conan + `install-qt-action` + Qwt 6.3.0 built with qmake from the SourceForge archive, `actions/cache`) + `linux-system` (Arch, `qwt`); plotters is a submodule of PothosBase | `2026-10-30-phase14-plotters.md` |
+| 15 | flow on the pothos2 core (user decisions, 2026-10-31) | a PR into the core first: a public log listener API (`Logger::addListener`/`removeListener`, public `LogRecord`) and the fix of the known data races (wait mode flags, reads of the plugin registry); the fork `markvin/PothosFlow` (branch `pothos2`): built against the installed core (CMake 3.25, `CMP0144` NEW), without Poco (the message window uses the listener API), only Qt 6 (≥ 6.5, Widgets and Concurrent) from the system or the Qt installer; the application sources are an internal static library; a smoke test without a display (the main window, the block cache, Help → About, the message window, a selected block, the exit) needs PothosBlocks in the prefix; CI: 4 jobs (Conan for the core + `install-qt-action`) + `linux-system` (Arch, `qt6-base`); flow is a submodule of PothosBase with the test `base.flow` | `2026-10-31-phase15-flow.md` |
 
 The order of phases 2 and 3 can change. **User decision (2026-10-26):
 phase 3 occurs before phase 2.**
@@ -169,6 +170,28 @@ phase 3 occurs before phase 2.**
   CI is green: 5/5. PothosBase: 358 self-tests from one prefix. Next:
   flow.
 
+- Phase 15 (user decisions, 2026-10-30 and 2026-10-31) — done in the core
+  (PR #20 `phase15-flow`: spec `2026-10-31-phase15-flow-design.md`, plan
+  `2026-10-31-phase15-flow.md`, the log listener API and the race fixes,
+  merge `102c15fc`), in the fork `markvin/PothosFlow` (PR #1
+  `phase15-flow` → `pothos2`, merge `0369d137`) and in PothosBase (PR #5
+  `add-flow` → `main`). The goal of the user: the application starts on the new core.
+  The message window gets the log records from `Logger::addListener()`. A
+  message that a listener logs goes only to the sink, `flush()` in a
+  listener does not wait, and a change of the sink in a listener throws.
+  The races: the wait mode flags are atomic, and the reads of
+  `PluginRegistry` and of the module paths use `find` (before,
+  `operator[]` added entries under a shared lock). A local TSan run of 59
+  self-tests went from 21 reports to 0. The smoke test found two crashes
+  that upstream has too: a null clipboard on the `offscreen` platform,
+  and a slot of the destroyed graph view at exit with a selected block
+  (the manual check of the user found it first). Fixed in CI:
+  `std::shared_ptr::unique()` is removed in C++20 (libc++ and MSVC), and
+  a message box on macOS has no window title (the smoke test finds the
+  boxes by their text). The flow CI is green: 5/5. PothosBase: 370
+  self-tests from one prefix, and `base.flow`. All toolkits of the
+  roadmap are ported, except python (skipped for now).
+
 ## Decisions for the next phases
 
 User decisions (2026-10-28), made before these phases started:
@@ -189,11 +212,12 @@ User decisions (2026-10-28), made before these phases started:
 - PothosBase — done as phase 11 (refer to the table and the status).
 - PothosBase, the next toolkits: add them after their port, one at a time
   (widgets is phase 12, soapy is phase 13, plotters is phase 14; python
-  is skipped for now (user decision 2026-10-30); then flow). The checks
-  `base.modules` and `base.selftests` expect the module directory
-  `/<toolkit>/` and the tests in `/<toolkit>/tests/`. python
-  (`proxy/environment`) and flow need a setting for the toolkit (a
-  deferred review note of phase 11).
+  is skipped for now (user decision 2026-10-30); flow is phase 15). The
+  checks `base.modules` and `base.selftests` expect the module directory
+  `/<toolkit>/` and the tests in `/<toolkit>/tests/`. flow has no
+  self-tests: `base.selftests` does not get it, and `base.flow` runs its
+  smoke test (phase 15). python (`proxy/environment`) still needs a
+  setting for the toolkit (a deferred review note of phase 11).
 
 ## Notes for the phase 2 plan (collected during the analysis)
 
