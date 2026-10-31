@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include "System/LoggerSinks.hpp"
+#include <Pothos/Exception.hpp>
 #include "Util/StringUtils.hpp"
 #include <cstdio>
 #include <ctime>
@@ -9,6 +10,7 @@
 #include <fstream>
 #include <memory>
 #ifdef _WIN32
+#include "Platform/Process.hpp" //utf8ToWide
 #include <io.h> //_isatty
 #include <windows.h>
 #else
@@ -128,14 +130,29 @@ Detail::LogSink Detail::makeChannelSink(const std::string &channel, const std::s
         {
             const auto line = formatLogRecord(r, pattern, utc);
             const char *esc = color ? levelColor(r.level) : nullptr;
-            if (esc != nullptr) std::fprintf(stderr, "%s%s\033[0m\n", esc, line.c_str());
-            else std::fprintf(stderr, "%s\n", line.c_str());
+            const auto text = (esc != nullptr)? std::string(esc) + line + "\033[0m\n" : line + "\n";
+            #ifdef _WIN32
+            //a Windows console shows UTF-8 bytes in its own code page: write UTF-16
+            //(files and pipes get the UTF-8 bytes)
+            const HANDLE handle = GetStdHandle(STD_ERROR_HANDLE);
+            DWORD mode = 0;
+            if (handle != INVALID_HANDLE_VALUE and GetConsoleMode(handle, &mode))
+            {
+                std::fflush(stderr);
+                const auto wide = Pothos::Platform::utf8ToWide(text);
+                DWORD written = 0;
+                WriteConsoleW(handle, wide.data(), static_cast<DWORD>(wide.size()), &written, nullptr);
+                return;
+            }
+            #endif
+            std::fputs(text.c_str(), stderr);
             std::fflush(stderr);
         };
     }
     if (channel == "file" and not filePath.empty())
     {
         auto file = std::make_shared<std::ofstream>(filePath, std::ios::app);
+        if (not file->is_open()) throw Pothos::FileException("Pothos logger", "cannot open the log file " + filePath);
         return [file, pattern, utc](const LogRecord &r)
         {
             *file << formatLogRecord(r, pattern, utc) << '\n' << std::flush;

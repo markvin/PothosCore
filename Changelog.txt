@@ -66,6 +66,10 @@ Fixes:
 - POTHOS_MODULE_UTIL: a relative doc source is relative to the source
   directory (the docs of generated SIMD copies failed after cmake ran again)
 - AVX-512VL is detected with xsimd 14.2 too
+- Logger: POTHOS_LOG_LEVEL=none (or off) logs nothing again; a log file
+  that cannot be opened gives a warning and the logs go to the console
+  (before: all logs were lost); a Windows console gets UTF-16 text; a log
+  call during the shutdown starts no new writer thread
 - SIMD: the CPU detection reports the names of the ARM copies (arm_neon,
   arm_neon_flt_sp, arm64_neon): before, an ARM copy was never chosen. The
   POWER copies are named power_vsx_206/207 (the names of the detection).

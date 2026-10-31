@@ -12,6 +12,7 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -37,11 +38,12 @@ struct Launched
     Pipe out, err;
 };
 
-std::unique_ptr<Launched> launchPothosUtil(const std::vector<std::string> &args)
+std::unique_ptr<Launched> launchPothosUtil(const std::vector<std::string> &args, const std::map<std::string, std::string> &env = {})
 {
     auto l = std::make_unique<Launched>();
     ProcessOptions opts;
     opts.args = args;
+    opts.env = env;
     opts.out = &l->out;
     opts.err = &l->err;
     l->proc = Process::launch(Pothos::System::getPothosUtilExecutablePath(), opts);
@@ -322,4 +324,17 @@ POTHOS_TEST_BLOCK("/app/tests", test_app_daemon_with_threads)
     if (not exited) ::kill(pid, SIGKILL);
     POTHOS_TEST_TRUE(exited);
     #endif
+}
+
+POTHOS_TEST_BLOCK("/app/tests", test_app_bad_log_level_once)
+{
+    //the logger is configured at load and again by PothosUtil: one warning only
+    auto l = launchPothosUtil({"--system-info"}, {{"POTHOS_LOG_LEVEL", "bogus"}, {"POTHOS_LOG_CHANNEL", "console"}});
+    readAll(l->out);
+    const auto err = readAll(l->err);
+    POTHOS_TEST_TRUE(waitFor(l->proc, 30s).has_value());
+    std::size_t count = 0;
+    for (auto pos = err.find("invalid POTHOS_LOG_LEVEL"); pos != std::string::npos; pos = err.find("invalid POTHOS_LOG_LEVEL", pos+1)) count++;
+    std::cout << "stderr: " << err << std::endl;
+    POTHOS_TEST_EQUAL(count, 1u);
 }
