@@ -31,6 +31,13 @@ std::string Pothos::Net::formatHostPort(const std::string_view host, const std::
     return ((h.find(':') != std::string::npos)? "[" + h + "]" : h) + ":" + std::to_string(port);
 }
 
+bool Pothos::Net::isAddressLiteral(const std::string_view host)
+{
+    asio::error_code ec;
+    asio::ip::make_address(std::string(host), ec);
+    return not ec;
+}
+
 bool Pothos::Net::isWildcard(const std::string_view host)
 {
     return host.empty() or host == "0.0.0.0" or host == "::";

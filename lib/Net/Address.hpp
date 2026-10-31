@@ -29,6 +29,9 @@ HostPort parseHostPort(std::string_view s, std::uint16_t defaultPort);
 //! host:port with brackets around IPv6 hosts
 std::string formatHostPort(std::string_view host, std::uint16_t port);
 
+//! Is this an IPv4 or IPv6 address (not a name that needs a lookup)?
+bool isAddressLiteral(std::string_view host);
+
 //! Is this a bind-to-all address: empty, 0.0.0.0 or ::?
 bool isWildcard(std::string_view host);
 

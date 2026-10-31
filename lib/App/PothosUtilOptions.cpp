@@ -35,7 +35,7 @@ std::vector<Pothos::App::OptionSpec> Pothos::App::pothosUtilOptions(void)
             "Use with --run-topology to overload globals.", true},
         {"self-tests", 0, Arg::Optional, "pluginPath", "run all plugin self tests"},
         {"self-test1", 0, Arg::Required, "pluginPath", "run a particular plugin self test"},
-        {"num-trials", 0, Arg::Required, "numTrials", "how many times to run each self test"},
+        {"num-trials", 0, Arg::Required, "numTrials", "how many times to run each self test (it passes when one run passes)"},
         {"success-code", 0, Arg::Required, "successCode", "the success status return code (default 0)"},
         {"require-active", 0, Arg::None, "", "proxy server shuts off without active clients"},
         {"output", 0, Arg::Required, "outputFile",

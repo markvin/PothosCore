@@ -26,7 +26,7 @@ foreach(var SRC WORK GENERATOR CXX CC)
 endforeach()
 
 #an initial cache: a list of prefixes stays one value
-#the generator settings of the calling build 
+#the generator settings of the calling build
 set(generator_args)
 if (MAKE_PROGRAM)
     list(APPEND generator_args "-DCMAKE_MAKE_PROGRAM=${MAKE_PROGRAM}")
