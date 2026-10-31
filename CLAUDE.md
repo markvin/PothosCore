@@ -44,13 +44,22 @@ Restore / update the project so it builds and works on a modern toolchain.
   `/comms/wave_trigger`: PothosComms at run time; its self-tests also
   need PothosBlocks in the prefix of the core. It has its own window code
   (a copy of the spuce port of comms)
+- PothosFlow (ported, phase 15) is the fork markvin/PothosFlow, branch
+  `pothos2`, local clone `../PothosFlow`. It needs Qt 6 (6.5 or higher,
+  Widgets and Concurrent), not from Conan. The application sources are an
+  internal static library `PothosFlowApp`; the smoke test `flow.smoke`
+  (`PothosFlowSmokeTest`, platform `offscreen`) needs PothosBlocks in the
+  prefix of the core and has the CTest resource lock
+  `pothos_locator_port` (the main window starts a server on the locator
+  port). The message window uses the log listener API of the core
 - PothosBase (phase 11) is the aggregate build: repository
   markvin/PothosBase (branch `main`), local clone
-  `../PothosBase`. The core, blocks, comms, widgets, soapy and
-  plotters are submodules on `pothos2`, built with `add_subdirectory`.
+  `../PothosBase`. The core, blocks, comms, widgets, soapy, plotters
+  and flow are submodules on `pothos2`, built with `add_subdirectory`.
   `-DPOTHOS_BASE_CORE_DIR=...` (and `_BLOCKS_DIR`, `_COMMS_DIR`,
-  `_WIDGETS_DIR`, `_SOAPY_DIR`, `_PLOTTERS_DIR`) builds a local clone in place of a
-  submodule. `ctest` runs all self-tests from one stage prefix. A toolkit
+  `_WIDGETS_DIR`, `_SOAPY_DIR`, `_PLOTTERS_DIR`, `_FLOW_DIR`) builds a local clone in place of a
+  submodule. `ctest` runs all self-tests from one stage prefix, and
+  `base.flow` runs the flow smoke test. A toolkit
   must build both standalone and in PothosBase; its `find_package(Pothos)`
   uses `NO_PACKAGE_ROOT_PATH` (CMP0144 NEW)
 
@@ -136,7 +145,10 @@ nlohmann-json xsimd`; Asio has no CMake config: `cmake/Findasio.cmake`).
   read and write one stream from several threads); writers flush.
 - Logging: `POTHOS_LOG_ERROR("My.Source", "fmt {}", value)` etc. from
   `<Pothos/System/Logger.hpp>` (std::format, async writer, Fatal/Critical
-  synchronous, `Logger::flush()`). Sinks/config internals:
+  synchronous, `Logger::flush()`). `Logger::addListener()` gives each
+  written `LogRecord` to a callback (rules in the header: a listener must
+  return quickly, its own log messages go only to the sink, no sink change
+  in a listener). Sinks/config internals:
   `lib/System/LoggerSinks.hpp`. Env: `POTHOS_LOG_LEVEL`, `POTHOS_LOG_CHANNEL`
   (color/console/file/null), `POTHOS_LOG_FILE`, `POTHOS_LOG_FORMAT`,
   `POTHOS_LOG_TIMEZONE`, `POTHOS_LOG_ASYNC`, `POTHOS_SYSLOG_ADDR`.
