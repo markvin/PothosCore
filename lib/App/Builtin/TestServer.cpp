@@ -115,23 +115,32 @@ POTHOS_TEST_BLOCK("/app/tests", test_app_proxy_server_terminates)
 
 //PothosUtil gets a path that is not ASCII from its command line
 //(on Windows, argv uses the ANSI code page: the core reads the wide command line)
-POTHOS_TEST_BLOCK("/app/tests", test_app_pidfile_non_ascii)
+POTHOS_TEST_BLOCK("/app/tests", test_app_non_ascii_argument)
 {
     using Pothos::Util::Detail::utf8Path;
     const std::string name = "pothos_\xD1\x82\xD0\xB5\xD1\x81\xD1\x82_\xC3\xA9_" + std::to_string(currentProcessId());
     const auto dir = std::filesystem::temp_directory_path() / utf8Path(name);
     std::filesystem::create_directories(dir);
-    const std::string pidPath = Pothos::Util::Detail::pathUtf8(dir) + "/pid.\xD1\x84";
 
-    auto l = launchPothosUtil({"--proxy-server=tcp://127.0.0.1:0", "--pidfile=" + pidPath});
-    if (readPort(l->out).empty())
+    //--run-topology (all systems): the file opens, so the error is the JSON, not the path
+    const std::string topologyPath = Pothos::Util::Detail::pathUtf8(dir) + "/top.\xD1\x84.json";
+    std::ofstream(utf8Path(topologyPath)) << "this is not JSON" << std::endl;
     {
-        //show why the server did not start
+        auto l = launchPothosUtil({"--run-topology=" + topologyPath});
+        readAll(l->out);
         const auto err = readAll(l->err);
-        const auto code = waitFor(l->proc, 10s);
-        std::cout << "exit code: " << (code? std::to_string(*code) : std::string("none")) << ", stderr: " << err << std::endl;
-        POTHOS_TEST_TRUE(false);
+        const auto code = waitFor(l->proc, 30s);
+        std::cout << "stderr: " << err << std::endl;
+        POTHOS_TEST_TRUE(code and *code == 64);
+        POTHOS_TEST_TRUE(err.find("Can't open") == std::string::npos);
+        POTHOS_TEST_TRUE(err.find("parse") != std::string::npos);
     }
+
+    #ifndef _WIN32
+    //--pidfile (Unix only): the server writes and removes the pid file
+    const std::string pidPath = Pothos::Util::Detail::pathUtf8(dir) + "/pid.\xD1\x84";
+    auto l = launchPothosUtil({"--proxy-server=tcp://127.0.0.1:0", "--pidfile=" + pidPath});
+    POTHOS_TEST_TRUE(not readPort(l->out).empty());
     {
         std::ifstream file(utf8Path(pidPath));
         int pid = 0;
@@ -142,6 +151,7 @@ POTHOS_TEST_BLOCK("/app/tests", test_app_pidfile_non_ascii)
     const auto code = waitFor(l->proc, 5s);
     POTHOS_TEST_TRUE(code and *code == 0);
     POTHOS_TEST_TRUE(not std::filesystem::exists(utf8Path(pidPath)));
+    #endif
 
     std::error_code ec;
     std::filesystem::remove_all(dir, ec);
