@@ -83,7 +83,7 @@ private:
      * Allow waiting policy set in thread configuration.
      * True to wait on CV when idle, false to spin for change.
      */
-    std::atomic<bool> _waitModeEnabled; //set by the thread pool while the worker reads it
+    std::atomic<bool> _waitModeEnabled; //set when the thread pool changes (no reader at this time)
 
     /*!
      * Asynchronous notification that a state change occurred.

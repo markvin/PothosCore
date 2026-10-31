@@ -56,10 +56,10 @@ struct LogRecord
     //! The text of the message
     std::string text;
 
-    //! A hash of the id of the thread that logged the message
+    //! A hash of the id of the thread that logged the message (0 when unknown)
     unsigned long threadId = 0;
 
-    //! The id of the process that logged the message
+    //! The id of the process that logged the message (0 when unknown)
     int pid = 0;
 };
 
@@ -121,7 +121,15 @@ public:
      *   listeners. Thus a listener that logs causes no deadlock and no
      *   infinite recursion.
      * - After flush() returns, the listeners got all records that were
-     *   logged before the call.
+     *   logged before the call. A flush() in a listener does not wait.
+     * - Do not call setupDefaultLogging() or the syslog forwarding
+     *   functions in a listener: a change of the sink in a listener
+     *   throws std::logic_error.
+     * - A listener must not wait for another thread, and must not take a
+     *   lock that another thread can hold while it logs: a deadlock can
+     *   occur.
+     * - Remove the listener before its data is destroyed, also before
+     *   the process exits.
      *
      * \param listener the function to call for each record
      * \return an identifier for removeListener(), never 0
@@ -133,8 +141,9 @@ public:
      * After this call returns, the logger does not call the listener
      * again, and no call of it continues in another thread.
      * Thus the owner can delete the data of the listener after this call.
-     * When a listener calls this function, the change applies after the
-     * current record. An unknown identifier does nothing.
+     * Exception: when a listener calls this function, the change applies
+     * after the current record, thus the removed listener can still get
+     * that record. An unknown identifier does nothing.
      * \param id the identifier from addListener()
      */
     static void removeListener(const std::size_t id);

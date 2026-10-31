@@ -10,8 +10,10 @@
 #include <atomic>
 #include <chrono>
 #include <future>
+#include <memory>
 #include <mutex>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
@@ -457,7 +459,51 @@ POTHOS_TEST_BLOCK("/system/tests", test_logger_listener_remove_waits)
         done = true;
     });
     POTHOS_LOG_ERROR("Test.Remove", "slow");
-    while (not entered) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    while (not entered and std::chrono::steady_clock::now() < deadline) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    POTHOS_TEST_TRUE(entered.load());
     Logger::removeListener(id);
     POTHOS_TEST_TRUE(done.load());
+}
+
+POTHOS_TEST_BLOCK("/system/tests", test_logger_listener_flush_inside)
+{
+    //flush() in a listener does not wait (the record in progress is not written yet)
+    CaptureSink capture;
+    std::atomic<int> calls(0);
+    const auto id = Logger::addListener([&calls](const LogRecord &r)
+    {
+        if (r.source != "Test.FlushInside") return;
+        Logger::flush();
+        calls++;
+    });
+    POTHOS_LOG_ERROR("Test.FlushInside", "async");
+    POTHOS_LOG_CRITICAL("Test.FlushInside", "sync");
+    auto flushed = std::async(std::launch::async, []{Logger::flush();});
+    const bool returned = flushed.wait_for(std::chrono::seconds(10)) == std::future_status::ready;
+    POTHOS_TEST_TRUE(returned);
+    Logger::removeListener(id);
+    POTHOS_TEST_EQUAL(calls.load(), 2);
+}
+
+POTHOS_TEST_BLOCK("/system/tests", test_logger_listener_sink_change_inside)
+{
+    //a change of the sink in a listener is an error, not a deadlock
+    CaptureSink capture;
+    std::atomic<int> refused(0);
+    const auto id = Logger::addListener([&refused](const LogRecord &r)
+    {
+        if (r.source != "Test.SinkInside") return;
+        try {Detail::getLogSink();}
+        catch (const std::logic_error &) {refused++;}
+        try {Detail::setLogSink(nullptr);}
+        catch (const std::logic_error &) {refused++;}
+    });
+    POTHOS_LOG_ERROR("Test.SinkInside", "x");
+    auto flushed = std::async(std::launch::async, []{Logger::flush();});
+    const bool returned = flushed.wait_for(std::chrono::seconds(10)) == std::future_status::ready;
+    POTHOS_TEST_TRUE(returned);
+    Logger::removeListener(id);
+    POTHOS_TEST_EQUAL(refused.load(), 2);
+    POTHOS_TEST_EQUAL(capture.get().size(), 1u);
 }

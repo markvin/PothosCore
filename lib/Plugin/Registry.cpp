@@ -104,7 +104,7 @@ static void handlePluginEvent(const Pothos::Plugin &plugin, const std::string &e
         for (size_t i = 0; root != nullptr and i+1 < pathNodes.size(); i++)
         {
             parentPlugins.insert(parentPlugins.begin(), root->plugin);
-            //next node in the tree at this node name (missing: removed in the meantime)
+            //next node in the tree at this node name (a missing node ends the walk)
             const auto it = root->nodes.find(pathNodes[i]);
             root = (it == root->nodes.end())? nullptr : &it->second;
         }
