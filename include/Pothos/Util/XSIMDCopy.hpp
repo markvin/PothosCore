@@ -25,7 +25,13 @@
 
 //every copy gets its own xsimd namespace: identical inline xsimd functions
 //compiled with different ISA flags must not be merged by the linker (an AVX
-//version could otherwise run in the SSE copy on a CPU without AVX)
+//version could otherwise run in the SSE copy on a CPU without AVX).
+//Other inline functions (std::max, std::ceil, ... out of line in a debug
+//build) are not renamed: the linker keeps the first definition, and
+//pothos_multiarch links the fallback copy first. Thus a copy must not use an
+//inline function that the fallback copy of the same file does not use. The
+//core checks its own copies (test pothos.simd_copy_symbols: no shared weak
+//symbol at all).
 #define POTHOS_SIMD_CONCAT_(a, b) a##b
 #define POTHOS_SIMD_CONCAT(a, b) POTHOS_SIMD_CONCAT_(a, b)
 #define xsimd POTHOS_SIMD_CONCAT(xsimd_, POTHOS_SIMD_NAMESPACE)

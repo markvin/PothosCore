@@ -66,6 +66,11 @@ Fixes:
 - POTHOS_MODULE_UTIL: a relative doc source is relative to the source
   directory (the docs of generated SIMD copies failed after cmake ran again)
 - AVX-512VL is detected with xsimd 14.2 too
+- SIMD: the CPU detection reports the names of the ARM copies (arm_neon,
+  arm_neon_flt_sp, arm64_neon): before, an ARM copy was never chosen. The
+  POWER copies are named power_vsx_206/207 (the names of the detection).
+  No copies that are never chosen (XOP, MIPS MSA, SSE2 on 64-bit x86, a
+  copy without compiler flags)
 - Data races: the wait mode flags of the thread pool and of the actor
   are atomic; reads of the plugin registry and of the module paths no
   longer add empty entries under a shared lock (TSan is clean on the

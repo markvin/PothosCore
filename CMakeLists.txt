@@ -232,6 +232,21 @@ if(POTHOS_BUILD_TESTS)
             -DWORK=${PROJECT_BINARY_DIR}/test-env-guard
             -P ${PROJECT_SOURCE_DIR}/tests/test_env_guard.cmake)
 
+    #every SIMD copy name of all architectures can be chosen at run time
+    add_test(NAME pothos.simd_suffix_names
+        COMMAND ${CMAKE_COMMAND} -DSRC=${PROJECT_SOURCE_DIR} -P ${PROJECT_SOURCE_DIR}/tests/simd_suffix_names.cmake)
+
+    #the SIMD copies define no shared weak symbols (Linux: nm, GCC and Clang objects)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        find_program(POTHOS_NM_EXECUTABLE NAMES nm)
+        if(POTHOS_NM_EXECUTABLE)
+            add_test(NAME pothos.simd_copy_symbols
+                COMMAND ${CMAKE_COMMAND} -DNM=${POTHOS_NM_EXECUTABLE}
+                    "-DOBJECTS=$<JOIN:$<TARGET_OBJECTS:Pothos>,|>"
+                    -P ${PROJECT_SOURCE_DIR}/tests/simd_copy_symbols.cmake)
+        endif()
+    endif()
+
     #the stage removes the files of its previous install
     add_test(NAME pothos.stage_clean_check
         COMMAND ${CMAKE_COMMAND}
