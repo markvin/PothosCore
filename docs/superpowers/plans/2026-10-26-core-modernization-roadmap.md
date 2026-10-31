@@ -26,6 +26,7 @@ Poco goes away step by step: the intermediate phases keep it as a
 | 14 | plotters on the pothos2 core (user decisions, 2026-10-28 and 2026-10-30; python is skipped for now) | the fork `markvin/PothosPlotters` (branch `pothos2`): built against the installed core (CMake 3.25, `CMP0144` NEW), only Qt 6 (≥ 6.5) and Qwt ≥ 6.3 for Qt 6 from `find_package` (`cmake/FindQwt.cmake`; a Qwt for Qt 5 is refused at the configure step), not from Conan; no `qwt6` submodule, no built-in Qwt, no spuce (an own copy of the window code of comms); the self-tests (windows, a smoke test of 9 blocks, data through the 5 plotters, `offscreen`) need PothosComms and PothosBlocks in the prefix; a core fix: `BufferChunk` converts implicitly only to pointer types (Qt 6 moc); CI: 4 jobs (Conan + `install-qt-action` + Qwt 6.3.0 built with qmake from the SourceForge archive, `actions/cache`) + `linux-system` (Arch, `qwt`); plotters is a submodule of PothosBase | `2026-10-30-phase14-plotters.md` |
 | 15 | flow on the pothos2 core (user decisions, 2026-10-31) | a PR into the core first: a public log listener API (`Logger::addListener`/`removeListener`, public `LogRecord`) and the fix of the known data races (wait mode flags, reads of the plugin registry); the fork `markvin/PothosFlow` (branch `pothos2`): built against the installed core (CMake 3.25, `CMP0144` NEW), without Poco (the message window uses the listener API), only Qt 6 (≥ 6.5, Widgets and Concurrent) from the system or the Qt installer; the application sources are an internal static library; a smoke test without a display (the main window, the block cache, Help → About, the message window, a selected block, the exit) needs PothosBlocks in the prefix; CI: 4 jobs (Conan for the core + `install-qt-action`) + `linux-system` (Arch, `qt6-base`); flow is a submodule of PothosBase with the test `base.flow` | `2026-10-31-phase15-flow.md` |
 | 16 | Version 2.0 (user decisions, 2026-10-31) | library 2.0.0, API `0x02000000`, ABI `2.0-0` (before: 0.8.0, `0x00070000`, `0.7-4` of the upstream development branch): `libPothos.so.2.0-0` and `lib/Pothos/modules2.0-0`, thus modules of upstream 0.7 and 0.8 builds are not loaded; a self-test checks the numbers; the toolkits take the ABI from `POTHOS_ABI_VERSION` and only need a rebuild | (a small change, described in the chat; no plan file) |
+| 17 | audio on the pothos2 core (user decisions, 2026-10-31) | the fork `markvin/PothosAudio` (branch `pothos2`): miniaudio 0.11.25 in place of PortAudio, as a copy of `miniaudio.h` in `third_party/miniaudio` (only device input and output; no audio packages for the build); the block API stays; a ring buffer between the device callback and `work()`; the device converts format, channels and rate; `POTHOS_AUDIO_BACKEND` selects the backend (`null` for the tests); 16 self-tests on the null backend; CI: 4 jobs (Conan) + `linux-system` (Arch); audio is a submodule of PothosBase | `2026-10-31-phase17-audio.md` |
 
 The order of phases 2 and 3 can change. **User decision (2026-10-26):
 phase 3 occurs before phase 2.**
@@ -200,6 +201,21 @@ phase 3 occurs before phase 2.**
   build put their modules into the same directory. The 0.x numbers belong
   to upstream; 2.0 matches the name pothos2 and cannot collide with a
   future upstream 1.0. This closes the deferred ABI note of phase 6b.
+
+- Phase 17 (user decisions, 2026-10-31) — done in the fork
+  `markvin/PothosAudio` (PR #1 `phase17-audio` → `pothos2`, merge
+  `2f323611`) and in PothosBase (PR #7 `add-audio` → `main`); the core
+  did not change. The use case of the user: a microphone or a line input
+  → the speakers in PothosFlow (the manual check passed on Linux with
+  PipeWire). miniaudio replaces PortAudio; `miniaudio.h` is a copy in the
+  toolkit (a user decision: an exception to the `find_package` rule). The
+  final review found two defects, fixed with tests: the sink stopped for
+  good after an underflow with a backoff time, and a device that stops
+  gave no error. CI found two more on the slow macOS and Windows runners:
+  the sink needed a pre-fill of 2 periods at the start, and a test of a
+  source → sink graph must allow xrun reports (the two devices have
+  independent clocks). PothosBase: the audio self-tests run with
+  `POTHOS_AUDIO_BACKEND=null`.
 
 ## Decisions for the next phases
 

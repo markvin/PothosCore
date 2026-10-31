@@ -33,7 +33,8 @@ The toolkits are separate CMake projects in their own repositories. The
 forks with the branch `pothos2` are ported to the pothos2 API of this
 branch. The other toolkits are not yet ported:
 
-* [PothosAudio](https://github.com/pothosware/PothosAudio)
+* [PothosAudio](https://github.com/markvin/PothosAudio) - ported to
+  pothos2 (branch `pothos2`), miniaudio in place of PortAudio
 * [PothosBlocks](https://github.com/markvin/PothosBlocks) - ported to
   pothos2 (branch `pothos2`)
 * [PothosComms](https://github.com/markvin/PothosComms) - ported to
