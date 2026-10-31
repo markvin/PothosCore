@@ -40,6 +40,8 @@ Repository:
 - Topology::commit() throws TopologyConnectError naming the missing block
   when a domain crossing (/blocks/copier) or a flow across processes/hosts
   (/blocks/network_*) needs PothosBlocks and it is not installed
+- A remote host must run the pothos2 core too: a remote host with an
+  upstream 0.7 or 0.8 core is not supported
 
 Dependencies:
 
@@ -87,6 +89,15 @@ Fixes:
   dropped records with more than about 9 KB of text); the source is cut
   to 255 bytes. RFC 3164: a message without a TAG keeps all of its text;
   a December message received in January gets the year before
+- PothosUtil: --num-trials=N runs a test N times (before: N*N), and 0 is
+  an error; --daemon checks the pid file before it starts the daemon (the
+  daemon has no stderr); --register-service needs a command
+- Windows service: an error in the service goes to the log and gives the
+  service-specific exit code 64; --unregister-service stops a running
+  service first; a console close waits up to 5 s for a clean shutdown;
+  "access denied" tells you to run as an administrator
+- JIT compiler: a file system error (a missing source) becomes a
+  Pothos::FileException that is logged and kept for the next calls
 - Network: a connect timeout no longer waits for a busy io thread;
   finished server connections are joined at once; a server with an empty
   host binds 0.0.0.0 when the system has no IPv6

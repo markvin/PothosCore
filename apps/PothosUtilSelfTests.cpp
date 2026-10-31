@@ -69,8 +69,7 @@ static bool spawnSelfTestOneProcess(const std::string &path, size_t numTrials)
     args.push_back(path);
     args.push_back("--success-code");
     args.push_back(std::to_string(success));
-    args.push_back("--num-trials");
-    args.push_back(std::to_string(numTrials));
+    //one run in each child: the trials are the children (N, not N*N)
 
     size_t numOk = 0;
 
@@ -133,6 +132,7 @@ void PothosUtilBase::selfTestOne(const std::string &, const std::string &path)
     Pothos::ScopedInit init;
 
     const auto numTrials = this->config().getUInt("num-trials", 1);
+    if (numTrials < 1) throw Pothos::InvalidArgumentException("--num-trials", "must be 1 or more");
     const bool multipleTrials = (numTrials > 1);
 
     auto plugin = Pothos::PluginRegistry::get(path);
@@ -169,6 +169,7 @@ void PothosUtilBase::selfTests(const std::string &, const std::string &path)
     Pothos::ScopedInit init;
 
     const auto numTrials = this->config().getUInt("num-trials", 1);
+    if (numTrials < 1) throw Pothos::InvalidArgumentException("--num-trials", "must be 1 or more");
 
     SelfTestResults results;
     if (path.find('*') == std::string::npos)

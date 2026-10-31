@@ -16,6 +16,7 @@
 #include <cctype>
 #include <exception>
 #include <map>
+#include <optional>
 
 
 /*!
@@ -101,17 +102,31 @@ static Pothos::Object opaqueJITCompilerFactory(
 
     //determine output file
     auto outPath = Pothos::Util::Detail::utf8Path(Pothos::System::getUserDataPath()) / "modules";
-    std::filesystem::create_directories(outPath);
     outPath /= Pothos::Util::Detail::utf8Path(handle->target + Pothos::Platform::DynamicLibrary::suffix());
 
-    //file lock for compilation atomicity across processes
-    Pothos::Util::FileLock outputFileLock(Pothos::Util::Detail::pathUtf8(outPath));
-    std::lock_guard<Pothos::Util::FileLock> fileLock(outputFileLock);
+    //file lock for compilation atomicity across processes (also for the load)
+    std::optional<Pothos::Util::FileLock> outputFileLock;
+    std::unique_lock<Pothos::Util::FileLock> fileLock;
 
-    //compile if changed
+    //compile if changed: a std::filesystem error (a missing source, a full
+    //disk) becomes a Pothos::FileException, saved like a compiler error
     try
     {
-        compilationHelper(handle, outPath);
+        try
+        {
+            std::filesystem::create_directories(outPath.parent_path());
+            outputFileLock.emplace(Pothos::Util::Detail::pathUtf8(outPath));
+            fileLock = std::unique_lock<Pothos::Util::FileLock>(*outputFileLock);
+            compilationHelper(handle, outPath);
+        }
+        catch (const Pothos::Exception &)
+        {
+            throw;
+        }
+        catch (const std::exception &ex)
+        {
+            throw Pothos::FileException("JIT compiler " + handle->target, ex.what());
+        }
     }
     catch (const Pothos::Exception &ex)
     {
@@ -143,7 +158,7 @@ static Pothos::Object opaqueJITCompilerFactory(
 static std::vector<Pothos::PluginPath> JITCompilerLoader(const std::map<std::string, std::string> &config)
 {
     std::vector<Pothos::PluginPath> entries;
-        const std::string tokSep(" \t");
+    const std::string tokSep(" \t");
 
     //create handle to hold shared compilation result
     std::shared_ptr<RegistryJITResult> handle(new RegistryJITResult());
@@ -168,7 +183,7 @@ static std::vector<Pothos::PluginPath> JITCompilerLoader(const std::map<std::str
     if (includesIt != config.end()) for (const auto &include :
         Pothos::Util::Detail::split(includesIt->second, tokSep))
     {
-        const auto absPath = Pothos::Util::Detail::makeAbsolute(include, rootDir);
+        const auto absPath = Pothos::Util::Detail::makeAbsolute(Pothos::Util::Detail::utf8Path(include), rootDir);
         handle->compilerArgs.includes.push_back(Pothos::Util::Detail::pathUtf8(absPath));
     }
 
@@ -177,7 +192,7 @@ static std::vector<Pothos::PluginPath> JITCompilerLoader(const std::map<std::str
     if (librariesIt != config.end()) for (const auto &library :
         Pothos::Util::Detail::split(librariesIt->second, tokSep))
     {
-        const auto absPath = Pothos::Util::Detail::makeAbsolute(library, rootDir);
+        const auto absPath = Pothos::Util::Detail::makeAbsolute(Pothos::Util::Detail::utf8Path(library), rootDir);
         handle->compilerArgs.libraries.push_back(Pothos::Util::Detail::pathUtf8(absPath));
     }
 
@@ -186,7 +201,7 @@ static std::vector<Pothos::PluginPath> JITCompilerLoader(const std::map<std::str
     if (sourcesIt != config.end()) for (const auto &source :
         Pothos::Util::Detail::split(sourcesIt->second, tokSep))
     {
-        const auto absPath = Pothos::Util::Detail::makeAbsolute(source, rootDir);
+        const auto absPath = Pothos::Util::Detail::makeAbsolute(Pothos::Util::Detail::utf8Path(source), rootDir);
         handle->compilerArgs.sources.push_back(Pothos::Util::Detail::pathUtf8(absPath));
     }
 
@@ -204,7 +219,7 @@ static std::vector<Pothos::PluginPath> JITCompilerLoader(const std::map<std::str
     if (docSourcesIt != config.end()) for (const auto &docSource :
         Pothos::Util::Detail::split(docSourcesIt->second, tokSep))
     {
-        const auto absPath = Pothos::Util::Detail::makeAbsolute(docSource, rootDir);
+        const auto absPath = Pothos::Util::Detail::makeAbsolute(Pothos::Util::Detail::utf8Path(docSource), rootDir);
         docSources.push_back(Pothos::Util::Detail::pathUtf8(absPath));
     }
     else docSources = handle->compilerArgs.sources;

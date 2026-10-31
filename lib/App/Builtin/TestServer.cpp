@@ -140,6 +140,56 @@ POTHOS_TEST_BLOCK("/app/tests", test_app_pidfile_non_ascii)
     std::filesystem::remove_all(dir, ec);
 }
 
+POTHOS_TEST_BLOCK("/app/tests", helper_count_runs)
+{
+    //adds one line to a file for each run (launched by test_app_num_trials)
+    const auto file = Pothos::Platform::getEnv("POTHOS_TEST_COUNT_FILE");
+    if (not file) return;
+    std::ofstream(Pothos::Util::Detail::utf8Path(*file), std::ios::app) << "run" << std::endl;
+}
+
+POTHOS_TEST_BLOCK("/app/tests", test_app_num_trials)
+{
+    //--num-trials=N runs a test N times (before: N*N)
+    {
+        Pothos::Util::Detail::TempFile countFile(false);
+        auto l = launchPothosUtil({"--self-tests=/app/tests/helper_count_runs", "--num-trials=2"},
+            {{"POTHOS_TEST_COUNT_FILE", Pothos::Util::Detail::pathUtf8(countFile.path())}});
+        readAll(l->out);
+        const auto code = waitFor(l->proc, 60s);
+        POTHOS_TEST_TRUE(code and *code == 0);
+        std::ifstream file(countFile.path());
+        std::size_t lines = 0;
+        for (std::string line; std::getline(file, line);) lines++;
+        POTHOS_TEST_EQUAL(lines, 2u);
+    }
+    //--num-trials=0 is an error, not a pass that runs nothing
+    for (const std::string option : {"--self-test1=/app/tests/helper_count_runs", "--self-tests=/app/tests/helper_count_runs"})
+    {
+        auto l = launchPothosUtil({option, "--num-trials=0"});
+        readAll(l->out);
+        const auto err = readAll(l->err);
+        const auto code = waitFor(l->proc, 30s);
+        POTHOS_TEST_TRUE(code and *code == 64);
+        POTHOS_TEST_TRUE(err.find("num-trials") != std::string::npos);
+    }
+}
+
+POTHOS_TEST_BLOCK("/app/tests", test_app_daemon_pidfile_error)
+{
+    #ifdef _WIN32
+    std::cout << "skipped: Unix only" << std::endl;
+    #else
+    //the pid file cannot be made: the original process reports it (the daemon has no stderr)
+    auto l = launchPothosUtil({"--daemon", "--pidfile=/no/such/dir/x.pid", "--proxy-server=tcp://127.0.0.1:0"});
+    readAll(l->out);
+    const auto err = readAll(l->err);
+    const auto code = waitFor(l->proc, 10s);
+    POTHOS_TEST_TRUE(code and *code == 64);
+    POTHOS_TEST_TRUE(err.find("/no/such/dir/x.pid") != std::string::npos);
+    #endif
+}
+
 POTHOS_TEST_BLOCK("/app/tests", test_app_pothosutil_cli)
 {
     {
@@ -231,6 +281,31 @@ bool waitServiceState(SC_HANDLE service, const DWORD state, const std::chrono::s
     return true;
 }
 
+//! Open a service of the test, nullptr when it does not exist
+SC_HANDLE openTestService(const std::string &name, const DWORD access)
+{
+    const SC_HANDLE manager = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
+    if (manager == nullptr) return nullptr;
+    const auto wideName = std::wstring(name.begin(), name.end());
+    const SC_HANDLE service = OpenServiceW(manager, wideName.c_str(), access);
+    CloseServiceHandle(manager);
+    return service;
+}
+
+//! Wait until the service does not exist (the delete is complete)
+bool waitServiceGone(const std::string &name, const std::chrono::seconds timeout)
+{
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    while (true)
+    {
+        const SC_HANDLE service = openTestService(name, SERVICE_QUERY_STATUS);
+        if (service == nullptr and GetLastError() == ERROR_SERVICE_DOES_NOT_EXIST) return true;
+        if (service != nullptr) CloseServiceHandle(service);
+        if (std::chrono::steady_clock::now() > deadline) return false;
+        std::this_thread::sleep_for(100ms);
+    }
+}
+
 } //namespace
 #endif
 
@@ -282,6 +357,56 @@ POTHOS_TEST_BLOCK("/app/tests", test_app_windows_service)
     if (service != nullptr) CloseServiceHandle(service);
     CloseServiceHandle(manager);
     POTHOS_TEST_TRUE(gone);
+
+    //unregister a running service: it stops and goes away (before: only marked for delete)
+    opts.name = "PothosUtilTestRun" + std::to_string(GetCurrentProcessId());
+    Pothos::App::registerService(opts);
+    {
+        const SC_HANDLE run = openTestService(opts.name, SERVICE_START | SERVICE_QUERY_STATUS);
+        POTHOS_TEST_TRUE(run != nullptr);
+        bool running = false;
+        if (run != nullptr and StartServiceW(run, 0, nullptr)) running = waitServiceState(run, SERVICE_RUNNING, 30s);
+        if (run != nullptr) CloseServiceHandle(run);
+        Pothos::App::unregisterService(opts.name);
+        POTHOS_TEST_TRUE(running);
+        POTHOS_TEST_TRUE(waitServiceGone(opts.name, 15s));
+    }
+
+    //an error in the service: the service-specific exit code 64 (before: 1)
+    opts.name = "PothosUtilTestError" + std::to_string(GetCurrentProcessId());
+    Pothos::Util::Detail::TempFile missing(false);
+    opts.args = {"--run-topology=" + Pothos::Util::Detail::pathUtf8(missing.path())};
+    Pothos::App::registerService(opts);
+    {
+        const SC_HANDLE failing = openTestService(opts.name, SERVICE_START | SERVICE_QUERY_STATUS);
+        POTHOS_TEST_TRUE(failing != nullptr);
+        SERVICE_STATUS status{};
+        bool ended = false;
+        if (failing != nullptr and StartServiceW(failing, 0, nullptr)) ended = waitServiceState(failing, SERVICE_STOPPED, 30s);
+        if (failing != nullptr) QueryServiceStatus(failing, &status);
+        if (failing != nullptr) CloseServiceHandle(failing);
+        Pothos::App::unregisterService(opts.name);
+        POTHOS_TEST_TRUE(ended);
+        POTHOS_TEST_EQUAL(status.dwWin32ExitCode, DWORD(ERROR_SERVICE_SPECIFIC_ERROR));
+        POTHOS_TEST_EQUAL(status.dwServiceSpecificExitCode, DWORD(64));
+    }
+    #endif
+}
+
+POTHOS_TEST_BLOCK("/app/tests", test_app_register_service_no_command)
+{
+    #ifndef _WIN32
+    std::cout << "skipped: Windows only" << std::endl;
+    #else
+    //the check comes before the service control manager: no elevation needed
+    const std::string name = "PothosUtilNoCommand" + std::to_string(GetCurrentProcessId());
+    auto l = launchPothosUtil({"--register-service=" + name, "--startup=manual"});
+    readAll(l->out);
+    const auto err = readAll(l->err);
+    const auto code = waitFor(l->proc, 30s);
+    if (code and *code == 0) Pothos::App::unregisterService(name); //a failed check: no service left behind
+    POTHOS_TEST_TRUE(code and *code == 64);
+    POTHOS_TEST_TRUE(err.find("command") != std::string::npos);
     #endif
 }
 

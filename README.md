@@ -62,6 +62,10 @@ processes or hosts (`/blocks/network_sink`, `/blocks/network_source`). When
 PothosBlocks is not installed, `Topology::commit()` throws a
 `TopologyConnectError` that names the missing block.
 
+A topology across hosts needs the pothos2 core (2.0) on each host. The
+remote protocol of pothos2 is not compatible with a 0.7 or 0.8 core: a
+remote host with an upstream core is not supported.
+
 ## Building
 
 Requirements: CMake 3.25 or newer, Ninja (or another generator) and a C++23

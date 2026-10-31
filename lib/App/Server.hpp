@@ -64,6 +64,12 @@ void unregisterService(const std::string &name);
 int runAsService(const std::string &name, std::function<int()> main);
 #endif
 
+/*!
+ * Tell the console close handler that main() is done (Windows: the handler
+ * waits for it, at most 5 s, before Windows ends the process). No-op on Unix.
+ */
+void shutdownDone(void);
+
 //! Writes the process id to a file, removes the file on destruction
 class PidFile
 {
@@ -71,6 +77,16 @@ public:
     //! \throws Pothos::FileException when the file cannot be written
     explicit PidFile(std::filesystem::path path);
     ~PidFile(void);
+
+    #ifndef _WIN32
+    /*!
+     * Check that the pid file can be written (make and remove its temporary
+     * file). The original process calls it before --daemon: the daemon has
+     * no stderr for the error.
+     * \throws Pothos::FileException when the file cannot be written
+     */
+    static void check(const std::filesystem::path &path);
+    #endif
     PidFile(const PidFile &) = delete;
     PidFile &operator=(const PidFile &) = delete;
 

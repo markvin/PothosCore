@@ -82,6 +82,7 @@ add_library(Pothos SHARED
     ConfLoader/BlockDescLoader.cpp
     ConfLoader/JSONTopologyLoader.cpp
     ConfLoader/JITCompilerLoader.cpp
+    ConfLoader/Builtin/TestJITCompilerLoader.cpp
 
     Framework/Builtin/CircularBufferManager.cpp
     Framework/Builtin/TestBufferChunkSerialization.cpp
