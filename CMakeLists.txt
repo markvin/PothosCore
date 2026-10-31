@@ -222,6 +222,7 @@ if(POTHOS_BUILD_TESTS)
                 "-DPLATFORM=${CMAKE_GENERATOR_PLATFORM}"
                 "-DTOOLSET=${CMAKE_GENERATOR_TOOLSET}"
                 -DSTAGE=${POTHOS_STAGE_DIR}
+                "-DSTAGE_CONFIG_DIR=${POTHOS_STAGE_DIR}/${POTHOS_CMAKE_DIRECTORY}"
                 -P ${PROJECT_SOURCE_DIR}/cmake/PothosSubprojectTest.cmake)
         #the find-first check uses the installed core of the stage
         set_tests_properties(pothos.subproject PROPERTIES FIXTURES_REQUIRED pothos_stage)

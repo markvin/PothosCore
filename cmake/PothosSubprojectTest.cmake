@@ -107,9 +107,10 @@ configure_parent("${WORK}/no-apps" -DPOTHOS_BUILD_APPS=OFF)
 configure_parent_fails("${WORK}/no-apps-docs" "docs need PothosUtil" -DPOTHOS_BUILD_APPS=OFF -DSIBLING_DOCS=ON)
 
 #an installed core found by the parent before add_subdirectory of the core
-if (STAGE)
+#(STAGE_CONFIG_DIR: share/cmake/Pothos, or cmake on Windows)
+if (STAGE AND STAGE_CONFIG_DIR)
     configure_parent_fails("${WORK}/find-first" "Pothos::Pothos already exists"
-        -DPOTHOS_SUBPROJECT_FIND_FIRST=ON "-DPothos_DIR=${STAGE}/share/cmake/Pothos")
+        -DPOTHOS_SUBPROJECT_FIND_FIRST=ON "-DPothos_DIR=${STAGE_CONFIG_DIR}")
 endif ()
 
 #macOS: the core needs a deployment target of 13.3 or higher (std::format)
