@@ -69,7 +69,7 @@ public:
      */
     bool isWaitingEnabled(void) const
     {
-        return _waitModeEnabled;
+        return _waitModeEnabled.load();
     }
 
 private:
@@ -106,7 +106,8 @@ private:
     Pothos::ThreadPoolArgs _args;
 
     //whether or not waiting is allowed based on args
-    bool _waitModeEnabled;
+    //(changed by task registration while the worker threads read it)
+    std::atomic<bool> _waitModeEnabled;
 
     //map of handle handles to tasks
     std::map<void *, std::shared_ptr<TaskData>> _handleToTask;

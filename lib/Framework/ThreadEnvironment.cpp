@@ -29,8 +29,7 @@ void ThreadEnvironment::registerTask(void *handle, TaskData::Task task, TaskData
     std::lock_guard<std::mutex> lock(_registrationMutex);
 
     //disable wait mode
-    bool waitModeEnabled = false;
-    std::swap(waitModeEnabled, _waitModeEnabled);
+    const bool waitModeEnabled = _waitModeEnabled.exchange(false);
 
     //register the new task and bump the signature to notify threads
     {
@@ -57,7 +56,7 @@ void ThreadEnvironment::registerTask(void *handle, TaskData::Task task, TaskData
     }
 
     //restore wait mode
-    std::swap(waitModeEnabled, _waitModeEnabled);
+    _waitModeEnabled.store(waitModeEnabled);
 }
 
 void ThreadEnvironment::unregisterTask(void *handle)
@@ -66,8 +65,7 @@ void ThreadEnvironment::unregisterTask(void *handle)
     std::shared_ptr<TaskData> data;
 
     //disable wait mode
-    bool waitModeEnabled = false;
-    std::swap(waitModeEnabled, _waitModeEnabled);
+    const bool waitModeEnabled = _waitModeEnabled.exchange(false);
 
     //unregister the new task and bump the signature to notify threads
     {
@@ -103,7 +101,7 @@ void ThreadEnvironment::unregisterTask(void *handle)
     while (data.use_count() != 1) std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
     //restore wait mode
-    std::swap(waitModeEnabled, _waitModeEnabled);
+    _waitModeEnabled.store(waitModeEnabled);
 }
 
 /*!
@@ -178,11 +176,11 @@ void ThreadEnvironment::poolProcessLoop(size_t index)
         if (it == localTasks.end()) it = localTasks.begin();
         if (not it->second->flag.test_and_set(std::memory_order_acquire))
         {
-            const bool waitOnce = _waitModeEnabled and failAcquireCount >= localTasks.size();
+            const bool waitOnce = _waitModeEnabled.load() and failAcquireCount >= localTasks.size();
             if (it->second->task(waitOnce))
             {
                 //the task was successfully executed, wake all other potential blockers
-                if (_waitModeEnabled) wakeAllBusyTasks(localTasks, it->first);
+                if (_waitModeEnabled.load()) wakeAllBusyTasks(localTasks, it->first);
                 failAcquireCount = 0; //reset fail count
             }
             else failAcquireCount++;
@@ -216,7 +214,7 @@ void ThreadEnvironment::singleProcessLoop(void *handle)
         }
 
         //perform the task
-        it->second->task(_waitModeEnabled);
+        it->second->task(_waitModeEnabled.load());
     }
 }
 

@@ -47,6 +47,19 @@ static RegistryEntry &getRegistryRoot(void)
     return regRoot;
 }
 
+//! Find the entry of a path without a change of the tree (for a shared lock)
+static const RegistryEntry *findEntry(const std::vector<std::string> &pathNodes)
+{
+    const RegistryEntry *root = &getRegistryRoot();
+    for (const auto &name : pathNodes)
+    {
+        const auto it = root->nodes.find(name);
+        if (it == root->nodes.end()) return nullptr;
+        root = &it->second;
+    }
+    return root;
+}
+
 /***********************************************************************
  * plugin event handler
  **********************************************************************/
@@ -86,15 +99,16 @@ static void handlePluginEvent(const Pothos::Plugin &plugin, const std::string &e
     {
         std::shared_lock<std::shared_mutex> lock(getRegistryMutex());
         const std::vector<std::string> pathNodes = path.listNodes();
-        RegistryEntry *root = &getRegistryRoot();
+        const RegistryEntry *root = &getRegistryRoot();
 
-        for (size_t i = 0; i+1 < pathNodes.size(); i++)
+        for (size_t i = 0; root != nullptr and i+1 < pathNodes.size(); i++)
         {
             parentPlugins.insert(parentPlugins.begin(), root->plugin);
-            //next node in the tree at this node name
-            root = &root->nodes[pathNodes[i]];
+            //next node in the tree at this node name (a missing node ends the walk)
+            const auto it = root->nodes.find(pathNodes[i]);
+            root = (it == root->nodes.end())? nullptr : &it->second;
         }
-        parentPlugins.insert(parentPlugins.begin(), root->plugin);
+        if (root != nullptr) parentPlugins.insert(parentPlugins.begin(), root->plugin);
     }
 
     //traverse back up the plugin tree -- calling all potential handlers
@@ -187,17 +201,10 @@ void Pothos::PluginRegistry::add(const Plugin &plugin_)
 Pothos::Plugin Pothos::PluginRegistry::get(const PluginPath &path)
 {
     std::shared_lock<std::shared_mutex> lock(getRegistryMutex());
-    const std::vector<std::string> pathNodes = path.listNodes();
-    RegistryEntry *root = &getRegistryRoot();
-
-    for (size_t i = 0; i < pathNodes.size(); i++)
-    {
-        //next node in the tree at this node name
-        root = &root->nodes[pathNodes[i]];
-    }
+    const RegistryEntry *root = findEntry(path.listNodes());
 
     //throw if the root does not have a plugin
-    if (not root->hasPlugin)
+    if (root == nullptr or not root->hasPlugin)
     {
         throw Pothos::PluginRegistryError("Pothos::PluginRegistry::get("+path.toString()+")", "plugin path not found");
     }
@@ -241,49 +248,27 @@ Pothos::Plugin Pothos::PluginRegistry::remove(const PluginPath &path)
 bool Pothos::PluginRegistry::empty(const PluginPath &path)
 {
     std::shared_lock<std::shared_mutex> lock(getRegistryMutex());
-    const std::vector<std::string> pathNodes = path.listNodes();
-    RegistryEntry *root = &getRegistryRoot();
-
-    for (size_t i = 0; i < pathNodes.size(); i++)
-    {
-        //next node in the tree at this node name
-        root = &root->nodes[pathNodes[i]];
-    }
-
-    return not root->hasPlugin;
+    const RegistryEntry *root = findEntry(path.listNodes());
+    return root == nullptr or not root->hasPlugin;
 }
 
 bool Pothos::PluginRegistry::exists(const PluginPath &path)
 {
     std::shared_lock<std::shared_mutex> lock(getRegistryMutex());
-    const std::vector<std::string> pathNodes = path.listNodes();
-    RegistryEntry *root = &getRegistryRoot();
-
-    for (size_t i = 0; i < pathNodes.size(); i++)
-    {
-        //next node in the tree at this node name
-        root = &root->nodes[pathNodes[i]];
-    }
-
-    return root->getNumPlugins() != 0;
+    const RegistryEntry *root = findEntry(path.listNodes());
+    return root != nullptr and root->getNumPlugins() != 0;
 }
 
 std::vector<std::string> Pothos::PluginRegistry::list(const PluginPath &path)
 {
     std::shared_lock<std::shared_mutex> lock(getRegistryMutex());
-    const std::vector<std::string> pathNodes = path.listNodes();
-    RegistryEntry *root = &getRegistryRoot();
-
-    for (size_t i = 0; i < pathNodes.size(); i++)
-    {
-        //next node in the tree at this node name
-        root = &root->nodes[pathNodes[i]];
-    }
+    const RegistryEntry *root = findEntry(path.listNodes());
 
     std::vector<std::string> nodes;
+    if (root == nullptr) return nodes;
     for (const auto &name : root->nodeNamesOrdered)
     {
-        if (root->nodes[name].getNumPlugins() != 0) nodes.push_back(name);
+        if (root->nodes.at(name).getNumPlugins() != 0) nodes.push_back(name);
     }
     return nodes;
 }

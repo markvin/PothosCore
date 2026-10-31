@@ -15,15 +15,8 @@ namespace Pothos {
 namespace System {
 namespace Detail {
 
-struct LogRecord
-{
-    LogLevel level = LogLevel::Information;
-    std::string source;
-    std::string text;
-    std::chrono::system_clock::time_point time;
-    unsigned long threadId = 0;
-    int pid = 0;
-};
+//! The record of the public API (Pothos/System/Logger.hpp)
+using LogRecord = Pothos::System::LogRecord;
 
 /*!
  * The destination of log records (console, file, syslog forwarding...).

@@ -72,7 +72,7 @@ public:
     //! Enable or disable use of condition variables
     void enableWaitMode(const bool enb)
     {
-        _waitModeEnabled = enb;
+        _waitModeEnabled.store(enb);
     }
 
 private:
@@ -83,7 +83,7 @@ private:
      * Allow waiting policy set in thread configuration.
      * True to wait on CV when idle, false to spin for change.
      */
-    bool _waitModeEnabled;
+    std::atomic<bool> _waitModeEnabled; //set when the thread pool changes (no reader at this time)
 
     /*!
      * Asynchronous notification that a state change occurred.

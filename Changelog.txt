@@ -50,6 +50,10 @@ Fixes:
 - POTHOS_MODULE_UTIL: a relative doc source is relative to the source
   directory (the docs of generated SIMD copies failed after cmake ran again)
 - AVX-512VL is detected with xsimd 14.2 too
+- Data races: the wait mode flags of the thread pool and of the actor
+  are atomic; reads of the plugin registry and of the module paths no
+  longer add empty entries under a shared lock (TSan is clean on the
+  framework, plugin and system self-tests)
 
 Expressions (EvalEnvironment):
 
@@ -82,6 +86,10 @@ Public API (source compatible for blocks):
 - The implicit conversion of BufferChunk accepts only pointer types
   (const float *p = buffer;). Before, it accepted any type, thus Qt 6 moc
   found an order of BufferChunk through int and refused it in slots
+- Log listeners: Logger::addListener() and removeListener() give each
+  written log record (System::LogRecord: level, time, source, text,
+  thread and process id) to a callback, also the records from remote
+  processes. PothosFlow shows the log messages with it
 - Util::SpinLock waits (std::atomic_flag::wait) instead of spinning when
   contended; ports and registries use std::mutex/std::shared_mutex
 - Removed: Pothos/Util/SpinLockRW.hpp (use std::shared_mutex)
