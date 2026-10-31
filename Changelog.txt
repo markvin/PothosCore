@@ -1,11 +1,16 @@
 This this the changelog file for the Pothos C++ library.
 
-Release 2.0.0 (pending)
+Release 2.0.0 (2026-10-31)
 ==========================
 
 pothos2: the modernized core with a new, incompatible API. The version
 starts at 2.0 because the 0.x numbers belong to the upstream line. It
 contains the changes of the unreleased upstream 0.8.0 (below).
+
+The toolkits of this release (tags in their repositories):
+PothosBlocks 0.6.0, PothosComms 0.4.0, PothosWidgets 0.6.0,
+PothosSoapy 0.6.0, PothosPlotters 0.5.0, PothosFlow 0.8.0 and
+PothosAudio 0.4.0. PothosBase 0.1.0 builds all of them with the core.
 
 Version:
 

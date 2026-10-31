@@ -230,6 +230,14 @@ phase 3 occurs before phase 2.**
   findings of the final review (the next small PR before the release
   2.0.0).
 
+- Release 2.0.0 (2026-10-31, user decision): the six deferred findings
+  are fixed (core PR #26). The Changelogs get the date, and the merge
+  commits get the tags `pothos-2.0.0`, `pothos-blocks-0.6.0`,
+  `pothos-comms-0.4.0`, `pothos-widgets-0.6.0`, `pothos-soapy-0.6.0`,
+  `pothos-plotters-0.5.0`, `pothos-flow-0.8.0`, `pothos-audio-0.4.0` and
+  `pothos-base-0.1.0` (PothosBase points to the tagged commits). Next:
+  python as its own phase.
+
 ## Decisions for the next phases
 
 User decisions (2026-10-28), made before these phases started:
