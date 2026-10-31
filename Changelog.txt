@@ -1,7 +1,19 @@
 This this the changelog file for the Pothos C++ library.
 
-pothos2 (in development)
+Release 2.0.0 (pending)
 ==========================
+
+pothos2: the modernized core with a new, incompatible API. The version
+starts at 2.0 because the 0.x numbers belong to the upstream line. It
+contains the changes of the unreleased upstream 0.8.0 (below).
+
+Version:
+
+- Library version 2.0.0, API version 0x02000000, ABI version 2.0-0
+  (before: 0.8.0, 0x00070000 and 0.7-4 of the upstream development
+  branch). The library is libPothos.so.2.0-0, and the modules go into
+  lib/Pothos/modules2.0-0: modules of upstream 0.7 and 0.8 builds are not
+  loaded. Rebuild and install each toolkit again
 
 Repository:
 
@@ -128,7 +140,7 @@ Networking:
   data ([pothos@32473 ...]); the listener accepts RFC 5424 and RFC 3164
   and listens on IPv6 and IPv4
 
-Release 0.8.0 (pending)
+Upstream 0.8.0 (not released; part of 2.0.0)
 ==========================
 
 API changes:

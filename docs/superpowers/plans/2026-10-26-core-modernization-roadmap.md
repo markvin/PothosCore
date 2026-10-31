@@ -25,6 +25,7 @@ Poco goes away step by step: the intermediate phases keep it as a
 | 13 | soapy on the pothos2 core (user decisions, 2026-10-28 and 2026-10-29) | the fork `markvin/PothosSoapy` (branch `pothos2`): built against the installed core (CMake 3.25, `CMP0144` NEW), without Poco (the SoapySDR log goes to the Pothos logger); SoapySDR ≥ 0.8 from the system or from the upstream source, not from Conan; without SoapySDR the configure step stops with a clear error; with SoapySDR < 0.9 the soapy targets ignore the `#warning` about `<ciso646>` (GCC ≥ 15); the install RPATH has the SoapySDR directory when it is not a system directory; the self-tests need no hardware and use an own SoapySDR test driver (`pothos_soapy_test`, registered only during a test); a manual test `soapy.device` with a real device; CI: 4 jobs (Conan + SoapySDR `soapy-sdr-0.9.0` from the source, `actions/cache`) + `linux-system` (Arch, `soapysdr` 0.8.1); soapy is a submodule of PothosBase | `2026-10-29-phase13-soapy.md` |
 | 14 | plotters on the pothos2 core (user decisions, 2026-10-28 and 2026-10-30; python is skipped for now) | the fork `markvin/PothosPlotters` (branch `pothos2`): built against the installed core (CMake 3.25, `CMP0144` NEW), only Qt 6 (≥ 6.5) and Qwt ≥ 6.3 for Qt 6 from `find_package` (`cmake/FindQwt.cmake`; a Qwt for Qt 5 is refused at the configure step), not from Conan; no `qwt6` submodule, no built-in Qwt, no spuce (an own copy of the window code of comms); the self-tests (windows, a smoke test of 9 blocks, data through the 5 plotters, `offscreen`) need PothosComms and PothosBlocks in the prefix; a core fix: `BufferChunk` converts implicitly only to pointer types (Qt 6 moc); CI: 4 jobs (Conan + `install-qt-action` + Qwt 6.3.0 built with qmake from the SourceForge archive, `actions/cache`) + `linux-system` (Arch, `qwt`); plotters is a submodule of PothosBase | `2026-10-30-phase14-plotters.md` |
 | 15 | flow on the pothos2 core (user decisions, 2026-10-31) | a PR into the core first: a public log listener API (`Logger::addListener`/`removeListener`, public `LogRecord`) and the fix of the known data races (wait mode flags, reads of the plugin registry); the fork `markvin/PothosFlow` (branch `pothos2`): built against the installed core (CMake 3.25, `CMP0144` NEW), without Poco (the message window uses the listener API), only Qt 6 (≥ 6.5, Widgets and Concurrent) from the system or the Qt installer; the application sources are an internal static library; a smoke test without a display (the main window, the block cache, Help → About, the message window, a selected block, the exit) needs PothosBlocks in the prefix; CI: 4 jobs (Conan for the core + `install-qt-action`) + `linux-system` (Arch, `qt6-base`); flow is a submodule of PothosBase with the test `base.flow` | `2026-10-31-phase15-flow.md` |
+| 16 | Version 2.0 (user decisions, 2026-10-31) | library 2.0.0, API `0x02000000`, ABI `2.0-0` (before: 0.8.0, `0x00070000`, `0.7-4` of the upstream development branch): `libPothos.so.2.0-0` and `lib/Pothos/modules2.0-0`, thus modules of upstream 0.7 and 0.8 builds are not loaded; a self-test checks the numbers; the toolkits take the ABI from `POTHOS_ABI_VERSION` and only need a rebuild | (a small change, described in the chat; no plan file) |
 
 The order of phases 2 and 3 can change. **User decision (2026-10-26):
 phase 3 occurs before phase 2.**
@@ -191,6 +192,14 @@ phase 3 occurs before phase 2.**
   boxes by their text). The flow CI is green: 5/5. PothosBase: 370
   self-tests from one prefix, and `base.flow`. All toolkits of the
   roadmap are ported, except python (skipped for now).
+
+- Phase 16 (user decisions, 2026-10-31) — the version of pothos2 is 2.0.
+  Upstream has no 0.8 release (its last release is 0.7.1 with ABI `0.7`),
+  but its development branch is "0.8.0 (pending)" with ABI `0.7-4`, the
+  same numbers as pothos2 before. Thus an upstream build and a pothos2
+  build put their modules into the same directory. The 0.x numbers belong
+  to upstream; 2.0 matches the name pothos2 and cannot collide with a
+  future upstream 1.0. This closes the deferred ABI note of phase 6b.
 
 ## Decisions for the next phases
 
