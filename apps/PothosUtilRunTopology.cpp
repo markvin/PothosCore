@@ -20,8 +20,8 @@ void PothosUtilBase::runTopology(void)
 
     //sanity check the file
     const auto path = this->config().getString("run-topology");
-    if (std::filesystem::path(path).extension() == ".pothos" or
-        std::filesystem::path(path).extension() == ".pth")
+    const auto extension = Pothos::Util::Detail::utf8Path(path).extension();
+    if (extension == ".pothos" or extension == ".pth")
     {
         throw Pothos::DataFormatException("Cannot load "+path+"!\n"
             "Please export the design to the JSON topology format.");

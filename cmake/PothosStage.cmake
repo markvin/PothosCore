@@ -6,7 +6,12 @@
 # not stay and be loaded. Other files of the prefix stay (toolkits can be
 # installed into the stage of the core).
 #
+# A stage of an older build has no such list: then the install manifest of
+# the build dir gives the files of the previous install.
+#
 # Required: -DBUILD_DIR=<build dir> -DPREFIX=<stage prefix> -DCONFIG=<config>
+# Optional: -DOLD_INSTALL_MANIFEST=<file> in place of the install manifest
+#           of the build dir (for the tests)
 ########################################################################
 cmake_minimum_required(VERSION 3.25) #policies for cmake -P scripts
 foreach(var BUILD_DIR PREFIX)
@@ -16,8 +21,16 @@ foreach(var BUILD_DIR PREFIX)
 endforeach()
 
 set(stage_manifest "${PREFIX}/.pothos-stage-manifest.txt")
-if (EXISTS "${stage_manifest}")
-    file(STRINGS "${stage_manifest}" old_files)
+set(old_manifest "${stage_manifest}")
+if (NOT EXISTS "${old_manifest}")
+    if (DEFINED OLD_INSTALL_MANIFEST)
+        set(old_manifest "${OLD_INSTALL_MANIFEST}")
+    else ()
+        set(old_manifest "${BUILD_DIR}/install_manifest.txt")
+    endif ()
+endif ()
+if (EXISTS "${old_manifest}")
+    file(STRINGS "${old_manifest}" old_files)
     foreach(file IN LISTS old_files)
         #only the files inside the prefix
         cmake_path(IS_PREFIX PREFIX "${file}" NORMALIZE inside)

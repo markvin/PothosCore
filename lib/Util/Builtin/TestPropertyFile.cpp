@@ -51,5 +51,7 @@ POTHOS_TEST_BLOCK("/util/tests", test_property_file_io)
     const PropertyMap map{{"loader", "block_desc"}, {"paths", "/a/b.cpp\n/c/d.cpp"}};
     savePropertyFile(file.path(), map);
     POTHOS_TEST_TRUE(loadPropertyFile(file.path()) == map);
-    POTHOS_TEST_THROWS(loadPropertyFile(file.path().string() + ".missing"), Pothos::FileException);
+    auto missing = file.path();
+    missing += ".missing";
+    POTHOS_TEST_THROWS(loadPropertyFile(missing), Pothos::FileException);
 }

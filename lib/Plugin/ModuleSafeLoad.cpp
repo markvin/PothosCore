@@ -69,7 +69,7 @@ static bool previousLoadWasSuccessful(const std::string &modulePath)
     std::lock_guard<std::mutex> mutexLock(getLoaderMutex());
     std::lock_guard<Pothos::Util::FileLock> fileLock(getLoaderFileLock());
     Pothos::Util::Detail::PropertyMap cache;
-    try {cache = Pothos::Util::Detail::loadPropertyFile(getModuleLoaderCachePath());} catch(...){}
+    try {cache = Pothos::Util::Detail::loadPropertyFile(Pothos::Util::Detail::utf8Path(getModuleLoaderCachePath()));} catch(...){}
 
     const auto cachedLibTime = cache.find(escape(Pothos::System::getPothosRuntimeLibraryPath()));
     const auto cachedModTime = cache.find(escape(modulePath));
@@ -85,11 +85,11 @@ static void markCurrentLoadSuccessful(const std::string &modulePath)
     std::lock_guard<std::mutex> mutexLock(getLoaderMutex());
     std::lock_guard<Pothos::Util::FileLock> fileLock(getLoaderFileLock());
     Pothos::Util::Detail::PropertyMap cache;
-    try {cache = Pothos::Util::Detail::loadPropertyFile(getModuleLoaderCachePath());} catch(...){}
+    try {cache = Pothos::Util::Detail::loadPropertyFile(Pothos::Util::Detail::utf8Path(getModuleLoaderCachePath()));} catch(...){}
 
     cache[escape(Pothos::System::getPothosRuntimeLibraryPath())] = getLastModifiedTimeStr(Pothos::System::getPothosRuntimeLibraryPath());
     cache[escape(modulePath)] = getLastModifiedTimeStr(modulePath);
-    try {Pothos::Util::Detail::savePropertyFile(getModuleLoaderCachePath(), cache);} catch(...){}
+    try {Pothos::Util::Detail::savePropertyFile(Pothos::Util::Detail::utf8Path(getModuleLoaderCachePath()), cache);} catch(...){}
 }
 
 /***********************************************************************

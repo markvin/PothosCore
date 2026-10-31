@@ -80,7 +80,7 @@ static void compilationHelper(
     //compile
     POTHOS_LOG_INFORMATION("Pothos.JITCompiler", "Compile sources for {}...", handle->target);
     const auto tmpOutput = compiler->compileCppModule(handle->compilerArgs);
-    Pothos::Util::Detail::moveFile(tmpOutput, outFile);
+    Pothos::Util::Detail::moveFile(Pothos::Util::Detail::utf8Path(tmpOutput), outFile);
     POTHOS_LOG_INFORMATION("Pothos.JITCompiler", "Wrote {}", Pothos::Util::Detail::pathUtf8(outFile));
 }
 

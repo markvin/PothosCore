@@ -8,6 +8,7 @@
 #include <Pothos/Plugin.hpp>
 #include "Platform/Process.hpp"
 #include "Platform/DynamicLibrary.hpp"
+#include "Util/FileSystem.hpp"
 #include <Pothos/System/Logger.hpp>
 #include <filesystem>
 #include <fstream>
@@ -68,7 +69,7 @@ std::string MsvcCompilerSupport::compileCppModule(const Pothos::Util::CompilerAr
 {
     //create compiler bat script
     const auto clBatPath = this->createTempFile(".bat");
-    std::ofstream clBatFile(clBatPath.c_str());
+    std::ofstream clBatFile(Pothos::Util::Detail::utf8Path(clBatPath)); //the temporary paths are UTF-8
     clBatFile << "call \"" << _vcvars_path << "\"" << " " << _vcvars_arch << std::endl;
     clBatFile << "cl.exe %*" << std::endl;
     clBatFile << "exit /b %ERRORLEVEL%" << std::endl;
@@ -131,7 +132,7 @@ std::string MsvcCompilerSupport::compileCppModule(const Pothos::Util::CompilerAr
     opts.args = args;
     opts.out = &outPipe;
     opts.err = &outPipe;
-    auto ph = Pothos::Platform::Process::launch(clBatPath, opts);
+    auto ph = Pothos::Platform::Process::launch(Pothos::Util::Detail::utf8Path(clBatPath), opts);
 
     //read into output buffer until pipe is closed
     Pothos::Platform::PipeInputStream is(outPipe);

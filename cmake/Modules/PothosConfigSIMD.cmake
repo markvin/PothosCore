@@ -1001,9 +1001,17 @@ function(pothos_multiarch FILE_LIST_VAR ARCHSTRING_VAR SRC_FILE)
     foreach(ARCH ${ARCHS})
         pothos_get_arch_info(CXX_FLAGS DEFINES_LIST SUFFIX ${ARCH})
 
-        #a copy without compiler flags (for example SSE3 with MSVC) is the
-        #fallback code again: no copy
-        if(NOT ARCH STREQUAL "NONE_NULL" AND "${CXX_FLAGS}" STREQUAL "")
+        #a copy whose architectures have no compiler flags of their own is the
+        #fallback code again: no copy (CXX_FLAGS always has the -D defines)
+        set(ARCH_OWN_FLAGS "")
+        string(REPLACE "," ";" ARCH_IDS "${ARCH}")
+        foreach(ID ${ARCH_IDS})
+            if(NOT ID STREQUAL "NONE_NULL")
+                string(APPEND ARCH_OWN_FLAGS "${POTHOS_${ID}_CXX_FLAGS}")
+            endif()
+        endforeach()
+        string(STRIP "${ARCH_OWN_FLAGS}" ARCH_OWN_FLAGS)
+        if(NOT ARCH STREQUAL "NONE_NULL" AND ARCH_OWN_FLAGS STREQUAL "")
             continue()
         endif()
 

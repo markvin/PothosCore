@@ -28,7 +28,7 @@ static std::vector<Pothos::PluginPath> loadConfFile(const std::string &path)
     std::map<std::string, std::string> configMap;
     try
     {
-        configMap = Pothos::Util::Detail::loadPropertyFile(path);
+        configMap = Pothos::Util::Detail::loadPropertyFile(Pothos::Util::Detail::utf8Path(path));
     }
     catch (const Pothos::Exception &ex)
     {

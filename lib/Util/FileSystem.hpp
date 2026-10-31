@@ -52,6 +52,19 @@ inline bool canAccess(const std::filesystem::path &path, const Access access)
     #endif
 }
 
+/*!
+ * The helpers below take std::filesystem::path. A std::string path is UTF-8:
+ * the deleted overloads stop an implicit conversion (on Windows, through the
+ * ANSI code page). Use utf8Path() for the argument.
+ */
+bool canAccess(const std::string &path, Access access) = delete;
+std::filesystem::path makeAbsolute(const std::string &path, const std::filesystem::path &base) = delete;
+std::filesystem::path makeAbsolute(const std::filesystem::path &path, const std::string &base) = delete;
+std::filesystem::path makeAbsolute(const std::string &path, const std::string &base) = delete;
+void moveFile(const std::string &from, const std::filesystem::path &to) = delete;
+void moveFile(const std::filesystem::path &from, const std::string &to) = delete;
+void moveFile(const std::string &from, const std::string &to) = delete;
+
 //! A relative path is taken relative to base; an absolute path is kept
 inline std::filesystem::path makeAbsolute(const std::filesystem::path &path, const std::filesystem::path &base)
 {

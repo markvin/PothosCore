@@ -69,7 +69,7 @@ static std::vector<Pothos::PluginPath> JSONTopologyLoader(const std::map<std::st
     if (jsonIt == config.end() or jsonIt->second.empty())
         throw Pothos::Exception("JSON file not specified");
     const auto jsonPath = Pothos::Util::Detail::makeAbsolute(
-        Pothos::Util::Detail::expandPath(jsonIt->second),
+        Pothos::Util::Detail::utf8Path(Pothos::Util::Detail::expandPath(jsonIt->second)),
         Pothos::Util::Detail::utf8Path(confFilePathIt->second).parent_path());
     if (not std::filesystem::exists(jsonPath))
         throw Pothos::Exception(Pothos::Util::Detail::pathUtf8(jsonPath) + " does not exist");

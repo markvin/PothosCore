@@ -190,6 +190,32 @@ POTHOS_TEST_BLOCK("/app/tests", test_app_daemon_pidfile_error)
     #endif
 }
 
+//the user config directory has a name that is not ASCII (a Windows user
+//such as "José"): the conf files of the user and the JSON they name load
+POTHOS_TEST_BLOCK("/app/tests", test_app_non_ascii_user_config)
+{
+    using Pothos::Util::Detail::utf8Path;
+    const std::string name = "pothos_\xD1\x82\xD0\xB5\xD1\x81\xD1\x82_\xC3\xA9_cfg_" + std::to_string(currentProcessId());
+    const auto dir = std::filesystem::temp_directory_path() / utf8Path(name);
+    const auto modules = dir / "config" / "Pothos" / "modules";
+    std::filesystem::create_directories(modules);
+    std::ofstream(modules / "non_ascii.conf") << "loader = block_desc" << std::endl << "json = non_ascii.json" << std::endl;
+    std::ofstream(modules / "non_ascii.json") << R"([{"path": "/pothos_test/non_ascii_conf", "name": "Test"}])" << std::endl;
+
+    auto l = launchPothosUtil({"--plugin-tree=/blocks/docs"}, {
+        {"XDG_CONFIG_HOME", Pothos::Util::Detail::pathUtf8(dir / "config")},
+        {"XDG_DATA_HOME", Pothos::Util::Detail::pathUtf8(dir / "data")}});
+    const auto out = readAll(l->out);
+    const auto err = readAll(l->err);
+    const auto code = waitFor(l->proc, 60s);
+    std::cout << "stderr: " << err << std::endl;
+    POTHOS_TEST_TRUE(code and *code == 0);
+    POTHOS_TEST_TRUE(out.find("non_ascii_conf") != std::string::npos);
+
+    std::error_code ec;
+    std::filesystem::remove_all(dir, ec);
+}
+
 POTHOS_TEST_BLOCK("/app/tests", test_app_pothosutil_cli)
 {
     {

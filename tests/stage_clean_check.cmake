@@ -40,4 +40,21 @@ endif ()
 if (NOT EXISTS "${prefix}/.pothos-stage-manifest.txt")
     message(FATAL_ERROR "stage_clean_check: no manifest of the new install")
 endif ()
+
+#a stage of an older build has no stage manifest: the install manifest of
+#the build dir (the previous install into the stage) gives the old files
+file(REMOVE_RECURSE "${prefix}")
+set(older_file "${prefix}/lib/Pothos/modules-old/core/libOlder.so")
+file(WRITE "${older_file}" "older")
+file(WRITE "${WORK}/old_install_manifest.txt" "${older_file}\n")
+execute_process(COMMAND ${CMAKE_COMMAND} -DBUILD_DIR=${BUILD_DIR} -DPREFIX=${prefix} -DCONFIG=${CONFIG}
+    -DOLD_INSTALL_MANIFEST=${WORK}/old_install_manifest.txt
+    -P ${CMAKE_CURRENT_LIST_DIR}/../cmake/PothosStage.cmake
+    RESULT_VARIABLE rc OUTPUT_QUIET)
+if (NOT rc EQUAL 0)
+    message(FATAL_ERROR "stage_clean_check: PothosStage.cmake failed: ${rc}")
+endif ()
+if (EXISTS "${older_file}")
+    message(FATAL_ERROR "stage_clean_check: a file of an older stage (no stage manifest) stays in the stage")
+endif ()
 message(STATUS "stage_clean_check: OK")
