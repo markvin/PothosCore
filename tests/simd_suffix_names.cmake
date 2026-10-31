@@ -1,7 +1,8 @@
 ########################################################################
 # Check the SIMD copy names of all architectures (cmake -P script):
 # each suffix of cmake/Modules/PothosConfigSIMD.cmake must be a feature
-# name that lib/System/SIMD.cpp can report, else the copy is never chosen.
+# name of the detection table of lib/System/SIMD.cpp, else the copy is
+# never chosen.
 # This also checks the architectures that the build computer does not have.
 #
 # Required: -DSRC=<core source dir>
@@ -15,7 +16,8 @@ file(READ "${SRC}/lib/System/SIMD.cpp" simd_cpp)
 set(errors)
 foreach(line IN LISTS suffix_lines)
     string(REGEX REPLACE "^set\\(POTHOS_[A-Z0-9_]+_SUFFIX \"-([^\"]+)\"\\).*" "\\1" name "${line}")
-    string(FIND "${simd_cpp}" "\"${name}\"" pos)
+    #only an entry of the detection table: {condition, "name"}
+    string(FIND "${simd_cpp}" ", \"${name}\"}" pos)
     if (pos EQUAL -1)
         list(APPEND errors "${name}")
     endif ()

@@ -547,6 +547,16 @@ POTHOS_TEST_BLOCK("/app/tests", test_app_bad_syslog_addr)
     for (auto pos = err.find("POTHOS_SYSLOG_ADDR"); pos != std::string::npos; pos = err.find("POTHOS_SYSLOG_ADDR", pos+1)) count++;
     POTHOS_TEST_EQUAL(count, 1u);
 
+    //the warning goes to stderr also with the null channel (the spec: "a warning on stderr")
+    {
+        auto l3 = launchPothosUtil({"--system-info"}, {{"POTHOS_SYSLOG_ADDR", "no.such.host.invalid:514"}, {"POTHOS_LOG_CHANNEL", "null"}});
+        readAll(l3->out);
+        const auto err3 = readAll(l3->err);
+        const auto code3 = waitFor(l3->proc, 60s);
+        POTHOS_TEST_TRUE(code3 and *code3 == 0);
+        POTHOS_TEST_TRUE(err3.find("POTHOS_SYSLOG_ADDR") != std::string::npos);
+    }
+
     //a host name (not an IP literal) is resolved at the library load: no crash
     auto l2 = launchPothosUtil({"--system-info"}, {{"POTHOS_SYSLOG_ADDR", "localhost:9"}});
     POTHOS_TEST_TRUE(not readAll(l2->out).empty());

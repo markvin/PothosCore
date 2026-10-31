@@ -9,6 +9,8 @@
 #include <xsimd/config/xsimd_cpu_features.hpp>
 #include <algorithm>
 #include <sstream>
+#include <utility>
+#include <vector>
 
 #if defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
 #define POTHOS_SIMD_X86
@@ -47,53 +49,59 @@ static bool cpuHasAVX512VL(const xsimd::cpu_features &cpu)
 #endif
 }
 
-std::vector<std::string> Pothos::System::Detail::detectSIMDFeatures(void)
+//! Each feature name with the result of the detection: one table for
+//! detectSIMDFeatures() and knownSIMDFeatureNames(), so the two cannot differ
+static std::vector<std::pair<bool, const char *>> simdFeatureTable(void)
 {
     const auto cpu = xsimd::cpu_features();
-    std::vector<std::string> out;
-    const auto add = [&out](const bool supported, const char *name){if (supported) out.emplace_back(name);};
 
     //x86: a level implies the levels it builds on (the composition Pothos always used)
     const bool sse2 = cpu.sse2(), sse3 = sse2 and cpu.sse3(), ssse3 = sse3 and cpu.ssse3();
     const bool sse4_1 = ssse3 and cpu.sse4_1(), avx = sse4_1 and cpu.avx(), avx2 = avx and cpu.avx2();
     const bool avx512f = avx2 and cpu.avx512f();
-    add(avx512f and cpuHasAVX512VL(cpu), "x86_avx512vl");
-    add(avx512f and cpu.avx512dq(), "x86_avx512dq");
-    add(avx512f and cpu.avx512bw(), "x86_avx512bw");
-    add(avx512f, "x86_avx512f");
-    add(sse3 and cpu.fma4(), "x86_fma4");
-    add(sse3 and cpu.fma3(), "x86_fma3");
-    add(avx2, "x86_avx2");
-    add(avx, "x86_avx");
-    add(cpu.popcnt(), "x86_popcnt");
-    add(sse4_1, "x86_sse4_1");
-    add(ssse3, "x86_ssse3");
-    add(sse3, "x86_sse3");
-    add(sse2, "x86_sse2");
 
     //ARM: NEON (64-bit NEON always has single precision float support); the
     //arm_* names are the names of the SIMD copies (PothosConfigSIMD.cmake)
     const bool neon = cpu.neon64() or cpu.neon();
-    add(cpu.neon64(), "arm64_neon");
-    add(neon, "arm_neon_flt_sp");
-    add(neon, "arm_neon");
-    add(neon, "neonfltsp");
-    add(neon, "neon");
 
-    //PowerPC: xsimd detects VSX (POWER8 and newer), which includes the older levels
-    add(cpu.vsx(), "power_vsx_207");
-    add(cpu.vsx(), "power_vsx_206");
-    add(cpu.vsx(), "power_altivec");
+    return {
+        {avx512f and cpuHasAVX512VL(cpu), "x86_avx512vl"},
+        {avx512f and cpu.avx512dq(), "x86_avx512dq"},
+        {avx512f and cpu.avx512bw(), "x86_avx512bw"},
+        {avx512f, "x86_avx512f"},
+        {sse3 and cpu.fma4(), "x86_fma4"},
+        {sse3 and cpu.fma3(), "x86_fma3"},
+        {avx2, "x86_avx2"},
+        {avx, "x86_avx"},
+        {cpu.popcnt(), "x86_popcnt"},
+        {sse4_1, "x86_sse4_1"},
+        {ssse3, "x86_ssse3"},
+        {sse3, "x86_sse3"},
+        {sse2, "x86_sse2"},
+        {cpu.neon64(), "arm64_neon"},
+        {neon, "arm_neon_flt_sp"},
+        {neon, "arm_neon"},
+        {neon, "neonfltsp"},
+        {neon, "neon"},
+        //PowerPC: xsimd detects VSX (POWER8 and newer), which includes the older levels
+        {cpu.vsx(), "power_vsx_207"},
+        {cpu.vsx(), "power_vsx_206"},
+        {cpu.vsx(), "power_altivec"},
+    };
+}
+
+std::vector<std::string> Pothos::System::Detail::detectSIMDFeatures(void)
+{
+    std::vector<std::string> out;
+    for (const auto &[supported, name] : simdFeatureTable()) if (supported) out.emplace_back(name);
     return out;
 }
 
 std::vector<std::string> Pothos::System::Detail::knownSIMDFeatureNames(void)
 {
-    return {
-        "x86_avx512vl", "x86_avx512dq", "x86_avx512bw", "x86_avx512f", "x86_fma4", "x86_fma3",
-        "x86_avx2", "x86_avx", "x86_popcnt", "x86_sse4_1", "x86_ssse3", "x86_sse3", "x86_sse2",
-        "arm64_neon", "arm_neon_flt_sp", "arm_neon", "neonfltsp", "neon",
-        "power_vsx_207", "power_vsx_206", "power_altivec"};
+    std::vector<std::string> out;
+    for (const auto &entry : simdFeatureTable()) out.emplace_back(entry.second);
+    return out;
 }
 
 //

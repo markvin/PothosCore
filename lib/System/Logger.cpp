@@ -8,12 +8,15 @@
 #include "System/LoggerSinks.hpp"
 #include "Platform/Environment.hpp"
 #include "Util/StringUtils.hpp"
+#include "Net/Address.hpp" //isAddressLiteral (Windows)
 #include "Net/Syslog.hpp"
 #include <atomic>
 #include <charconv>
 #include <chrono>
 #include <condition_variable>
+#include <cstdio>
 #include <deque>
+#include <format>
 #include <functional>
 #include <iostream>
 #include <map>
@@ -484,7 +487,7 @@ void Logger::forwardStdIoToLogging(const std::string &source)
 /***********************************************************************
  * Configuration from the environment
  **********************************************************************/
-void Detail::configureFromEnvironment(LogSink sinkOverride)
+void Detail::configureFromEnvironment(LogSink sinkOverride, const bool atLibraryLoad)
 {
     using Pothos::Platform::getEnv;
     const auto levelStr = getEnv("POTHOS_LOG_LEVEL").value_or("information");
@@ -518,7 +521,18 @@ void Detail::configureFromEnvironment(LogSink sinkOverride)
         }
         //syslog forwarding when the address is specified; an address that
         //does not resolve is not fatal: the logs stay on the channel sink
-        if (not syslogAddr.empty()) try
+        bool deferSyslog = false;
+        #ifdef _WIN32
+        //the lookup thread of a host name cannot start under the loader lock
+        if (atLibraryLoad and not syslogAddr.empty()) try
+        {
+            deferSyslog = not Pothos::Net::isAddressLiteral(Pothos::Net::parseHostPort(syslogAddr, 514).host);
+        }
+        catch (const Pothos::Exception &) {} //the forwarding below reports a bad address
+        #else
+        (void)atLibraryLoad;
+        #endif
+        if (not syslogAddr.empty() and not deferSyslog) try
         {
             __startSyslogForwarding(syslogAddr);
         }
@@ -538,7 +552,10 @@ void Detail::configureFromEnvironment(LogSink sinkOverride)
     else if (warnedSyslog != syslogAddr)
     {
         warnedSyslog = syslogAddr;
-        POTHOS_LOG_WARNING("Pothos.Logger", "POTHOS_SYSLOG_ADDR \"{}\": {}; the logs are not forwarded", syslogAddr, syslogError);
+        //on stderr, not through the channel: with the null or file channel the user must see it too
+        const auto text = std::format("Pothos.Logger: POTHOS_SYSLOG_ADDR \"{}\": {}; the logs are not forwarded\n", syslogAddr, syslogError);
+        std::fputs(text.c_str(), stderr);
+        std::fflush(stderr);
     }
     if (level) warnedLevel.clear();
     else if (warnedLevel != levelStr)
@@ -556,7 +573,7 @@ void Logger::setupDefaultLogging(void)
 
 pothos_static_block(pothosLoggingInit)
 {
-    Detail::configureFromEnvironment();
+    Detail::configureFromEnvironment(nullptr, true);
 }
 
 #include <Pothos/Managed.hpp>

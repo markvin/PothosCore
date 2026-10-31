@@ -190,6 +190,9 @@ public:
      *   fatal ... trace or 1 ... 8; none or off logs nothing)
      * POTHOS_LOG_CHANNEL - how to display the logs (default color)
      * POTHOS_LOG_FILE - log file path if POTHOS_LOG_CHANNEL=file specified
+     * POTHOS_SYSLOG_ADDR - host[:port] to forward the logs to (syslog over UDP).
+     *   On Windows the library load forwards only to an IP address; a host
+     *   name starts to forward when this function is called.
      */
     static void setupDefaultLogging(void);
 

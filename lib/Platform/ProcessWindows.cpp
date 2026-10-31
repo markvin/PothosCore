@@ -4,6 +4,7 @@
 #include "Platform/Process.hpp"
 #include "Util/FileSystem.hpp"
 #include <Pothos/Exception.hpp>
+#include <Pothos/System/Logger.hpp>
 #include <algorithm>
 #include <cstdlib>
 #include <cwctype>
@@ -207,10 +208,13 @@ Pothos::Platform::Process Pothos::Platform::Process::launch(const std::filesyste
         InitializeProcThreadAttributeList(nullptr, 1, 0, &attrSize);
         std::vector<char> attrBuf(attrSize);
         auto attrs = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(attrBuf.data());
-        const bool haveList = not inherit.empty() and attrSize != 0 and
-            InitializeProcThreadAttributeList(attrs, 1, 0, &attrSize) and
-            UpdateProcThreadAttribute(attrs, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
-                inherit.data(), inherit.size()*sizeof(HANDLE), nullptr, nullptr);
+        bool listInit = false, haveList = false;
+        if (not inherit.empty() and attrSize != 0)
+        {
+            listInit = InitializeProcThreadAttributeList(attrs, 1, 0, &attrSize) != FALSE;
+            haveList = listInit and UpdateProcThreadAttribute(attrs, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+                inherit.data(), inherit.size()*sizeof(HANDLE), nullptr, nullptr) != FALSE;
+        }
         STARTUPINFOEXW six{};
         six.StartupInfo = si;
         six.StartupInfo.cb = sizeof(six);
@@ -221,10 +225,13 @@ Pothos::Platform::Process Pothos::Platform::Process::launch(const std::filesyste
             ok = CreateProcessW(nullptr, cmdLine.data(), nullptr, nullptr, TRUE,
                 envFlags | EXTENDED_STARTUPINFO_PRESENT,
                 envBlock.empty()? nullptr : envBlock.data(), nullptr, &six.StartupInfo, &pi);
-            DeleteProcThreadAttributeList(attrs);
+            if (not ok) POTHOS_LOG_DEBUG("Pothos.Platform.Process",
+                "the launch with a handle list failed ({}): a launch without the list", lastErrorText());
         }
-        //without a handle list (an old system refuses a handle): the plain launch
-        if (not ok) ok = CreateProcessW(nullptr, cmdLine.data(), nullptr, nullptr, TRUE, envFlags,
+        if (listInit) DeleteProcThreadAttributeList(attrs);
+        //without a handle list (an old system refuses a handle): the plain launch;
+        //no standard handle to give (a GUI or service parent): no handle is inherited
+        if (not ok) ok = CreateProcessW(nullptr, cmdLine.data(), nullptr, nullptr, inherit.empty()? FALSE : TRUE, envFlags,
             envBlock.empty()? nullptr : envBlock.data(), nullptr, &si, &pi);
         if (not ok) error = lastErrorText();
         //only the pipe ends need their inheritance cleared again

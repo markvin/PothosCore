@@ -59,8 +59,11 @@ LogSink makeChannelSink(const std::string &channel, const std::string &filePath,
  * POTHOS_LOG_FORMAT, POTHOS_LOG_TIMEZONE, POTHOS_LOG_ASYNC and POTHOS_SYSLOG_ADDR.
  * An invalid level selects "information" and logs one warning.
  * \param sinkOverride when set, used instead of the configured channel (testing)
+ * \param atLibraryLoad true in the static block of the library: on Windows a
+ *        host name in POTHOS_SYSLOG_ADDR is not resolved then (a thread does not
+ *        start under the loader lock); setupDefaultLogging() resolves it
  */
-void configureFromEnvironment(LogSink sinkOverride = nullptr);
+void configureFromEnvironment(LogSink sinkOverride = nullptr, bool atLibraryLoad = false);
 
 //! Stop the asynchronous writer; later messages are written synchronously
 void shutdownLogging(void);
