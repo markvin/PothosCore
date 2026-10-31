@@ -235,8 +235,14 @@ phase 3 occurs before phase 2.**
   commits get the tags `pothos-2.0.0`, `pothos-blocks-0.6.0`,
   `pothos-comms-0.4.0`, `pothos-widgets-0.6.0`, `pothos-soapy-0.6.0`,
   `pothos-plotters-0.5.0`, `pothos-flow-0.8.0`, `pothos-audio-0.4.0` and
-  `pothos-base-0.1.0` (PothosBase points to the tagged commits). Next:
-  python as its own phase.
+  `pothos-base-0.1.0` (PothosBase points to the tagged commits).
+
+- The modernization is closed at the release 2.0.0 (user decision,
+  2026-10-31). python (PothosPython) is not ported: the user does not
+  need Python blocks or Python scripts, and an embedded CPython costs
+  much work for each Python version and each platform. Later work only
+  on request, for example packages and installers, or other toolkits of
+  pothosware.
 
 ## Decisions for the next phases
 

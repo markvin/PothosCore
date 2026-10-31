@@ -44,7 +44,9 @@ branch. The other toolkits are not yet ported:
 * [PothosPlotters](https://github.com/markvin/PothosPlotters) - ported to
   pothos2 (branch `pothos2`), needs Qt 6 (6.5 or higher), Qwt 6.3 or
   higher for Qt 6, and PothosComms at run time
-* [PothosPython](https://github.com/pothosware/PothosPython)
+* [PothosPython](https://github.com/pothosware/PothosPython) - not
+  ported: it does not build against pothos2 (Python blocks are not
+  available)
 * [PothosSoapy](https://github.com/markvin/PothosSoapy) - ported to
   pothos2 (branch `pothos2`), needs SoapySDR 0.8 or higher
 * [PothosWidgets](https://github.com/markvin/PothosWidgets) - ported to
