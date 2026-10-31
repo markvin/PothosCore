@@ -15,7 +15,7 @@
 #include "Util/FileSystem.hpp" //utf8Path, pathUtf8
 
 
-std::string Pothos_FileRealPath(const std::string &path);
+std::filesystem::path Pothos_FileRealPath(const std::filesystem::path &path);
 
 /***********************************************************************
  * Load a config file by iterating through sections and running action
@@ -74,7 +74,7 @@ static std::vector<std::filesystem::path> getConfFilePaths(const std::filesystem
     if (not std::filesystem::exists(path, ec)) return paths;
     else if (std::filesystem::is_regular_file(path, ec) and (path.extension() == ".conf"))
     {
-        paths.push_back(Pothos_FileRealPath(Pothos::Util::Detail::pathUtf8(path)));
+        paths.push_back(Pothos_FileRealPath(path)); //a path, not a UTF-8 string: no ANSI conversion on Windows
     }
     else if (std::filesystem::is_directory(path, ec))
     {

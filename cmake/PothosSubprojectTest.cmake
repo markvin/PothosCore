@@ -125,8 +125,12 @@ if (GIT_EXECUTABLE)
     file(REMOVE_RECURSE "${outer}")
     file(MAKE_DIRECTORY "${outer}/core")
     #the files of the work tree (not HEAD: the check must see changes that are not committed)
-    execute_process(COMMAND ${GIT_EXECUTABLE} -C "${SRC}" ls-files
-        OUTPUT_VARIABLE tracked OUTPUT_STRIP_TRAILING_WHITESPACE)
+    #safe.directory: in a CI container the checkout has another owner
+    execute_process(COMMAND ${GIT_EXECUTABLE} -c "safe.directory=${SRC}" -C "${SRC}" ls-files
+        RESULT_VARIABLE rc OUTPUT_VARIABLE tracked ERROR_VARIABLE err OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if (NOT rc EQUAL 0 OR tracked STREQUAL "")
+        message(FATAL_ERROR "git ls-files of ${SRC} failed (${rc}): ${err}")
+    endif ()
     string(REPLACE "\n" ";" tracked "${tracked}")
     foreach(file IN LISTS tracked)
         if (EXISTS "${SRC}/${file}")

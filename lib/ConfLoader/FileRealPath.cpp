@@ -12,9 +12,9 @@
  * Resolve symbolic links into an absolute path.
  * The path is returned unchanged when it cannot be resolved.
  */
-std::string Pothos_FileRealPath(const std::string &path)
+std::filesystem::path Pothos_FileRealPath(const std::filesystem::path &path)
 {
     std::error_code ec;
-    const auto real = std::filesystem::canonical(Pothos::Util::Detail::utf8Path(path), ec);
-    return ec? path : Pothos::Util::Detail::pathUtf8(real);
+    const auto real = std::filesystem::canonical(path, ec);
+    return ec? path : real;
 }

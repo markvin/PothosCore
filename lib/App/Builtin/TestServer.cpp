@@ -124,7 +124,14 @@ POTHOS_TEST_BLOCK("/app/tests", test_app_pidfile_non_ascii)
     const std::string pidPath = Pothos::Util::Detail::pathUtf8(dir) + "/pid.\xD1\x84";
 
     auto l = launchPothosUtil({"--proxy-server=tcp://127.0.0.1:0", "--pidfile=" + pidPath});
-    POTHOS_TEST_TRUE(not readPort(l->out).empty());
+    if (readPort(l->out).empty())
+    {
+        //show why the server did not start
+        const auto err = readAll(l->err);
+        const auto code = waitFor(l->proc, 10s);
+        std::cout << "exit code: " << (code? std::to_string(*code) : std::string("none")) << ", stderr: " << err << std::endl;
+        POTHOS_TEST_TRUE(false);
+    }
     {
         std::ifstream file(utf8Path(pidPath));
         int pid = 0;
