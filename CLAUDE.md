@@ -52,12 +52,18 @@ Restore / update the project so it builds and works on a modern toolchain.
   prefix of the core and has the CTest resource lock
   `pothos_locator_port` (the main window starts a server on the locator
   port). The message window uses the log listener API of the core
+- PothosAudio (ported, phase 17) is the fork markvin/PothosAudio, branch
+  `pothos2`, local clone `../PothosAudio`. It has a copy of miniaudio
+  (`third_party/miniaudio/miniaudio.h`, no PortAudio, no audio packages
+  for the build). `POTHOS_AUDIO_BACKEND` selects the miniaudio backend;
+  its self-tests use `null` (no sound card) and need PothosBlocks in the
+  prefix of the core
 - PothosBase (phase 11) is the aggregate build: repository
   markvin/PothosBase (branch `main`), local clone
-  `../PothosBase`. The core, blocks, comms, widgets, soapy, plotters
-  and flow are submodules on `pothos2`, built with `add_subdirectory`.
+  `../PothosBase`. The core, blocks, comms, widgets, soapy, plotters,
+  flow and audio are submodules on `pothos2`, built with `add_subdirectory`.
   `-DPOTHOS_BASE_CORE_DIR=...` (and `_BLOCKS_DIR`, `_COMMS_DIR`,
-  `_WIDGETS_DIR`, `_SOAPY_DIR`, `_PLOTTERS_DIR`, `_FLOW_DIR`) builds a local clone in place of a
+  `_WIDGETS_DIR`, `_SOAPY_DIR`, `_PLOTTERS_DIR`, `_FLOW_DIR`, `_AUDIO_DIR`) builds a local clone in place of a
   submodule. `ctest` runs all self-tests from one stage prefix, and
   `base.flow` runs the flow smoke test. A toolkit
   must build both standalone and in PothosBase; its `find_package(Pothos)`
