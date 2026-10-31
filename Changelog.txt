@@ -50,6 +50,10 @@ Fixes:
 - POTHOS_MODULE_UTIL: a relative doc source is relative to the source
   directory (the docs of generated SIMD copies failed after cmake ran again)
 - AVX-512VL is detected with xsimd 14.2 too
+- Data races: the wait mode flags of the thread pool and of the actor
+  are atomic; reads of the plugin registry and of the module paths no
+  longer add empty entries under a shared lock (TSan is clean on the
+  framework, plugin and system self-tests)
 
 Expressions (EvalEnvironment):
 

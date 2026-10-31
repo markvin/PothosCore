@@ -24,7 +24,10 @@ static ModulePathsMap &getModulePathsMap(void)
 std::vector<std::string> getPluginPaths(const Pothos::PluginModule &module)
 {
     std::shared_lock<std::shared_mutex> lock(getModulePathsMutex());
-    return getModulePathsMap()[module.getFilePath()];
+    const auto &map = getModulePathsMap();
+    const auto it = map.find(module.getFilePath());
+    if (it == map.end()) return {};
+    return it->second;
 }
 
 void updatePluginAssociation(const std::string &action, const Pothos::Plugin &plugin)
