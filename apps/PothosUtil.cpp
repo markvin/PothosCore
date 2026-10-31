@@ -4,8 +4,10 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include "PothosUtil.hpp"
+#include "Util/FileSystem.hpp"
 #include "App/PothosUtilOptions.hpp"
 #include "App/Server.hpp"
+#include "Platform/Environment.hpp"
 #include <Pothos/System.hpp>
 #include <Pothos/System/Paths.hpp>
 #include <Pothos/Exception.hpp>
@@ -154,7 +156,7 @@ static int runGuarded(Fn &&f)
 int main(int argc, char *argv[])
 {
     PothosUtil app;
-    const int parsed = runGuarded([&]{app.parse(std::vector<std::string>(argv+1, argv+argc)); return 0;});
+    const int parsed = runGuarded([&]{app.parse(Pothos::Platform::commandLineArguments(argc, argv)); return 0;});
     if (parsed != 0) return parsed;
 
     if (argc <= 1 or app.config().has("help"))
@@ -209,7 +211,7 @@ int main(int argc, char *argv[])
         //the pid file exists: a request in between must not leave it behind
         if (app.isServerMode()) Pothos::App::installTerminationHandlers();
         std::optional<Pothos::App::PidFile> pidFile;
-        if (config.has("pidfile")) pidFile.emplace(config.getString("pidfile"));
+        if (config.has("pidfile")) pidFile.emplace(Pothos::Util::Detail::utf8Path(config.getString("pidfile")));
 
         Pothos::System::Logger::setupDefaultLogging();
         app.runCommands();

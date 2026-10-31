@@ -8,7 +8,11 @@
 #include "Platform/Environment.hpp"
 #include "Net/TcpStream.hpp"
 #include "Util/StringUtils.hpp"
+#include "Util/FileSystem.hpp"
 #include <chrono>
+#include <future>
+#include <memory>
+#include <type_traits>
 #include <thread>
 #include <iostream>
 #include <string>
@@ -56,7 +60,7 @@ POTHOS_TEST_BLOCK("/platform/tests", test_process_exit_code)
 {
     ProcessOptions opts;
     opts.args = {"--success-code", "7"};
-    auto proc = Process::launch(Pothos::System::getPothosUtilExecutablePath(), opts);
+    auto proc = Process::launch(Pothos::Util::Detail::utf8Path(Pothos::System::getPothosUtilExecutablePath()), opts);
     POTHOS_TEST_TRUE(proc.id() > 0);
     POTHOS_TEST_EQUAL(proc.wait(), 7);
 }
@@ -67,7 +71,7 @@ POTHOS_TEST_BLOCK("/platform/tests", test_process_capture_stdout)
     ProcessOptions opts;
     opts.args = {"--help"};
     opts.out = &out;
-    auto proc = Process::launch(Pothos::System::getPothosUtilExecutablePath(), opts);
+    auto proc = Process::launch(Pothos::Util::Detail::utf8Path(Pothos::System::getPothosUtilExecutablePath()), opts);
     PipeInputStream is(out);
     const std::string text((std::istreambuf_iterator<char>(is)), std::istreambuf_iterator<char>());
     POTHOS_TEST_EQUAL(proc.wait(), 0);
@@ -90,7 +94,7 @@ POTHOS_TEST_BLOCK("/platform/tests", test_process_large_output)
     opts.args = {"--self-test1", "/platform/tests/helper_large_output"};
     opts.env = {{"POTHOS_TEST_LARGE_OUTPUT", "1"}};
     opts.out = &out;
-    auto proc = Process::launch(Pothos::System::getPothosUtilExecutablePath(), opts);
+    auto proc = Process::launch(Pothos::Util::Detail::utf8Path(Pothos::System::getPothosUtilExecutablePath()), opts);
     PipeInputStream is(out);
     const std::string xs(63, 'x');
     size_t count = 0;
@@ -110,7 +114,7 @@ POTHOS_TEST_BLOCK("/platform/tests", test_process_discard_output)
     opts.args = {"--self-test1", "/platform/tests/helper_large_output"};
     opts.env = {{"POTHOS_TEST_LARGE_OUTPUT", "1"}};
     opts.discardOutput = true;
-    auto proc = Process::launch(Pothos::System::getPothosUtilExecutablePath(), opts);
+    auto proc = Process::launch(Pothos::Util::Detail::utf8Path(Pothos::System::getPothosUtilExecutablePath()), opts);
     POTHOS_TEST_EQUAL(proc.wait(), 0);
 }
 
@@ -134,7 +138,7 @@ POTHOS_TEST_BLOCK("/platform/tests", test_process_no_fd_inheritance)
     opts.args = {"--self-test1", "/platform/tests/helper_check_fd"};
     opts.env = {{"POTHOS_TEST_CHECK_FD", std::to_string(fd)}};
     opts.out = &out;
-    auto proc = Process::launch(Pothos::System::getPothosUtilExecutablePath(), opts);
+    auto proc = Process::launch(Pothos::Util::Detail::utf8Path(Pothos::System::getPothosUtilExecutablePath()), opts);
     PipeInputStream is(out);
     const std::string text((std::istreambuf_iterator<char>(is)), std::istreambuf_iterator<char>());
     proc.wait();
@@ -156,7 +160,7 @@ POTHOS_TEST_BLOCK("/platform/tests", test_process_self_termination)
     ProcessOptions opts;
     opts.args = {"--require-active", "--proxy-server=tcp://127.0.0.1:0"};
     opts.out = &out;
-    auto proc = Process::launch(Pothos::System::getPothosUtilExecutablePath(), opts);
+    auto proc = Process::launch(Pothos::Util::Detail::utf8Path(Pothos::System::getPothosUtilExecutablePath()), opts);
 
     std::string port;
     PipeInputStream is(out);
@@ -187,4 +191,46 @@ POTHOS_TEST_BLOCK("/platform/tests", test_self_termination_declared)
     //compile check: available to the proxy server on every platform
     void (*fn)(void) = &requestSelfTermination;
     POTHOS_TEST_TRUE(fn != nullptr);
+}
+
+//a Process comes only from launch(): no object with a null implementation
+static_assert(not std::is_default_constructible_v<Process>);
+
+POTHOS_TEST_BLOCK("/platform/tests", test_process_kill_while_waiting)
+{
+    //one thread waits for the child, another kills it: no deadlock
+    ProcessOptions opts;
+    opts.args = {"--self-test1=/app/tests/helper_sleep"};
+    opts.env["POTHOS_TEST_SLEEP"] = "1";
+    opts.discardOutput = true;
+    auto proc = Process::launch(Pothos::Util::Detail::utf8Path(Pothos::System::getPothosUtilExecutablePath()), opts);
+
+    //detached threads: a deadlock must fail the test, not hang it
+    auto waited = std::make_shared<std::promise<int>>();
+    auto waitedFuture = waited->get_future();
+    std::thread([proc, waited]() mutable {waited->set_value(proc.wait());}).detach();
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    auto killed = std::make_shared<std::promise<void>>();
+    auto killedFuture = killed->get_future();
+    std::thread([proc, killed]() mutable {proc.kill(); killed->set_value();}).detach();
+
+    POTHOS_TEST_TRUE(killedFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    POTHOS_TEST_TRUE(waitedFuture.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+}
+
+POTHOS_TEST_BLOCK("/platform/tests", test_process_argv_roundtrip)
+{
+    //spaces, quotes and a trailing backslash reach the child unchanged:
+    //PothosUtil rejects the plugin path and shows it in the error
+    const std::string arg = "a b \"c\" d\\";
+    Pipe err;
+    ProcessOptions opts;
+    opts.args = {"--self-test1=" + arg};
+    opts.err = &err;
+    auto proc = Process::launch(Pothos::Util::Detail::utf8Path(Pothos::System::getPothosUtilExecutablePath()), opts);
+    PipeInputStream is(err);
+    const std::string text((std::istreambuf_iterator<char>(is)), std::istreambuf_iterator<char>());
+    std::cout << "stderr: " << text << std::endl;
+    POTHOS_TEST_TRUE(proc.wait() != 0);
+    POTHOS_TEST_TRUE(text.find(arg) != std::string::npos);
 }

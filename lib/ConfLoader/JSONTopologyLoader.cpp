@@ -8,6 +8,7 @@
 #include <fstream>
 #include <map>
 #include <nlohmann/json.hpp>
+#include "Util/FileSystem.hpp" //utf8Path, pathUtf8
 
 using json = nlohmann::json;
 
@@ -69,9 +70,9 @@ static std::vector<Pothos::PluginPath> JSONTopologyLoader(const std::map<std::st
         throw Pothos::Exception("JSON file not specified");
     const auto jsonPath = Pothos::Util::Detail::makeAbsolute(
         Pothos::Util::Detail::expandPath(jsonIt->second),
-        std::filesystem::path(confFilePathIt->second).parent_path());
+        Pothos::Util::Detail::utf8Path(confFilePathIt->second).parent_path());
     if (not std::filesystem::exists(jsonPath))
-        throw Pothos::Exception(jsonPath.string() + " does not exist");
+        throw Pothos::Exception(Pothos::Util::Detail::pathUtf8(jsonPath) + " does not exist");
 
     //get the plugin path
     const auto pathIt = config.find("path");

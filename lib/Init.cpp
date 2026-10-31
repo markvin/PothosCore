@@ -65,7 +65,7 @@ void Pothos::InitSingleton::unload(void)
 Pothos::InitSingleton::InitSingleton(void)
 {
     //check the root
-    const fs::path rootPath(System::getRootPath());
+    const fs::path rootPath(Pothos::Util::Detail::utf8Path(System::getRootPath()));
     if (not fs::is_directory(rootPath)) throw Exception(
         "Pothos::init()", std::format(
         "Pothos installation FAIL - \"{}\" does not exist",
@@ -73,7 +73,7 @@ Pothos::InitSingleton::InitSingleton(void)
     ));
 
     //check for the util executable
-    const fs::path utilExecutablePath(System::getPothosUtilExecutablePath());
+    const fs::path utilExecutablePath(Pothos::Util::Detail::utf8Path(System::getPothosUtilExecutablePath()));
     if (not fs::exists(utilExecutablePath)) throw Exception(
         "Pothos::init()", std::format(
         "Pothos installation FAIL - \"{}\" does not exist",
@@ -86,7 +86,7 @@ Pothos::InitSingleton::InitSingleton(void)
     ));
 
     //check for the runtime library
-    const fs::path runtimeLibraryPath(System::getPothosRuntimeLibraryPath());
+    const fs::path runtimeLibraryPath(Pothos::Util::Detail::utf8Path(System::getPothosRuntimeLibraryPath()));
     if (not fs::is_regular_file(runtimeLibraryPath)) throw Exception(
         "Pothos::init()", std::format(
         "Pothos installation FAIL - \"{}\" does not exist",
@@ -94,7 +94,7 @@ Pothos::InitSingleton::InitSingleton(void)
     ));
 
     //check the user data directory
-    const fs::path userDataPath(System::getUserDataPath());
+    const fs::path userDataPath(Pothos::Util::Detail::utf8Path(System::getUserDataPath()));
     std::error_code ec;
     if (not fs::exists(userDataPath)) fs::create_directories(userDataPath, ec);
     if (not fs::exists(userDataPath) or not canAccess(userDataPath, Access::Write)) throw Exception(
@@ -104,7 +104,7 @@ Pothos::InitSingleton::InitSingleton(void)
     ));
 
     //check the user config directory
-    const fs::path userConfigPath(System::getUserConfigPath());
+    const fs::path userConfigPath(Pothos::Util::Detail::utf8Path(System::getUserConfigPath()));
     if (not fs::exists(userConfigPath)) fs::create_directories(userConfigPath, ec);
     if (not fs::exists(userConfigPath) or not canAccess(userConfigPath, Access::Write)) throw Exception(
         "Pothos::init()", std::format(
@@ -113,14 +113,14 @@ Pothos::InitSingleton::InitSingleton(void)
     ));
 
     //check the development environment (includes)
-    if (not fs::exists(System::getPothosDevIncludePath())) throw Exception(
+    if (not fs::exists(Pothos::Util::Detail::utf8Path(System::getPothosDevIncludePath()))) throw Exception(
         "Pothos::init()", std::format(
         "Pothos development include directory FAIL - \"{}\" does not exist",
         System::getPothosDevIncludePath()
     ));
 
     //check the development environment (libraries)
-    if (not fs::exists(System::getPothosDevLibraryPath())) throw Exception(
+    if (not fs::exists(Pothos::Util::Detail::utf8Path(System::getPothosDevLibraryPath()))) throw Exception(
         "Pothos::init()", std::format(
         "Pothos development library directory FAIL - \"{}\" does not exist",
         System::getPothosDevLibraryPath()

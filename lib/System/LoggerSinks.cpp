@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include "System/LoggerSinks.hpp"
+#include "Util/FileSystem.hpp"
 #include <Pothos/Exception.hpp>
 #include "Util/StringUtils.hpp"
 #include <cstdio>
@@ -151,7 +152,7 @@ Detail::LogSink Detail::makeChannelSink(const std::string &channel, const std::s
     }
     if (channel == "file" and not filePath.empty())
     {
-        auto file = std::make_shared<std::ofstream>(filePath, std::ios::app);
+        auto file = std::make_shared<std::ofstream>(Pothos::Util::Detail::utf8Path(filePath), std::ios::app);
         if (not file->is_open()) throw Pothos::FileException("Pothos logger", "cannot open the log file " + filePath);
         return [file, pattern, utc](const LogRecord &r)
         {

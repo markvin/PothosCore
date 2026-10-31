@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include "App/Server.hpp"
+#include "Util/FileSystem.hpp"
 #include "Platform/Process.hpp"
 #include <Pothos/Exception.hpp>
 #include <fstream>
@@ -54,7 +55,7 @@ Pothos::App::PidFile::PidFile(std::filesystem::path path):
 {
     std::ofstream file(_path, std::ios::trunc);
     file << GetCurrentProcessId() << std::endl;
-    if (not file) throw Pothos::FileException("PidFile", "cannot write " + _path.string());
+    if (not file) throw Pothos::FileException("PidFile", "cannot write " + Pothos::Util::Detail::pathUtf8(_path));
 }
 
 Pothos::App::PidFile::~PidFile(void)

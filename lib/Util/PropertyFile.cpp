@@ -7,6 +7,7 @@
 #include <fstream>
 #include <istream>
 #include <sstream>
+#include "Util/FileSystem.hpp" //utf8Path, pathUtf8
 
 using namespace Pothos::Util::Detail;
 
@@ -103,15 +104,15 @@ std::string Pothos::Util::Detail::formatProperties(const PropertyMap &map)
 PropertyMap Pothos::Util::Detail::loadPropertyFile(const std::filesystem::path &path)
 {
     std::ifstream file(path, std::ios::binary);
-    if (not file) throw Pothos::FileException("loadPropertyFile", "cannot open " + path.string());
+    if (not file) throw Pothos::FileException("loadPropertyFile", "cannot open " + Pothos::Util::Detail::pathUtf8(path));
     return parseProperties(file);
 }
 
 void Pothos::Util::Detail::savePropertyFile(const std::filesystem::path &path, const PropertyMap &map)
 {
     std::ofstream file(path, std::ios::binary | std::ios::trunc);
-    if (not file) throw Pothos::FileException("savePropertyFile", "cannot open " + path.string());
+    if (not file) throw Pothos::FileException("savePropertyFile", "cannot open " + Pothos::Util::Detail::pathUtf8(path));
     file << formatProperties(map);
     file.flush();
-    if (not file) throw Pothos::FileException("savePropertyFile", "cannot write " + path.string());
+    if (not file) throw Pothos::FileException("savePropertyFile", "cannot write " + Pothos::Util::Detail::pathUtf8(path));
 }

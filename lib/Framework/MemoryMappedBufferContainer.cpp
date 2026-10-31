@@ -51,7 +51,7 @@ public:
 
         constexpr int mmapFlags = MAP_SHARED;
 
-        _length = std::filesystem::file_size(filepath);
+        _length = std::filesystem::file_size(Pothos::Util::Detail::utf8Path(filepath));
 
         int fd = 0;
         throwErrnoOnFailure<Pothos::OpenFileException>(
@@ -93,6 +93,7 @@ private:
 // Windows
 //
 
+#include "Platform/Process.hpp" //utf8ToWide
 #include <Windows.h>
 #include <system_error>
 
@@ -119,7 +120,7 @@ public:
         bool readable,
         bool writable) : _buffer(nullptr), _length(0), _fileHandle(nullptr)
     {
-        _length = std::filesystem::file_size(filepath);
+        _length = std::filesystem::file_size(Pothos::Util::Detail::utf8Path(filepath));
 
         //
         // Variables used by multiple functions
@@ -140,8 +141,10 @@ public:
         constexpr DWORD flagsAndAttributes = FILE_ATTRIBUTE_NORMAL;
         constexpr ::HANDLE templateFile = nullptr;
 
-        _fileHandle = ::CreateFileA(
-                          filepath.c_str(),
+        //the path is UTF-8: the wide API (CreateFileA would use the ANSI code page)
+        const auto widePath = Pothos::Platform::utf8ToWide(filepath);
+        _fileHandle = ::CreateFileW(
+                          widePath.c_str(),
                           createFileDesiredAccess,
                           shareMode,
                           pSecurityAttributes,
@@ -169,9 +172,9 @@ public:
         DWORD maxSizeHigh = static_cast<DWORD>(_length >> 32);
         DWORD maxSizeLow = static_cast<DWORD>(_length & 0xFFFFFFFF);
 
-        constexpr LPCSTR name = nullptr;
+        constexpr LPCWSTR name = nullptr;
 
-        _mappingHandle = ::CreateFileMappingA(
+        _mappingHandle = ::CreateFileMappingW(
                              _fileHandle,
                              pSecurityAttributes,
                              fileProtection,
@@ -273,10 +276,10 @@ MemoryMappedBufferContainer::MemoryMappedBufferContainer(
 {
     using Pothos::Util::Detail::canAccess;
     using Pothos::Util::Detail::Access;
-    if (!std::filesystem::exists(filepath)) throw Pothos::FileNotFoundException(filepath);
-    if (std::filesystem::file_size(filepath) == 0) throw Pothos::InvalidArgumentException("Empty files not supported", filepath);
-    if (readable && !canAccess(filepath, Access::Read)) throw Pothos::FileAccessDeniedException(filepath);
-    if (writable && !canAccess(filepath, Access::Write)) throw Pothos::FileReadOnlyException(filepath);
+    if (!std::filesystem::exists(Pothos::Util::Detail::utf8Path(filepath))) throw Pothos::FileNotFoundException(filepath);
+    if (std::filesystem::file_size(Pothos::Util::Detail::utf8Path(filepath)) == 0) throw Pothos::InvalidArgumentException("Empty files not supported", filepath);
+    if (readable && !canAccess(Pothos::Util::Detail::utf8Path(filepath), Access::Read)) throw Pothos::FileAccessDeniedException(filepath);
+    if (writable && !canAccess(Pothos::Util::Detail::utf8Path(filepath), Access::Write)) throw Pothos::FileReadOnlyException(filepath);
 
     _implUPtr.reset(new Impl(filepath, readable, writable));
 }

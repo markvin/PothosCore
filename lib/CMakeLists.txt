@@ -229,7 +229,7 @@ endfunction()
 set(platform_sources Platform/CommandLine.cpp)
 if(WIN32)
     set(platform_suffix Windows)
-    set(platform_libraries iphlpapi) #GetAdaptersAddresses
+    set(platform_libraries iphlpapi shell32) #GetAdaptersAddresses, CommandLineToArgvW
 else()
     set(platform_suffix Unix)
     set(platform_libraries ${CMAKE_DL_LIBS}) #dlopen

@@ -5,6 +5,7 @@
 
 #pragma once
 #include <Pothos/Exception.hpp>
+#include "Util/FileSystem.hpp"
 #include <atomic>
 #include <filesystem>
 #include <fstream>
@@ -46,7 +47,7 @@ public:
     {
         if (not create) return;
         std::ofstream file(_path, std::ios::binary);
-        if (not file) throw Pothos::FileException("TempFile()", "cannot create " + _path.string());
+        if (not file) throw Pothos::FileException("TempFile()", "cannot create " + Pothos::Util::Detail::pathUtf8(_path));
     }
 
     ~TempFile(void)

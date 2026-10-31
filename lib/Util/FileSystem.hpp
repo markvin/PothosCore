@@ -4,6 +4,7 @@
 //Internal file system helpers (not installed, not part of the public API)
 
 #pragma once
+#include "Platform/Environment.hpp" //getEnv: UTF-8 on all systems
 #include <cctype>
 #include <cstdlib>
 #include <filesystem>
@@ -16,6 +17,23 @@
 namespace Pothos {
 namespace Util {
 namespace Detail {
+
+/*!
+ * A std::string path of Pothos is UTF-8. On Windows the std::string
+ * constructor of std::filesystem::path and path::string() use the ANSI code
+ * page: a path with other characters would change. Convert with these.
+ */
+inline std::filesystem::path utf8Path(const std::string &s)
+{
+    return std::filesystem::path(std::u8string(s.begin(), s.end()));
+}
+
+//! The UTF-8 text of a path (refer to utf8Path)
+inline std::string pathUtf8(const std::filesystem::path &p)
+{
+    const auto u = p.u8string();
+    return std::string(u.begin(), u.end());
+}
 
 enum class Access {Read, Write, Execute};
 
@@ -52,8 +70,7 @@ inline void moveFile(const std::filesystem::path &from, const std::filesystem::p
 
 inline std::string envOrEmpty(const std::string &name)
 {
-    const char *value = std::getenv(name.c_str());
-    return value == nullptr ? std::string() : std::string(value);
+    return Pothos::Platform::getEnv(name).value_or("");
 }
 
 /*!

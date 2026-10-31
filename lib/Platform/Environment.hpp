@@ -7,6 +7,7 @@
 #pragma once
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace Pothos {
 namespace Platform {
@@ -44,6 +45,13 @@ unsigned processorCount(void);
 
 //! Identifier of the current process
 int currentProcessId(void);
+
+/*!
+ * The command line arguments of this process after the program name, as
+ * UTF-8. On Windows, argv uses the ANSI code page; this function reads the
+ * wide command line instead. On Unix, it copies argv.
+ */
+std::vector<std::string> commandLineArguments(int argc, char *argv[]);
 
 } //namespace Platform
 } //namespace Pothos

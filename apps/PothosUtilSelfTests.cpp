@@ -8,6 +8,7 @@
 #include <Pothos/System/Paths.hpp>
 #include "Platform/Process.hpp"
 #include "Util/StringUtils.hpp"
+#include "Util/FileSystem.hpp"
 #include <iostream>
 #include <sstream>
 #include <vector>
@@ -81,7 +82,7 @@ static bool spawnSelfTestOneProcess(const std::string &path, size_t numTrials)
         opts.args = args;
         opts.out = &outPipe;
         opts.err = &outPipe;
-        auto ph = Pothos::Platform::Process::launch(Pothos::System::getPothosUtilExecutablePath(), opts);
+        auto ph = Pothos::Platform::Process::launch(Pothos::Util::Detail::utf8Path(Pothos::System::getPothosUtilExecutablePath()), opts);
 
         std::future<std::string> verboseFuture(std::async(std::launch::async, &collectVerbose, outPipe));
         const bool ok = (ph.wait() == success);

@@ -12,6 +12,7 @@
 #include "Util/PropertyFile.hpp"
 #include <future>
 #include <map>
+#include "Util/FileSystem.hpp" //utf8Path, pathUtf8
 
 
 std::string Pothos_FileRealPath(const std::string &path);
@@ -65,7 +66,7 @@ static std::vector<Pothos::PluginPath> loadConfFile(const std::string &path)
  **********************************************************************/
 static std::vector<std::filesystem::path> getConfFilePaths(const std::filesystem::path &path)
 {
-    POTHOS_LOG_DEBUG("Pothos.ConfLoader", "traversing {}", path.string());
+    POTHOS_LOG_DEBUG("Pothos.ConfLoader", "traversing {}", Pothos::Util::Detail::pathUtf8(path));
 
     std::vector<std::filesystem::path> paths;
 
@@ -73,7 +74,7 @@ static std::vector<std::filesystem::path> getConfFilePaths(const std::filesystem
     if (not std::filesystem::exists(path, ec)) return paths;
     else if (std::filesystem::is_regular_file(path, ec) and (path.extension() == ".conf"))
     {
-        paths.push_back(Pothos_FileRealPath(path.string()));
+        paths.push_back(Pothos_FileRealPath(Pothos::Util::Detail::pathUtf8(path)));
     }
     else if (std::filesystem::is_directory(path, ec))
     {
@@ -94,7 +95,7 @@ std::vector<Pothos::PluginPath> Pothos_ConfLoader_loadConfFiles(void)
 {
     //the default search path
     std::vector<std::filesystem::path> searchPaths;
-    searchPaths.push_back(std::filesystem::path(Pothos::System::getRootPath()) / "share" / "Pothos" / "modules");
+    searchPaths.push_back(Pothos::Util::Detail::utf8Path(Pothos::System::getRootPath()) / "share" / "Pothos" / "modules");
 
     //support /usr/local module installs when the install prefix is /usr
     if (Pothos::System::getRootPath() == "/usr")
@@ -103,7 +104,7 @@ std::vector<Pothos::PluginPath> Pothos_ConfLoader_loadConfFiles(void)
     }
 
     //the user's home config path
-    searchPaths.push_back(std::filesystem::path(Pothos::System::getUserConfigPath()) / "modules");
+    searchPaths.push_back(Pothos::Util::Detail::utf8Path(Pothos::System::getUserConfigPath()) / "modules");
 
     //separator for search paths
     #ifdef _WIN32
@@ -117,7 +118,7 @@ std::vector<Pothos::PluginPath> Pothos_ConfLoader_loadConfFiles(void)
     for (const auto &confPath : Pothos::Util::Detail::split(confPaths, sep, false, false))
     {
         if (confPath.empty()) continue;
-        searchPaths.push_back(confPath);
+        searchPaths.push_back(Pothos::Util::Detail::utf8Path(confPath));
     }
 
     //traverse the search paths and spawn futures
@@ -126,7 +127,7 @@ std::vector<Pothos::PluginPath> Pothos_ConfLoader_loadConfFiles(void)
     {
         for (const auto &path : getConfFilePaths(std::filesystem::absolute(searchPath)))
         {
-            futures.push_back(std::async(std::launch::async, &loadConfFile, path.string()));
+            futures.push_back(std::async(std::launch::async, &loadConfFile, Pothos::Util::Detail::pathUtf8(path)));
         }
     }
 

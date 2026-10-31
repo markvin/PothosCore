@@ -7,6 +7,7 @@
 #include "Platform/Environment.hpp"
 #include "Util/StringUtils.hpp"
 #include "Util/TempFile.hpp"
+#include "Util/FileSystem.hpp"
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -32,22 +33,30 @@ using namespace std::chrono_literals;
 
 namespace {
 
+Process launchWithPipes(const std::vector<std::string> &args, const std::map<std::string, std::string> &env, Pipe &out, Pipe &err)
+{
+    ProcessOptions opts;
+    opts.args = args;
+    opts.env = env;
+    opts.out = &out;
+    opts.err = &err;
+    return Process::launch(Pothos::Util::Detail::utf8Path(Pothos::System::getPothosUtilExecutablePath()), opts);
+}
+
 struct Launched
 {
+    Launched(const std::vector<std::string> &args, const std::map<std::string, std::string> &env):
+        proc(launchWithPipes(args, env, out, err))
+    {
+        return;
+    }
+    Pipe out, err; //before proc: launch() uses them
     Process proc;
-    Pipe out, err;
 };
 
 std::unique_ptr<Launched> launchPothosUtil(const std::vector<std::string> &args, const std::map<std::string, std::string> &env = {})
 {
-    auto l = std::make_unique<Launched>();
-    ProcessOptions opts;
-    opts.args = args;
-    opts.env = env;
-    opts.out = &l->out;
-    opts.err = &l->err;
-    l->proc = Process::launch(Pothos::System::getPothosUtilExecutablePath(), opts);
-    return l;
+    return std::make_unique<Launched>(args, env);
 }
 
 //! Read stdout lines until "Port: N"
@@ -102,6 +111,33 @@ POTHOS_TEST_BLOCK("/app/tests", test_app_proxy_server_terminates)
         POTHOS_TEST_EQUAL(*code, 0);
     }
     #endif
+}
+
+//PothosUtil gets a path that is not ASCII from its command line
+//(on Windows, argv uses the ANSI code page: the core reads the wide command line)
+POTHOS_TEST_BLOCK("/app/tests", test_app_pidfile_non_ascii)
+{
+    using Pothos::Util::Detail::utf8Path;
+    const std::string name = "pothos_\xD1\x82\xD0\xB5\xD1\x81\xD1\x82_\xC3\xA9_" + std::to_string(currentProcessId());
+    const auto dir = std::filesystem::temp_directory_path() / utf8Path(name);
+    std::filesystem::create_directories(dir);
+    const std::string pidPath = Pothos::Util::Detail::pathUtf8(dir) + "/pid.\xD1\x84";
+
+    auto l = launchPothosUtil({"--proxy-server=tcp://127.0.0.1:0", "--pidfile=" + pidPath});
+    POTHOS_TEST_TRUE(not readPort(l->out).empty());
+    {
+        std::ifstream file(utf8Path(pidPath));
+        int pid = 0;
+        POTHOS_TEST_TRUE(bool(file >> pid));
+        POTHOS_TEST_EQUAL(pid, l->proc.id());
+    }
+    l->proc.requestTermination();
+    const auto code = waitFor(l->proc, 5s);
+    POTHOS_TEST_TRUE(code and *code == 0);
+    POTHOS_TEST_TRUE(not std::filesystem::exists(utf8Path(pidPath)));
+
+    std::error_code ec;
+    std::filesystem::remove_all(dir, ec);
 }
 
 POTHOS_TEST_BLOCK("/app/tests", test_app_pothosutil_cli)
@@ -263,12 +299,7 @@ POTHOS_TEST_BLOCK("/app/tests", test_app_signal_interrupts_commands)
     std::cout << "skipped: Unix only" << std::endl;
     #else
     //Ctrl-C ends commands that do not wait for a termination request
-    auto l = std::make_unique<Launched>();
-    ProcessOptions opts;
-    opts.args = {"--self-test1=/app/tests/helper_sleep"};
-    opts.env = {{"POTHOS_TEST_SLEEP", "1"}};
-    opts.out = &l->out;
-    l->proc = Process::launch(Pothos::System::getPothosUtilExecutablePath(), opts);
+    auto l = launchPothosUtil({"--self-test1=/app/tests/helper_sleep"}, {{"POTHOS_TEST_SLEEP", "1"}});
     {
         PipeInputStream is(l->out);
         std::string line;
@@ -299,13 +330,8 @@ POTHOS_TEST_BLOCK("/app/tests", test_app_daemon_with_threads)
     //threads that start while the library loads (syslog forwarding, the async logger)
     //must not keep the daemon from terminating
     Pothos::Util::Detail::TempFile pidFile(false);
-    auto l = std::make_unique<Launched>();
-    ProcessOptions opts;
-    opts.args = {"--daemon", "--pidfile=" + pidFile.path().string(), "--proxy-server=tcp://127.0.0.1:0"};
-    opts.env = {{"POTHOS_SYSLOG_ADDR", "127.0.0.1:9"}, {"POTHOS_LOG_LEVEL", "bogus"}};
-    opts.out = &l->out;
-    opts.err = &l->err;
-    l->proc = Process::launch(Pothos::System::getPothosUtilExecutablePath(), opts);
+    auto l = launchPothosUtil({"--daemon", "--pidfile=" + pidFile.path().string(), "--proxy-server=tcp://127.0.0.1:0"},
+        {{"POTHOS_SYSLOG_ADDR", "127.0.0.1:9"}, {"POTHOS_LOG_LEVEL", "bogus"}});
     POTHOS_TEST_TRUE(waitFor(l->proc, 10s).value_or(-1) == 0);
 
     pid_t pid = 0;

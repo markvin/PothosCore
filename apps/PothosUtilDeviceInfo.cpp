@@ -42,7 +42,7 @@ void PothosUtilBase::printDeviceInfo(void)
     {
         const auto infoFile = this->config().getString("output");
         std::cout << ">>> Dumping info: " << infoFile << std::endl;
-        std::ofstream ofs(Pothos::Util::Detail::expandPath(infoFile));
+        std::ofstream ofs(Pothos::Util::Detail::utf8Path(Pothos::Util::Detail::expandPath(infoFile)));
         ofs << info.dump(4);
     }
     //or otherwise to stdout

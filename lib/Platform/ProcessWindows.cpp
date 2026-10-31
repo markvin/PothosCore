@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include "Platform/Process.hpp"
+#include "Util/FileSystem.hpp"
 #include <Pothos/Exception.hpp>
 #include <algorithm>
 #include <cstdlib>
 #include <cwctype>
 #include <mutex>
+#include <vector>
 #include <windows.h>
 
 static std::string lastErrorText(void)
@@ -25,7 +27,9 @@ static std::string lastErrorText(void)
 /***********************************************************************
  * Pipe handles are created non-inheritable. During a launch, the child's
  * ends are made inheritable under this lock and closed right after, so
- * concurrent launches never leak each other's pipe ends.
+ * concurrent launches never leak each other's pipe ends. libPothos and
+ * PothosUtil each have a copy of this lock: the handle list of the launch
+ * keeps a child from the handles of a launch in the other binary.
  **********************************************************************/
 static std::mutex &spawnMutex(void)
 {
@@ -190,24 +194,53 @@ Pothos::Platform::Process Pothos::Platform::Process::launch(const std::filesyste
         {
             if (h != nullptr and h != INVALID_HANDLE_VALUE) SetHandleInformation(h, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT);
         }
-        ok = CreateProcessW(nullptr, cmdLine.data(), nullptr, nullptr, TRUE,
-            envBlock.empty()? 0 : CREATE_UNICODE_ENVIRONMENT,
+        //the child inherits only its 3 standard handles, not the inheritable
+        //handles that another launch (or another copy of this library) has
+        std::vector<HANDLE> inherit;
+        for (const HANDLE h : {si.hStdInput, si.hStdOutput, si.hStdError})
+        {
+            DWORD flags = 0;
+            if (h == nullptr or h == INVALID_HANDLE_VALUE or not GetHandleInformation(h, &flags)) continue;
+            if (std::find(inherit.begin(), inherit.end(), h) == inherit.end()) inherit.push_back(h);
+        }
+        SIZE_T attrSize = 0;
+        InitializeProcThreadAttributeList(nullptr, 1, 0, &attrSize);
+        std::vector<char> attrBuf(attrSize);
+        auto attrs = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(attrBuf.data());
+        const bool haveList = not inherit.empty() and attrSize != 0 and
+            InitializeProcThreadAttributeList(attrs, 1, 0, &attrSize) and
+            UpdateProcThreadAttribute(attrs, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+                inherit.data(), inherit.size()*sizeof(HANDLE), nullptr, nullptr);
+        STARTUPINFOEXW six{};
+        six.StartupInfo = si;
+        six.StartupInfo.cb = sizeof(six);
+        six.lpAttributeList = attrs;
+        const DWORD envFlags = envBlock.empty()? 0 : CREATE_UNICODE_ENVIRONMENT;
+        if (haveList)
+        {
+            ok = CreateProcessW(nullptr, cmdLine.data(), nullptr, nullptr, TRUE,
+                envFlags | EXTENDED_STARTUPINFO_PRESENT,
+                envBlock.empty()? nullptr : envBlock.data(), nullptr, &six.StartupInfo, &pi);
+            DeleteProcThreadAttributeList(attrs);
+        }
+        //without a handle list (an old system refuses a handle): the plain launch
+        if (not ok) ok = CreateProcessW(nullptr, cmdLine.data(), nullptr, nullptr, TRUE, envFlags,
             envBlock.empty()? nullptr : envBlock.data(), nullptr, &si, &pi);
         if (not ok) error = lastErrorText();
         //only the pipe ends need their inheritance cleared again
         if (opts.in != nullptr) SetHandleInformation(si.hStdInput, HANDLE_FLAG_INHERIT, 0);
         if (opts.out != nullptr) SetHandleInformation(si.hStdOutput, HANDLE_FLAG_INHERIT, 0);
         if (opts.err != nullptr) SetHandleInformation(si.hStdError, HANDLE_FLAG_INHERIT, 0);
+        //the inheritable NUL handle: closed under the lock, before another launch
+        if (nullHandle != INVALID_HANDLE_VALUE) CloseHandle(nullHandle);
     }
-
-    if (nullHandle != INVALID_HANDLE_VALUE) CloseHandle(nullHandle);
 
     //the child owns its ends now: close the parent's copies
     if (opts.in != nullptr) opts.in->closeRead();
     if (opts.out != nullptr) opts.out->closeWrite();
     if (opts.err != nullptr) opts.err->closeWrite();
 
-    if (not ok) throw Pothos::SystemException("Pothos::Platform::Process::launch("+exe.string()+")", error);
+    if (not ok) throw Pothos::SystemException("Pothos::Platform::Process::launch("+Pothos::Util::Detail::pathUtf8(exe)+")", error);
 
     CloseHandle(pi.hThread);
     auto impl = std::make_shared<Impl>();

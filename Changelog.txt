@@ -75,6 +75,12 @@ Fixes:
   POWER copies are named power_vsx_206/207 (the names of the detection).
   No copies that are never chosen (XOP, MIPS MSA, SSE2 on 64-bit x86, a
   copy without compiler flags)
+- Windows: the paths in std::string are UTF-8 everywhere (the install
+  paths, the module and config files, FileLock, the memory-mapped buffers,
+  the PothosUtil arguments). Before, a path that was not ASCII went
+  through the ANSI code page and failed
+- Processes: kill() of a process that another thread waits for no longer
+  blocks; on Windows, a child gets only its 3 standard handles
 - Data races: the wait mode flags of the thread pool and of the actor
   are atomic; reads of the plugin registry and of the module paths no
   longer add empty entries under a shared lock (TSan is clean on the
