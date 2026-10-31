@@ -501,7 +501,7 @@ void Detail::configureFromEnvironment(LogSink sinkOverride)
     Logger::setLevel(level.value_or(LogLevel::Information));
     state().disabled = none;
 
-    std::string fileError;
+    std::string fileError, syslogError;
     if (sinkOverride) setLogSink(std::move(sinkOverride));
     else
     {
@@ -516,15 +516,30 @@ void Detail::configureFromEnvironment(LogSink sinkOverride)
             setLogSink(makeChannelSink("console", "", pattern, utc));
             fileError = ex.displayText();
         }
-        //syslog forwarding when the address is specified
-        if (not syslogAddr.empty()) __startSyslogForwarding(syslogAddr);
+        //syslog forwarding when the address is specified; an address that
+        //does not resolve is not fatal: the logs stay on the channel sink
+        if (not syslogAddr.empty()) try
+        {
+            __startSyslogForwarding(syslogAddr);
+        }
+        catch (const Pothos::Exception &ex)
+        {
+            syslogError = ex.displayText();
+        }
     }
     if (not fileError.empty()) POTHOS_LOG_WARNING("Pothos.Logger", "POTHOS_LOG_FILE: {}; the logs go to the console", fileError);
 
     //warn once per invalid value: configuration runs at load and again from setupDefaultLogging()
     static std::mutex warnMutex;
     static std::string warnedLevel;
+    static std::string warnedSyslog;
     std::lock_guard<std::mutex> lock(warnMutex);
+    if (syslogError.empty()) warnedSyslog.clear();
+    else if (warnedSyslog != syslogAddr)
+    {
+        warnedSyslog = syslogAddr;
+        POTHOS_LOG_WARNING("Pothos.Logger", "POTHOS_SYSLOG_ADDR \"{}\": {}; the logs are not forwarded", syslogAddr, syslogError);
+    }
     if (level) warnedLevel.clear();
     else if (warnedLevel != levelStr)
     {

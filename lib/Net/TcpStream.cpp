@@ -132,23 +132,25 @@ std::unique_ptr<TcpStream> TcpStream::connect(const std::string &host, const std
     asio::error_code lastError;
     for (const auto &addr : addrs)
     {
-        asio::ip::tcp::socket socket(ioContext());
+        //the handler and the abort own the socket: a timeout does not wait
+        //for the io_context thread (it can be busy, or stopped at exit)
+        auto socket = std::make_shared<asio::ip::tcp::socket>(ioContext());
         auto done = std::make_shared<std::promise<asio::error_code>>();
         auto result = done->get_future();
-        socket.async_connect(asio::ip::tcp::endpoint(addr, port), [done](const asio::error_code &ec){done->set_value(ec);});
+        socket->async_connect(asio::ip::tcp::endpoint(addr, port), [socket, done](const asio::error_code &ec){done->set_value(ec);});
         if (result.wait_until(deadline) != std::future_status::ready)
         {
-            //abort on the io_context thread, then wait for the handler before the socket goes away
-            asio::post(ioContext(), [&socket]{asio::error_code ec; socket.close(ec);});
-            result.wait();
+            //abort on the io_context thread; without that thread, nothing else uses the socket
+            if (ioContext().stopped()) {asio::error_code ec; socket->close(ec);}
+            else asio::post(ioContext(), [socket]{asio::error_code ec; socket->close(ec);});
             throw Pothos::TimeoutException(where, "timed out");
         }
         lastError = result.get();
         if (lastError) continue;
 
         asio::error_code optEc;
-        socket.set_option(asio::ip::tcp::no_delay(true), optEc);
-        return std::make_unique<TcpStream>(std::make_unique<TcpStream::Impl>(std::move(socket)));
+        socket->set_option(asio::ip::tcp::no_delay(true), optEc);
+        return std::make_unique<TcpStream>(std::make_unique<TcpStream::Impl>(std::move(*socket)));
     }
     throw Pothos::IOException(where, lastError.message());
 }

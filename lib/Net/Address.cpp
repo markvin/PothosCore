@@ -79,8 +79,19 @@ Addresses lookup(const std::string &host)
 }
 
 //! Lookups in flight by host name: a slow name does not block the others
-std::mutex lookupMutex;
-std::map<std::string, std::shared_future<Addresses>> lookups;
+struct LookupCache
+{
+    std::mutex mutex;
+    std::map<std::string, std::shared_future<Addresses>> lookups;
+};
+
+//! Made on the first use and never destroyed: the logger resolves the syslog
+//! address in a static block, before the globals of this file can exist
+LookupCache &lookupCache(void)
+{
+    static auto *cache = new LookupCache();
+    return *cache;
+}
 
 } //namespace
 
@@ -90,10 +101,11 @@ std::vector<asio::ip::address> Pothos::Net::resolveHostAll(const std::string &ho
     const auto literal = asio::ip::make_address(host, ec);
     if (not ec) return {literal};
 
+    auto &cache = lookupCache();
     std::shared_future<Addresses> future;
     {
-        std::lock_guard<std::mutex> lock(lookupMutex);
-        auto &entry = lookups[host];
+        std::lock_guard<std::mutex> lock(cache.mutex);
+        auto &entry = cache.lookups[host];
         if (not entry.valid())
         {
             auto promise = std::make_shared<std::promise<Addresses>>();
@@ -112,11 +124,11 @@ std::vector<asio::ip::address> Pothos::Net::resolveHostAll(const std::string &ho
         throw Pothos::TimeoutException("resolve '" + host + "'", "timed out");
     }
     {
-        std::lock_guard<std::mutex> lock(lookupMutex);
-        const auto it = lookups.find(host);
-        if (it != lookups.end() and it->second.valid() and it->second.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
+        std::lock_guard<std::mutex> lock(cache.mutex);
+        const auto it = cache.lookups.find(host);
+        if (it != cache.lookups.end() and it->second.valid() and it->second.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
         {
-            lookups.erase(it); //done: the next call looks the name up again
+            cache.lookups.erase(it); //done: the next call looks the name up again
         }
     }
     return future.get();

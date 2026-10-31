@@ -6,6 +6,7 @@
 #include "Net/Address.hpp"
 #include <chrono>
 #include <condition_variable>
+#include <ctime>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -76,9 +77,21 @@ POTHOS_TEST_BLOCK("/net/tests", test_net_syslog_format)
     POTHOS_TEST_TRUE(formatSyslog(makeRecord(LogLevel::Fatal, "s", "x"), "h").starts_with("<9>1 "));
     POTHOS_TEST_TRUE(formatSyslog(makeRecord(LogLevel::Trace, "s", "x"), "h").starts_with("<15>1 "));
 
+    //the whole datagram fits MaxSyslogDatagram (macOS: net.inet.udp.maxdgram 9216)
     const auto longLine = formatSyslog(makeRecord(LogLevel::Information, "s", std::string(100000, 'x')), "h");
-    POTHOS_TEST_TRUE(longLine.size() <= MaxSyslogMessage + 200);
-    POTHOS_TEST_TRUE(longLine.size() > MaxSyslogMessage);
+    POTHOS_TEST_TRUE(longLine.size() <= MaxSyslogDatagram);
+    POTHOS_TEST_TRUE(longLine.size() > MaxSyslogDatagram - 200);
+
+    //a long source is cut to 255 bytes, and the text still fits
+    const auto longSource = formatSyslog(makeRecord(LogLevel::Information, std::string(70000, 's'), std::string(70000, 'x')), "h");
+    POTHOS_TEST_TRUE(longSource.size() <= MaxSyslogDatagram);
+    const auto parsed = parseSyslog(longSource);
+    POTHOS_TEST_TRUE(bool(parsed));
+    POTHOS_TEST_EQUAL(parsed->source, std::string(255, 's'));
+    POTHOS_TEST_TRUE(parsed->text.size() > 1000);
+
+    //escaped characters count too: a source of quotes doubles in size
+    POTHOS_TEST_TRUE(formatSyslog(makeRecord(LogLevel::Information, std::string(70000, '"'), std::string(70000, 'x')), "h").size() <= MaxSyslogDatagram);
 }
 
 POTHOS_TEST_BLOCK("/net/tests", test_net_syslog_parse_foreign)
@@ -96,6 +109,12 @@ POTHOS_TEST_BLOCK("/net/tests", test_net_syslog_parse_foreign)
     POTHOS_TEST_TRUE(r->level == LogLevel::Notice);
     POTHOS_TEST_EQUAL(r->source, "myapp");
     POTHOS_TEST_EQUAL(r->text, "no pid here");
+
+    //no TAG: a space comes before the first ':' (the text keeps all of it)
+    r = parseSyslog("<14>Oct  1 12:00:00 host some text: more");
+    POTHOS_TEST_TRUE(bool(r));
+    POTHOS_TEST_EQUAL(r->source, "");
+    POTHOS_TEST_EQUAL(r->text, "some text: more");
 
     //RFC 5424 without the pothos structured data
     r = parseSyslog("<165>1 2003-10-11T22:14:15.003Z mymachine.example.com evntslog 77 ID47 [exampleSDID@32473 iut=\"3\" eventSource=\"App]lication\"] An application event");
@@ -153,4 +172,35 @@ POTHOS_TEST_BLOCK("/net/tests", test_net_syslog_timestamp_range)
     const auto r = parseSyslog("<13>1 2003-10-11T22:14:15.003Z h app - - - x");
     POTHOS_TEST_TRUE(bool(r));
     POTHOS_TEST_TRUE(r->time == std::chrono::system_clock::time_point(std::chrono::sys_days(std::chrono::year(2003)/10/11).time_since_epoch()) + 22h + 14min + 15s + 3ms);
+}
+
+POTHOS_TEST_BLOCK("/net/tests", test_net_syslog_3164_year)
+{
+    //RFC 3164 has no year: a message of Dec 31 received on Jan 1 is from the year before
+    const auto localTime = [](const int year, const int month, const int day, const int h, const int m, const int sec)
+    {
+        std::tm tm{};
+        tm.tm_year = year - 1900;
+        tm.tm_mon = month - 1;
+        tm.tm_mday = day;
+        tm.tm_hour = h;
+        tm.tm_min = m;
+        tm.tm_sec = sec;
+        tm.tm_isdst = -1;
+        return std::chrono::system_clock::from_time_t(std::mktime(&tm));
+    };
+    const auto now = localTime(2027, 1, 1, 0, 0, 10);
+    auto r = parseSyslog("<14>Dec 31 23:59:59 host app: late", now);
+    POTHOS_TEST_TRUE(bool(r));
+    POTHOS_TEST_TRUE(r->time == localTime(2026, 12, 31, 23, 59, 59));
+
+    //a message from a few seconds before now stays in this year
+    r = parseSyslog("<14>Jan  1 00:00:05 host app: now", now);
+    POTHOS_TEST_TRUE(bool(r));
+    POTHOS_TEST_TRUE(r->time == localTime(2027, 1, 1, 0, 0, 5));
+
+    //a clock up to one day ahead of the receiver also stays in this year
+    r = parseSyslog("<14>Jan  1 12:00:00 host app: ahead", now);
+    POTHOS_TEST_TRUE(bool(r));
+    POTHOS_TEST_TRUE(r->time == localTime(2027, 1, 1, 12, 0, 0));
 }

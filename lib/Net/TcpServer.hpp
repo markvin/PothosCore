@@ -33,7 +33,8 @@ public:
 
     /*!
      * Bind and listen. Port 0 picks a free port. The IPv6 wildcard "::" also
-     * accepts IPv4 connections where the platform allows it.
+     * accepts IPv4 connections where the platform allows it. An empty host
+     * is "::" when the system has IPv6, else "0.0.0.0".
      * \throws Pothos::IOException when the address cannot be bound
      */
     TcpServer(const std::string &host, std::uint16_t port, Handler handler, CountHandler onCountChange = {});
@@ -52,6 +53,9 @@ public:
 
     //! The bound port (the actual port when 0 was requested)
     std::uint16_t port(void) const;
+
+    //! The number of connection threads that are not joined yet (for the tests)
+    std::size_t threadCount(void) const;
 
 private:
     struct Impl;

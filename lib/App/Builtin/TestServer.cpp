@@ -364,3 +364,25 @@ POTHOS_TEST_BLOCK("/app/tests", test_app_bad_log_level_once)
     std::cout << "stderr: " << err << std::endl;
     POTHOS_TEST_EQUAL(count, 1u);
 }
+
+POTHOS_TEST_BLOCK("/app/tests", test_app_bad_syslog_addr)
+{
+    //an address that does not resolve: one warning, the command still works
+    auto l = launchPothosUtil({"--system-info"}, {{"POTHOS_SYSLOG_ADDR", "no.such.host.invalid:514"}, {"POTHOS_LOG_CHANNEL", "console"}});
+    const auto out = readAll(l->out);
+    const auto err = readAll(l->err);
+    const auto code = waitFor(l->proc, 60s);
+    std::cout << "stderr: " << err << std::endl;
+    POTHOS_TEST_TRUE(code and *code == 0);
+    POTHOS_TEST_TRUE(not out.empty());
+    std::size_t count = 0;
+    for (auto pos = err.find("POTHOS_SYSLOG_ADDR"); pos != std::string::npos; pos = err.find("POTHOS_SYSLOG_ADDR", pos+1)) count++;
+    POTHOS_TEST_EQUAL(count, 1u);
+
+    //a host name (not an IP literal) is resolved at the library load: no crash
+    auto l2 = launchPothosUtil({"--system-info"}, {{"POTHOS_SYSLOG_ADDR", "localhost:9"}});
+    POTHOS_TEST_TRUE(not readAll(l2->out).empty());
+    readAll(l2->err);
+    const auto code2 = waitFor(l2->proc, 60s);
+    POTHOS_TEST_TRUE(code2 and *code2 == 0);
+}
