@@ -477,3 +477,36 @@ POTHOS_TEST_BLOCK("/util/tests", test_eval_error_message)
     POTHOS_TEST_TRUE(msg.find("1 + * 2") != std::string::npos);
     POTHOS_TEST_THROWS(env.eval("   "), Pothos::Exception);
 }
+
+POTHOS_TEST_BLOCK("/util/tests", test_eval_reserved_constant_names)
+{
+    //the literal names cannot become constants (they would hide the literals)
+    Pothos::Util::EvalEnvironment env;
+    for (const char *name : {"true", "false", "null", "True", "False", "None"})
+    {
+        POTHOS_TEST_THROWS(env.registerConstantExpr(name, "0"), Pothos::Exception);
+    }
+    env.registerConstantExpr("truth", "1");
+    POTHOS_TEST_EQUAL(env.eval("truth").convert<int>(), 1);
+}
+
+POTHOS_TEST_BLOCK("/util/tests", test_eval_constant_depth)
+{
+    //values made of constants have a depth limit: an error, not a stack overflow
+    Pothos::Util::EvalEnvironment env;
+    env.registerConstantExpr("a0", "0");
+    bool threw = false;
+    for (int i = 1; i <= 2000 and not threw; i++)
+    {
+        try
+        {
+            env.registerConstantExpr("a" + std::to_string(i), "[a" + std::to_string(i-1) + "]");
+        }
+        catch (const Pothos::Exception &ex)
+        {
+            std::cout << "depth " << i << ": " << ex.displayText() << std::endl;
+            threw = true;
+        }
+    }
+    POTHOS_TEST_TRUE(threw);
+}

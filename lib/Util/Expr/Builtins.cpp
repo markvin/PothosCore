@@ -178,7 +178,13 @@ Value roundFn(const Builtin &self, std::span<const Value> args, const std::size_
         {
             const auto x = toInt(v);
             if (n >= 0) return Value(x);
-            if (n < -18) return Value(0);
+            if (n < -19) return Value(0);
+            //to -19 digits: |x| above 5e18 rounds to 1e19, which an int64 cannot hold
+            if (n == -19)
+            {
+                if (x > 5000000000000000000LL or x < -5000000000000000000LL) throw ExprError("integer overflow", pos);
+                return Value(0);
+            }
             std::int64_t p = 1;
             for (std::int64_t k = 0; k < -n; k++) p *= 10;
             auto q = x / p, r = x % p;

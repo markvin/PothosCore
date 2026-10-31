@@ -3,6 +3,7 @@
 
 #include "Util/Expr/Lexer.hpp"
 #include "Util/StringUtils.hpp"
+#include <algorithm>
 #include <array>
 #include <charconv>
 #include <cmath>
@@ -318,8 +319,23 @@ double Pothos::Util::Expr::parseDecimalFloat(const std::string_view intPart, con
     const auto result = std::from_chars(s.data(), s.data()+s.size(), value);
     if (result.ec != std::errc::result_out_of_range) return value;
 
-    //too small underflows to zero, too large overflows to infinity (like Python)
-    return expPart.starts_with('-')? 0.0 : std::numeric_limits<double>::infinity();
+    //too small underflows to zero, too large overflows to infinity (like Python):
+    //decide from the decimal exponent of the first significant digit
+    long long exponent = 0;
+    if (not expPart.empty())
+    {
+        const bool negative = expPart.front() == '-';
+        for (const char c : expPart)
+        {
+            if (c < '0' or c > '9') continue;
+            exponent = std::min<long long>(exponent*10 + (c - '0'), 1000000000LL); //saturates
+        }
+        if (negative) exponent = -exponent;
+    }
+    const auto firstInt = intPart.find_first_not_of('0');
+    if (firstInt != std::string_view::npos) exponent += static_cast<long long>(intPart.size() - firstInt) - 1;
+    else exponent -= static_cast<long long>(fracPart.find_first_not_of('0')) + 1;
+    return (exponent < 0)? 0.0 : std::numeric_limits<double>::infinity();
 #else
     //no floating point from_chars (Apple libc++)
     return parseFloatStream(s);

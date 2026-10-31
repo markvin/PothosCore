@@ -7,6 +7,7 @@
 #include <Pothos/Exception.hpp>
 #include "Util/Expr/Convert.hpp"
 #include "Util/Expr/Eval.hpp"
+#include "Util/Expr/Parser.hpp" //MaxTreeDepth
 #include <array>
 #include <algorithm>
 #include <map>
@@ -18,15 +19,26 @@ using namespace Pothos::Util;
 
 namespace {
 
-//! Constant names are identifiers that are not keywords
+//! Constant names are identifiers that are not keywords or literal names
 bool isValidName(const std::string &name)
 {
-    static const std::array<std::string_view, 5> keywords{"and", "or", "not", "if", "else"};
+    static const std::array<std::string_view, 11> keywords{"and", "or", "not", "if", "else",
+        "true", "false", "null", "True", "False", "None"};
     const auto isStart = [](const char ch){return (ch >= 'a' and ch <= 'z') or (ch >= 'A' and ch <= 'Z') or ch == '_';};
     const auto isChar = [&isStart](const char ch){return isStart(ch) or (ch >= '0' and ch <= '9');};
     if (name.empty() or not isStart(name.front())) return false;
     if (not std::ranges::all_of(name, isChar)) return false;
     return std::ranges::find(keywords, name) == keywords.end();
+}
+
+//! The nesting depth of a value, counted up to limit+1 (no deeper recursion)
+std::size_t valueDepth(const Expr::Value &value, const std::size_t limit)
+{
+    std::size_t depth = 0;
+    const auto deeper = [&](const Expr::Value &v){depth = std::max(depth, (limit == 0)? 1 : valueDepth(v, limit-1)+1);};
+    if (const auto *list = std::get_if<Expr::List>(&value.data)) for (const auto &v : *list) deeper(v);
+    if (const auto *dict = std::get_if<Expr::Dict>(&value.data)) for (const auto &[k, v] : *dict) {deeper(k); deeper(v);}
+    return depth;
 }
 
 void checkName(const std::string &where, const std::string &key)
@@ -59,10 +71,20 @@ struct EvalEnvironment::Impl
             throw Pothos::Exception("EvalEnvironment::eval",
                 std::string(ex.what()) + " at column " + std::to_string(ex.pos+1) + " in: " + expr);
         }
+        catch (const Pothos::Exception &) {throw;}
+        catch (const std::exception &ex) //for example std::bad_alloc: also with the expression
+        {
+            throw Pothos::Exception("EvalEnvironment::eval", std::string(ex.what()) + " in: " + expr);
+        }
     }
 
     void define(const std::string &key, Expr::Value value)
     {
+        //a value made of constants can nest deeper than one expression: the same limit
+        if (valueDepth(value, Expr::MaxTreeDepth) > Expr::MaxTreeDepth)
+        {
+            throw Pothos::Exception("EvalEnvironment::define", "the value is nested too deeply");
+        }
         std::unique_lock lock(mutex);
         constants.insert_or_assign(key, std::move(value));
     }
@@ -112,6 +134,10 @@ void EvalEnvironment::registerConstantObj(const std::string &key, const Pothos::
     catch (const Pothos::Exception &ex)
     {
         throw Pothos::Exception(where, ex.message());
+    }
+    catch (const std::exception &ex)
+    {
+        throw Pothos::Exception(where, ex.what());
     }
 }
 

@@ -83,6 +83,13 @@ Expressions (EvalEnvironment):
   chained comparisons, and/or/not, x if c else y, indexing
 - Incompatible: ^ is bitwise xor, use ** for power (2^3 is now 1)
 - Incompatible: / always gives a float, // is floor division
+- str() and repr() of a float follow Python: 100000.0, 1e-05, 1e+16
+- true, false, null, True, False and None cannot be constant names
+- A float literal out of range goes to 0.0 or inf by its value (before:
+  by the sign of the written exponent); round(x, -19) gives an integer
+  overflow error when the result does not fit; constants have the depth
+  limit of an expression; other C++ errors of an evaluation become a
+  Pothos::Exception with the expression
 - Incompatible: octal literals need the 0o prefix (0315 is an error)
 - Integer overflow is an error, unknown names are always an error
 - Decimal integer literals beyond 64 bits (JSON uint64 numbers) are floats
