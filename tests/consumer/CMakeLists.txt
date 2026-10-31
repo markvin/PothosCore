@@ -6,9 +6,13 @@
 cmake_minimum_required(VERSION 3.25)
 project(PothosConsumer CXX)
 
-find_package(Pothos CONFIG REQUIRED)
+#the form of the toolkits: POTHOS_ROOT (a variable of the core and of the
+#test environment) is not a search prefix of find_package (CMP0144)
+cmake_policy(SET CMP0144 NEW)
+find_package(Pothos CONFIG REQUIRED NO_PACKAGE_ROOT_PATH)
 
-foreach(prop INTERFACE_INCLUDE_DIRECTORIES INTERFACE_LINK_LIBRARIES INTERFACE_COMPILE_DEFINITIONS)
+foreach(prop INTERFACE_INCLUDE_DIRECTORIES INTERFACE_SYSTEM_INCLUDE_DIRECTORIES INTERFACE_LINK_LIBRARIES
+        INTERFACE_LINK_DIRECTORIES INTERFACE_LINK_OPTIONS INTERFACE_COMPILE_DEFINITIONS INTERFACE_COMPILE_OPTIONS)
     get_target_property(val Pothos::Pothos ${prop})
     if(val MATCHES "nlohmann|xsimd|asio")
         message(FATAL_ERROR "Pothos::Pothos leaks a private dependency via ${prop}: ${val}")

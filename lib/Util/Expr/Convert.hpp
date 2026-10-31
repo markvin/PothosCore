@@ -22,7 +22,8 @@ Pothos::Object toObject(const Value &value);
  * Convert an object to a value: null object -> None, std::string, bool,
  * numbers by their DType (integers wider than int -> float), and anything
  * convertible to ProxyVector or ProxyMap recursively.
- * \throws Pothos::Exception for an unsupported type (names the type)
+ * \throws Pothos::Exception for an unsupported type (names the type), or
+ * containers nested deeper than MaxTreeDepth
  */
 Value fromObject(const Pothos::Object &object);
 

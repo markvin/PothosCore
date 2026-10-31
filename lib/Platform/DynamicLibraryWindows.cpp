@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include "Platform/DynamicLibrary.hpp"
+#include "Util/FileSystem.hpp"
 #include <Pothos/Exception.hpp>
 #include <utility>
 #include <windows.h>
@@ -28,7 +29,7 @@ Pothos::Platform::DynamicLibrary::DynamicLibrary(const std::filesystem::path &pa
     auto native = path.lexically_normal();
     native.make_preferred();
     _handle = LoadLibraryExW(native.c_str(), nullptr, native.is_absolute() ? LOAD_WITH_ALTERED_SEARCH_PATH : 0);
-    if (_handle == nullptr) throw Pothos::LibraryLoadException(path.string(), lastErrorText());
+    if (_handle == nullptr) throw Pothos::LibraryLoadException(Pothos::Util::Detail::pathUtf8(path), lastErrorText());
 }
 
 Pothos::Platform::DynamicLibrary::~DynamicLibrary(void)

@@ -6,7 +6,12 @@
 #include "Net/TcpStream.hpp"
 #include "Net/TcpServer.hpp"
 #include "Net/Address.hpp"
+#include "Net/IoContext.hpp"
+#include <asio/post.hpp>
+#include <future>
+#include <memory>
 #include <atomic>
+#include <memory>
 #include <condition_variable>
 #include <stdexcept>
 #include <chrono>
@@ -209,6 +214,59 @@ POTHOS_TEST_BLOCK("/net/tests", test_net_connect_timeout)
     start = std::chrono::steady_clock::now();
     POTHOS_TEST_THROWS(TcpStream::connect("10.255.255.1", 9, 200ms), Pothos::Exception);
     POTHOS_TEST_TRUE(std::chrono::steady_clock::now() - start < 1200ms);
+}
+
+//the timeout holds when the io_context thread is busy in a long callback
+POTHOS_TEST_BLOCK("/net/tests", test_net_connect_timeout_busy_io)
+{
+    TcpServer server("127.0.0.1", 0, [](TcpStream &){});
+    auto started = std::make_shared<std::promise<void>>();
+    auto running = started->get_future();
+    asio::post(ioContext(), [started]
+    {
+        started->set_value();
+        std::this_thread::sleep_for(3s);
+    });
+    running.wait();
+
+    const auto start = std::chrono::steady_clock::now();
+    POTHOS_TEST_THROWS(TcpStream::connect("127.0.0.1", server.port(), 200ms), Pothos::TimeoutException);
+    POTHOS_TEST_TRUE(std::chrono::steady_clock::now() - start < 1s);
+}
+
+//an empty host binds the wildcard address of the system (IPv4 without IPv6)
+POTHOS_TEST_BLOCK("/net/tests", test_net_tcp_empty_host)
+{
+    TcpServer server("", 0, echoLines);
+    POTHOS_TEST_EQUAL(server.host(), ipv6Supported()? "::" : "0.0.0.0");
+    auto client = TcpStream::connect("127.0.0.1", server.port(), 1s);
+    *client << "ping" << std::endl;
+    std::string reply;
+    POTHOS_TEST_TRUE(bool(std::getline(*client, reply)));
+    POTHOS_TEST_EQUAL(reply, "ping");
+}
+
+//finished connection threads are joined without a new connection
+POTHOS_TEST_BLOCK("/net/tests", test_net_tcp_reap_idle)
+{
+    std::atomic<std::size_t> active(0);
+    TcpServer server("127.0.0.1", 0, echoLines, [&active](const std::size_t n){active = n;});
+    {
+        //all clients at the same time: no accept after the last one closes
+        std::vector<std::unique_ptr<TcpStream>> clients;
+        for (int i = 0; i < 20; i++) clients.push_back(TcpStream::connect("127.0.0.1", server.port(), 1s));
+        for (auto &client : clients)
+        {
+            *client << "x" << std::endl;
+            std::string reply;
+            POTHOS_TEST_TRUE(bool(std::getline(*client, reply)));
+        }
+        POTHOS_TEST_EQUAL(server.threadCount(), 20);
+    }
+    const auto deadline = std::chrono::steady_clock::now() + 5s;
+    while (server.threadCount() != 0 and std::chrono::steady_clock::now() < deadline) std::this_thread::sleep_for(10ms);
+    POTHOS_TEST_EQUAL(active.load(), 0);
+    POTHOS_TEST_EQUAL(server.threadCount(), 0);
 }
 
 POTHOS_TEST_BLOCK("/net/tests", test_net_tcp_count_ordering)

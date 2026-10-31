@@ -164,6 +164,7 @@ public:
 
     struct Impl;
 private:
+    Process(void) = default; //only launch() makes a Process
     std::shared_ptr<Impl> _impl;
 };
 

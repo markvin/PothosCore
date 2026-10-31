@@ -4,6 +4,7 @@
 
 #include <Pothos/System/Logger.hpp>
 #include <Pothos/Plugin/Static.hpp> //static block
+#include <Pothos/Exception.hpp>
 #include "System/LoggerSinks.hpp"
 #include "Platform/Environment.hpp"
 #include "Util/StringUtils.hpp"
@@ -49,10 +50,11 @@ struct LoggerState
     std::deque<Detail::LogRecord> queue;
     unsigned long long enqueued = 0; //records ever queued
     unsigned long long written = 0; //records taken off the queue and written
-    bool stopWorker = false;
+    unsigned long long generation = 0; //a writer stops when shutdownLogging() increments it
     std::thread worker;
     std::atomic<bool> async{true};
     std::atomic<bool> shutdown{false};
+    std::atomic<bool> disabled{false}; //POTHOS_LOG_LEVEL=none: no record at all
 };
 }
 
@@ -111,14 +113,16 @@ static void writeToSink(const Detail::LogRecord &record, const bool tryOnly = fa
     for (const auto id : context.pendingRemoves) s.listeners.erase(id);
 }
 
-static void workerLoop(void)
+//the writer of one generation: a detached writer of an earlier generation
+//(Windows, after shutdownLogging) never takes records of a later one
+static void workerLoop(const unsigned long long generation)
 {
     auto &s = state();
     std::unique_lock<std::mutex> lock(s.queueMutex);
     while (true)
     {
-        s.queueCond.wait(lock, [&s]{return s.stopWorker or not s.queue.empty();});
-        if (s.queue.empty()) break; //stop requested and nothing left
+        s.queueCond.wait(lock, [&s, generation]{return s.generation != generation or not s.queue.empty();});
+        if (s.generation != generation) break; //stop requested
         auto record = std::move(s.queue.front());
         s.queue.pop_front();
         lock.unlock();
@@ -132,6 +136,7 @@ static void workerLoop(void)
 //write a record: synchronously or through the asynchronous writer
 static void dispatch(Detail::LogRecord &&record)
 {
+    if (state().disabled) return; //POTHOS_LOG_LEVEL=none
     //a listener logs: this thread has the sink lock, writeToSink() writes it later
     if (listenerContext != nullptr)
     {
@@ -146,8 +151,15 @@ static void dispatch(Detail::LogRecord &&record)
         writeToSink(record);
         return;
     }
-    std::lock_guard<std::mutex> lock(s.queueMutex);
-    if (not s.worker.joinable()) s.worker = std::thread(&workerLoop); //started on first use
+    std::unique_lock<std::mutex> lock(s.queueMutex);
+    //shutdownLogging() can come between the check above and this lock: no new writer then
+    if (s.shutdown)
+    {
+        lock.unlock();
+        writeToSink(record);
+        return;
+    }
+    if (not s.worker.joinable()) s.worker = std::thread(&workerLoop, s.generation); //started on first use
     s.queue.push_back(std::move(record));
     s.enqueued++;
     s.queueCond.notify_one();
@@ -177,6 +189,7 @@ void Logger::log(const LogLevel level, const std::string &source, const std::str
 
 bool Logger::isEnabled(const LogLevel level, const std::string &source)
 {
+    if (state().disabled) return false;
     return level <= getLevel(source);
 }
 
@@ -184,7 +197,11 @@ void Logger::setLevel(const LogLevel level, const std::string &source)
 {
     auto &s = state();
     std::lock_guard<std::mutex> lock(s.levelMutex);
-    if (source.empty()) s.rootLevel = level;
+    if (source.empty())
+    {
+        s.rootLevel = level;
+        s.disabled = false; //a root level turns logging on again
+    }
     else s.levels[source] = level;
 }
 
@@ -291,7 +308,7 @@ void Detail::shutdownLogging(void)
         std::lock_guard<std::mutex> lock(s.queueMutex);
         s.shutdown = true; //from now on every message is written synchronously
         remaining.swap(s.queue);
-        s.stopWorker = true;
+        s.generation++; //the writer stops
         s.queueCond.notify_all();
     }
     //write what the writer did not get to here: at process exit on Windows
@@ -316,7 +333,6 @@ void Detail::shutdownLogging(void)
         #endif
     }
     std::lock_guard<std::mutex> lock(s.queueMutex);
-    s.stopWorker = false;
     s.idleCond.notify_all();
 }
 
@@ -479,21 +495,51 @@ void Detail::configureFromEnvironment(LogSink sinkOverride)
     const auto syslogAddr = getEnv("POTHOS_SYSLOG_ADDR").value_or("");
     state().async = (getEnv("POTHOS_LOG_ASYNC").value_or("1") != "0");
 
-    const auto level = Logger::parseLevel(levelStr);
+    //"none" (or "off") logs nothing, also not the records of other processes
+    const bool none = Pothos::Util::Detail::iequals(levelStr, "none") or Pothos::Util::Detail::iequals(levelStr, "off");
+    const auto level = none? std::optional<LogLevel>(LogLevel::Information) : Logger::parseLevel(levelStr);
     Logger::setLevel(level.value_or(LogLevel::Information));
+    state().disabled = none;
 
+    std::string fileError, syslogError;
     if (sinkOverride) setLogSink(std::move(sinkOverride));
     else
     {
-        setLogSink(makeChannelSink(channel, file, pattern, Pothos::Util::Detail::iequals(timeZone, "UTC")));
-        //syslog forwarding when the address is specified
-        if (not syslogAddr.empty()) __startSyslogForwarding(syslogAddr);
+        const bool utc = Pothos::Util::Detail::iequals(timeZone, "UTC");
+        try
+        {
+            setLogSink(makeChannelSink(channel, file, pattern, utc));
+        }
+        catch (const Pothos::Exception &ex)
+        {
+            //a log file that cannot be opened: the console, and a warning there
+            setLogSink(makeChannelSink("console", "", pattern, utc));
+            fileError = ex.displayText();
+        }
+        //syslog forwarding when the address is specified; an address that
+        //does not resolve is not fatal: the logs stay on the channel sink
+        if (not syslogAddr.empty()) try
+        {
+            __startSyslogForwarding(syslogAddr);
+        }
+        catch (const Pothos::Exception &ex)
+        {
+            syslogError = ex.displayText();
+        }
     }
+    if (not fileError.empty()) POTHOS_LOG_WARNING("Pothos.Logger", "POTHOS_LOG_FILE: {}; the logs go to the console", fileError);
 
     //warn once per invalid value: configuration runs at load and again from setupDefaultLogging()
     static std::mutex warnMutex;
     static std::string warnedLevel;
+    static std::string warnedSyslog;
     std::lock_guard<std::mutex> lock(warnMutex);
+    if (syslogError.empty()) warnedSyslog.clear();
+    else if (warnedSyslog != syslogAddr)
+    {
+        warnedSyslog = syslogAddr;
+        POTHOS_LOG_WARNING("Pothos.Logger", "POTHOS_SYSLOG_ADDR \"{}\": {}; the logs are not forwarded", syslogAddr, syslogError);
+    }
     if (level) warnedLevel.clear();
     else if (warnedLevel != levelStr)
     {

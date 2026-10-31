@@ -3,13 +3,16 @@
 
 #include <Pothos/Testing.hpp>
 #include <Pothos/System/Logger.hpp>
+#include <Pothos/Exception.hpp>
 #include "System/LoggerSinks.hpp"
 #include "Platform/Environment.hpp"
 #include "Net/Syslog.hpp"
 #include <condition_variable>
 #include <atomic>
 #include <chrono>
+#include <filesystem>
 #include <future>
+#include <iostream>
 #include <memory>
 #include <mutex>
 #include <set>
@@ -506,4 +509,38 @@ POTHOS_TEST_BLOCK("/system/tests", test_logger_listener_sink_change_inside)
     Logger::removeListener(id);
     POTHOS_TEST_EQUAL(refused.load(), 2);
     POTHOS_TEST_EQUAL(capture.get().size(), 1u);
+}
+
+POTHOS_TEST_BLOCK("/system/tests", test_logger_level_none)
+{
+    //POTHOS_LOG_LEVEL=none: nothing is logged, also not at Fatal, and no warning
+    const auto oldLevel = Pothos::Platform::getEnv("POTHOS_LOG_LEVEL");
+    const auto rootLevel = Logger::getLevel();
+    Pothos::Platform::setEnv("POTHOS_LOG_LEVEL", "none");
+    std::vector<Detail::LogRecord> records;
+    std::vector<LogRecord> heard;
+    {
+        CaptureSink capture;
+        CaptureListener listener;
+        Detail::configureFromEnvironment(Detail::getLogSink());
+        POTHOS_LOG_FATAL("Test.None", "not logged");
+        POTHOS_LOG_ERROR("Test.None", "not logged");
+        Logger::flush();
+        records = capture.get();
+        heard = listener.get();
+    }
+    if (oldLevel) Pothos::Platform::setEnv("POTHOS_LOG_LEVEL", *oldLevel);
+    else Pothos::Platform::unsetEnv("POTHOS_LOG_LEVEL");
+    Detail::configureFromEnvironment();
+    Logger::setLevel(rootLevel);
+    for (const auto &r : records) std::cout << "record: " << r.text << std::endl;
+    POTHOS_TEST_EQUAL(records.size(), 0u);
+    POTHOS_TEST_EQUAL(heard.size(), 0u);
+}
+
+POTHOS_TEST_BLOCK("/system/tests", test_logger_file_sink_open_error)
+{
+    //a log file that cannot be opened is an error, not a sink that drops all records
+    const auto path = (std::filesystem::temp_directory_path() / "no-such-pothos-dir" / "sub" / "x.log").string();
+    POTHOS_TEST_THROWS(Detail::makeChannelSink("file", path, "%t", true), Pothos::FileException);
 }

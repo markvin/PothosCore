@@ -29,6 +29,9 @@ namespace Util {
  * a decimal integer with a leading zero (0315) is an error, use 0o315;
  * a decimal integer beyond the 64-bit range is a float.
  * String escapes: \" \' \\ \/ \n \t \r \b \f \0 \xHH \uXXXX.
+ * A str is a byte string (UTF-8 for text): \xHH is one byte, \uXXXX is the
+ * UTF-8 bytes of the code point, and len() counts bytes (len("é") is 2).
+ * The names true, false, null, True, False and None cannot be constants.
  *
  * Operators by increasing precedence:
  *  - a if cond else b

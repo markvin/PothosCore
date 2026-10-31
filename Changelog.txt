@@ -40,6 +40,8 @@ Repository:
 - Topology::commit() throws TopologyConnectError naming the missing block
   when a domain crossing (/blocks/copier) or a flow across processes/hosts
   (/blocks/network_*) needs PothosBlocks and it is not installed
+- A remote host must run the pothos2 core too: a remote host with an
+  upstream 0.7 or 0.8 core is not supported
 
 Dependencies:
 
@@ -66,6 +68,39 @@ Fixes:
 - POTHOS_MODULE_UTIL: a relative doc source is relative to the source
   directory (the docs of generated SIMD copies failed after cmake ran again)
 - AVX-512VL is detected with xsimd 14.2 too
+- Logger: POTHOS_LOG_LEVEL=none (or off) logs nothing again; a log file
+  that cannot be opened gives a warning and the logs go to the console
+  (before: all logs were lost); a Windows console gets UTF-16 text; a log
+  call during the shutdown starts no new writer thread
+- SIMD: the CPU detection reports the names of the ARM copies (arm_neon,
+  arm_neon_flt_sp, arm64_neon): before, an ARM copy was never chosen. The
+  POWER copies are named power_vsx_206/207 (the names of the detection).
+  No copies that are never chosen (XOP, MIPS MSA, SSE2 on 64-bit x86, a
+  copy without compiler flags)
+- Windows: the paths in std::string are UTF-8 everywhere (the install
+  paths, the module and config files, FileLock, the memory-mapped buffers,
+  the PothosUtil arguments). Before, a path that was not ASCII went
+  through the ANSI code page and failed
+- Processes: kill() of a process that another thread waits for no longer
+  blocks; on Windows, a child gets only its 3 standard handles
+- Syslog: a host name in POTHOS_SYSLOG_ADDR no longer crashes the library
+  load; an address that does not resolve gives one warning (before: each
+  PothosUtil command failed). A datagram is at most 8192 bytes (macOS
+  dropped records with more than about 9 KB of text); the source is cut
+  to 255 bytes. RFC 3164: a message without a TAG keeps all of its text;
+  a December message received in January gets the year before
+- PothosUtil: --num-trials=N runs a test N times (before: N*N), and 0 is
+  an error; --daemon checks the pid file before it starts the daemon (the
+  daemon has no stderr); --register-service needs a command
+- Windows service: an error in the service goes to the log and gives the
+  service-specific exit code 64; --unregister-service stops a running
+  service first; a console close waits up to 5 s for a clean shutdown;
+  "access denied" tells you to run as an administrator
+- JIT compiler: a file system error (a missing source) becomes a
+  Pothos::FileException that is logged and kept for the next calls
+- Network: a connect timeout no longer waits for a busy io thread;
+  finished server connections are joined at once; a server with an empty
+  host binds 0.0.0.0 when the system has no IPv6
 - Data races: the wait mode flags of the thread pool and of the actor
   are atomic; reads of the plugin registry and of the module paths no
   longer add empty entries under a shared lock (TSan is clean on the
@@ -78,6 +113,13 @@ Expressions (EvalEnvironment):
   chained comparisons, and/or/not, x if c else y, indexing
 - Incompatible: ^ is bitwise xor, use ** for power (2^3 is now 1)
 - Incompatible: / always gives a float, // is floor division
+- str() and repr() of a float follow Python: 100000.0, 1e-05, 1e+16
+- true, false, null, True, False and None cannot be constant names
+- A float literal out of range goes to 0.0 or inf by its value (before:
+  by the sign of the written exponent); round(x, -19) gives an integer
+  overflow error when the result does not fit; constants have the depth
+  limit of an expression; other C++ errors of an evaluation become a
+  Pothos::Exception with the expression
 - Incompatible: octal literals need the 0o prefix (0315 is an error)
 - Integer overflow is an error, unknown names are always an error
 - Decimal integer literals beyond 64 bits (JSON uint64 numbers) are floats

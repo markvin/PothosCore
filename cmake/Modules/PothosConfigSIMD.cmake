@@ -464,48 +464,6 @@ set(POTHOS_X86_FMA4_TEST_CODE
     }"
 )
 
-list(APPEND POTHOS_ARCHS_PRI "X86_XOP")
-# No flag for MSVC
-if(POTHOS_CLANG OR POTHOS_GCC)
-    set(POTHOS_X86_XOP_CXX_FLAGS "-mxop")
-endif()
-set(POTHOS_X86_XOP_DEFINE "POTHOS_ARCH_X86_XOP")
-set(POTHOS_X86_XOP_SUFFIX "-x86_xop")
-set(POTHOS_X86_XOP_TEST_CODE
-    "#include <x86intrin.h>
-    #include <iostream>
-
-    char* prevent_optimization(char* ptr)
-    {
-        volatile bool never = false;
-        if (never) {
-            while (*ptr++)
-                std::cout << *ptr;
-        }
-        char* volatile* volatile opaque;
-        opaque = &ptr;
-        return *opaque;
-    }
-
-    int main()
-    {
-        union {
-            char data[16];
-            __m128i align;
-        };
-        char* p = data;
-        p = prevent_optimization(p);
-
-        __m128i one = _mm_load_si128((__m128i*)p);
-        one = _mm_cmov_si128(one, one, one);
-        one = _mm_comeq_epi64(one, one);
-        _mm_store_si128((__m128i*)p, one);
-
-        p = prevent_optimization(p);
-    }"
-)
-
-# No flag for MSVC
 list(APPEND POTHOS_ARCHS_PRI "X86_AVX512F")
 if(POTHOS_CLANG OR POTHOS_GCC)
     set(POTHOS_X86_AVX512F_CXX_FLAGS "-mavx512f -mavx512dq")
@@ -802,43 +760,6 @@ set(POTHOS_ARM64_NEON_TEST_CODE
     }"
 )
 
-list(APPEND POTHOS_ARCHS_PRI "MIPS_MSA")
-set(POTHOS_MIPS_MSA_CXX_FLAGS "-mips64r5 -mmsa -mhard-float -mfp64 -mnan=legacy")
-set(POTHOS_MIPS_MSA_DEFINE "POTHOS_ARCH_MIPS_MSA")
-set(POTHOS_MIPS_MSA_SUFFIX "-mips_msa")
-set(POTHOS_MIPS_MSA_TEST_CODE
-    "#include <msa.h>
-    #include <iostream>
-
-    char* prevent_optimization(char* ptr)
-    {
-        volatile bool never = false;
-        if (never) {
-            while (*ptr++)
-                std::cout << *ptr;
-        }
-        char* volatile* volatile opaque;
-        opaque = &ptr;
-        return *opaque;
-    }
-
-    int main()
-    {
-        union {
-            char data[16];
-            v4i32 align;
-        };
-        char* p = data;
-        p = prevent_optimization(p);
-
-        v16i8 v = __msa_ld_b(p, 0);
-        v = __msa_add_a_b(v, v);
-        __msa_st_b(v, p, 0);
-
-        p = prevent_optimization(p);
-    }"
-)
-
 list(APPEND POTHOS_ARCHS_PRI "POWER_ALTIVEC")
 set(POTHOS_POWER_ALTIVEC_CXX_FLAGS "-maltivec")
 set(POTHOS_POWER_ALTIVEC_DEFINE "POTHOS_ARCH_POWER_ALTIVEC")
@@ -885,7 +806,7 @@ set(POTHOS_POWER_ALTIVEC_TEST_CODE
 list(APPEND POTHOS_ARCHS_PRI "POWER_VSX_206")
 set(POTHOS_POWER_VSX_206_CXX_FLAGS "-mvsx")
 set(POTHOS_POWER_VSX_206_DEFINE "POTHOS_ARCH_POWER_VSX_206")
-set(POTHOS_POWER_VSX_206_SUFFIX "-power_vsx_2.06")
+set(POTHOS_POWER_VSX_206_SUFFIX "-power_vsx_206")
 set(POTHOS_POWER_VSX_206_TEST_CODE
     "#include <altivec.h>
     #include <iostream>
@@ -935,7 +856,7 @@ set(POTHOS_POWER_VSX_206_TEST_CODE
 list(APPEND POTHOS_ARCHS_PRI "POWER_VSX_207")
 set(POTHOS_POWER_VSX_207_CXX_FLAGS "-mvsx -mcpu=power8")
 set(POTHOS_POWER_VSX_207_DEFINE "POTHOS_ARCH_POWER_VSX_207")
-set(POTHOS_POWER_VSX_207_SUFFIX "-power_vsx_2.07")
+set(POTHOS_POWER_VSX_207_SUFFIX "-power_vsx_207")
 set(POTHOS_POWER_VSX_207_TEST_CODE
     "#include <altivec.h>
     #include <iostream>
@@ -1060,9 +981,9 @@ endfunction()
 #   The following identifiers are currently supported:
 #   X86_SSE2, X86_SSE3, X86_SSSE3, X86_SSE4_1,
 #   X86_AVX, X86_AVX2, X86_FMA3, X86_FMA4,
-#   X86_AVX512F, X86_AVX512BW, X86_AVX512DQ, X86_AVX512VL, X86_XOP,
+#   X86_AVX512F, X86_AVX512BW, X86_AVX512DQ, X86_AVX512VL,
 #   ARM_NEON, ARM_NEON_FLT_SP, ARM64_NEON,
-#   MIPS_MSA, POWER_ALTIVEC, POWER_VSX_206, POWER_VSX_207
+#   POWER_ALTIVEC, POWER_VSX_206, POWER_VSX_207
 #
 function(pothos_multiarch FILE_LIST_VAR ARCHSTRING_VAR SRC_FILE)
     if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${SRC_FILE}")
@@ -1079,6 +1000,20 @@ function(pothos_multiarch FILE_LIST_VAR ARCHSTRING_VAR SRC_FILE)
     list(REMOVE_AT ARCHS 0 1 2) # strip non-arch parameters
     foreach(ARCH ${ARCHS})
         pothos_get_arch_info(CXX_FLAGS DEFINES_LIST SUFFIX ${ARCH})
+
+        #a copy whose architectures have no compiler flags of their own is the
+        #fallback code again: no copy (CXX_FLAGS always has the -D defines)
+        set(ARCH_OWN_FLAGS "")
+        string(REPLACE "," ";" ARCH_IDS "${ARCH}")
+        foreach(ID ${ARCH_IDS})
+            if(NOT ID STREQUAL "NONE_NULL")
+                string(APPEND ARCH_OWN_FLAGS "${POTHOS_${ID}_CXX_FLAGS}")
+            endif()
+        endforeach()
+        string(STRIP "${ARCH_OWN_FLAGS}" ARCH_OWN_FLAGS)
+        if(NOT ARCH STREQUAL "NONE_NULL" AND ARCH_OWN_FLAGS STREQUAL "")
+            continue()
+        endif()
 
         # Shorter way of removing first character
         string(REGEX REPLACE "^-" "" SUFFIX ${SUFFIX})
@@ -1142,9 +1077,11 @@ function(pothos_get_arch_perm ALL_ARCHS_VAR)
         set(ARCH_SUPPORTED_${ARCH} "1")
     endforeach()
 
+    #the fallback copy first: the linker keeps the first definition of an
+    #inline function that the copies share (refer to XSIMDCopy.hpp)
     set(ALL_ARCHS "NONE_NULL")
-    if(DEFINED ARCH_SUPPORTED_X86_SSE2)
-        # all x86_64 processors
+    #all x86_64 processors have SSE2: on 64-bit x86 the fallback copy is that copy
+    if(DEFINED ARCH_SUPPORTED_X86_SSE2 AND NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
         list(APPEND ALL_ARCHS "X86_SSE2")
     endif()
     if(DEFINED ARCH_SUPPORTED_X86_SSE3)
@@ -1219,21 +1156,12 @@ function(pothos_get_arch_perm ALL_ARCHS_VAR)
             list(APPEND ALL_ARCHS "X86_AVX512F,X86_FMA3,X86_POPCNT_INSN")
         endif()
     endif()
-    if(DEFINED ARCH_SUPPORTED_X86_XOP)
-        list(APPEND ALL_ARCHS "X86_XOP")
-        if(DEFINED ARCH_SUPPORTED_X86_AVX)
-            list(APPEND ALL_ARCHS "X86_AVX,X86_XOP")
-        endif()
-    endif()
     if(DEFINED ARCH_SUPPORTED_ARM_NEON)
         list(APPEND ALL_ARCHS "ARM_NEON")
         list(APPEND ALL_ARCHS "ARM_NEON_FLT_SP")
     endif()
     if(DEFINED ARCH_SUPPORTED_ARM64_NEON)
         list(APPEND ALL_ARCHS "ARM64_NEON")
-    endif()
-    if(DEFINED ARCH_SUPPORTED_MIPS_MSA)
-        list(APPEND ALL_ARCHS "MIPS_MSA")
     endif()
     if(DEFINED ARCH_SUPPORTED_POWER_ALTIVEC)
         list(APPEND ALL_ARCHS "POWER_ALTIVEC")
@@ -1332,6 +1260,11 @@ endfunction()
 #                  dynamic dispatch header file
 #
 function(PothosGenerateSIMDSources FileListVariable JSONInputFile)
+    #the dispatchers are made with PothosUtil: a core without the apps has none
+    if(NOT POTHOS_UTIL_EXE)
+        message(FATAL_ERROR "PothosGenerateSIMDSources(${JSONInputFile}): the SIMD dispatchers need PothosUtil, "
+            "and the Pothos core is built with POTHOS_BUILD_APPS=OFF. Build the core with its apps.")
+    endif()
     set(SIMDSourceFiles ${ARGV})
     list(REMOVE_AT SIMDSourceFiles 0 1) # Remove non-source parameters
 

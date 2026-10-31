@@ -5,12 +5,13 @@
 #include <Pothos/System/Paths.hpp>
 #include "Platform/Process.hpp"
 #include "System/LoggerSinks.hpp"
-#include <optional>
 #include "Util/StringUtils.hpp"
+#include "Util/FileSystem.hpp"
 #include "Net/Address.hpp"
 #include "Net/Uri.hpp"
 #include "Net/Syslog.hpp"
 #include <functional>
+#include <optional>
 #include <thread>
 #include <cassert>
 
@@ -34,8 +35,8 @@ struct Pothos::RemoteServer::Impl
         //the forwarding threads see end of stream once the server exits
         if (outThread.joinable()) outThread.join();
         if (errThread.joinable()) errThread.join();
-        outPipe.close();
-        errPipe.close();
+        if (outPipe) outPipe->close();
+        if (errPipe) errPipe->close();
         ph.wait();
     }
 
@@ -44,8 +45,8 @@ struct Pothos::RemoteServer::Impl
     RemoteClient client;
     std::string uriStr;
 
-    //members used for syslog forwarding
-    Pothos::Platform::Pipe outPipe, errPipe;
+    //members used for syslog forwarding (a Pipe makes an OS pipe: only when used)
+    std::optional<Pothos::Platform::Pipe> outPipe, errPipe;
     std::thread outThread, errThread;
 };
 
@@ -82,7 +83,7 @@ Pothos::RemoteServer::RemoteServer(const std::string &uriStr, const bool closePi
     std::string launchError;
     try
     {
-        ph = Pothos::Platform::Process::launch(System::getPothosUtilExecutablePath(), opts);
+        ph = Pothos::Platform::Process::launch(Pothos::Util::Detail::utf8Path(System::getPothosUtilExecutablePath()), opts);
     }
     catch (const Pothos::SystemException &ex)
     {
@@ -210,9 +211,11 @@ static void pipeToSyslogWorker(std::shared_ptr<Pothos::Net::SyslogSender> sender
 void Pothos::RemoteServer::startSyslogForwarding(const std::string &addr, const std::string &source)
 {
     assert(_impl);
+    if (not _impl->outPipe or not _impl->errPipe) throw Pothos::RemoteServerError(
+        "Pothos::RemoteServer::startSyslogForwarding()", "the server was made with closePipes: no output to forward");
     auto sender = std::make_shared<Pothos::Net::SyslogSender>(addr);
-    _impl->outThread = std::thread(&pipeToSyslogWorker, sender, _impl->outPipe, source);
-    _impl->errThread = std::thread(&pipeToSyslogWorker, sender, _impl->errPipe, source);
+    _impl->outThread = std::thread(&pipeToSyslogWorker, sender, *_impl->outPipe, source);
+    _impl->errThread = std::thread(&pipeToSyslogWorker, sender, *_impl->errPipe, source);
 }
 
 #include <Pothos/Managed.hpp>

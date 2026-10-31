@@ -8,10 +8,11 @@
 #include <filesystem>
 #include <system_error>
 #include <future>
+#include "Util/FileSystem.hpp" //utf8Path, pathUtf8
 
 static std::vector<std::filesystem::path> getModulePaths(const std::filesystem::path &path)
 {
-    POTHOS_LOG_DEBUG("Pothos.PluginLoader.load", "{}", path.string());
+    POTHOS_LOG_DEBUG("Pothos.PluginLoader.load", "{}", Pothos::Util::Detail::pathUtf8(path));
 
     std::vector<std::filesystem::path> paths;
 
@@ -41,9 +42,9 @@ std::vector<Pothos::PluginModule> Pothos::PluginLoader::loadModules(void)
     std::vector<std::future<Pothos::PluginModule>> futures;
     for (const auto &searchPath : searchPaths)
     {
-        for (const auto &path : getModulePaths(searchPath))
+        for (const auto &path : getModulePaths(Pothos::Util::Detail::utf8Path(searchPath)))
         {
-            futures.push_back(std::async(std::launch::async, &Pothos::PluginModule::safeLoad, path.string()));
+            futures.push_back(std::async(std::launch::async, &Pothos::PluginModule::safeLoad, Pothos::Util::Detail::pathUtf8(path)));
         }
     }
 

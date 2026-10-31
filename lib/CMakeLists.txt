@@ -82,6 +82,7 @@ add_library(Pothos SHARED
     ConfLoader/BlockDescLoader.cpp
     ConfLoader/JSONTopologyLoader.cpp
     ConfLoader/JITCompilerLoader.cpp
+    ConfLoader/Builtin/TestJITCompilerLoader.cpp
 
     Framework/Builtin/CircularBufferManager.cpp
     Framework/Builtin/TestBufferChunkSerialization.cpp
@@ -229,7 +230,7 @@ endfunction()
 set(platform_sources Platform/CommandLine.cpp)
 if(WIN32)
     set(platform_suffix Windows)
-    set(platform_libraries iphlpapi) #GetAdaptersAddresses
+    set(platform_libraries iphlpapi shell32) #GetAdaptersAddresses, CommandLineToArgvW
 else()
     set(platform_suffix Unix)
     set(platform_libraries ${CMAKE_DL_LIBS}) #dlopen
@@ -280,11 +281,8 @@ elseif(UNIX)
     target_sources(Pothos PRIVATE Util/FileLockUnix.cpp)
 endif()
 
-target_link_libraries(Pothos PUBLIC ${Pothos_LINKER_FLAGS})
 target_include_directories(Pothos PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(Pothos PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
-target_compile_options(Pothos PUBLIC ${Pothos_COMPILE_OPTIONS})
-target_compile_definitions(Pothos PUBLIC ${Pothos_COMPILE_DEFINITIONS})
 set_target_properties(Pothos PROPERTIES SOVERSION ${POTHOS_ABI_VERSION})
 set_target_properties(Pothos PROPERTIES VERSION ${POTHOS_LIBVER})
 set_target_properties(Pothos PROPERTIES DEFINE_SYMBOL "POTHOS_DLL_EXPORTS")

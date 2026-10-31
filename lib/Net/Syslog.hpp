@@ -5,6 +5,7 @@
 
 #pragma once
 #include "System/LoggerSinks.hpp"
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -16,8 +17,14 @@
 namespace Pothos {
 namespace Net {
 
-//! Longest message text sent in one datagram (longer texts are truncated)
-constexpr std::size_t MaxSyslogMessage = 60000;
+/*!
+ * Largest datagram that formatSyslog() makes: the text is cut to fit.
+ * macOS refuses UDP datagrams larger than 9216 bytes (net.inet.udp.maxdgram).
+ */
+constexpr std::size_t MaxSyslogDatagram = 8192;
+
+//! Longest source (before the escape of the characters) in a datagram
+constexpr std::size_t MaxSyslogSource = 255;
 
 /*!
  * RFC 5424 line, facility user:
@@ -30,9 +37,13 @@ std::string formatSyslog(const System::Detail::LogRecord &r, std::string_view ho
 /*!
  * Parse an RFC 5424 or RFC 3164 datagram. Records from Pothos keep their
  * source, level, pid and thread id; for others the source is the APP-NAME
- * (5424) or TAG (3164). Returns nullopt for anything malformed.
+ * (5424) or TAG (3164); a 3164 message without a TAG has an empty source.
+ * Returns nullopt for anything malformed.
  */
 std::optional<System::Detail::LogRecord> parseSyslog(std::string_view datagram);
+
+//! parseSyslog() with the receive time: RFC 3164 has no year (a time more than a day after now is from the year before)
+std::optional<System::Detail::LogRecord> parseSyslog(std::string_view datagram, std::chrono::system_clock::time_point now);
 
 //! Sends records to host[:port] (default port 514), send errors are ignored
 class SyslogSender

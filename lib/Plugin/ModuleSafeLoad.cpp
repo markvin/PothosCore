@@ -11,11 +11,12 @@
 #include "Util/PropertyFile.hpp"
 #include <mutex>
 #include <cctype>
+#include "Util/FileSystem.hpp" //utf8Path, pathUtf8
 
 //! The path used to cache the safe loads
 static std::string getModuleLoaderCachePath(void)
 {
-    return (std::filesystem::path(Pothos::System::getUserConfigPath()) / "ModuleLoader.cache").string();
+    return Pothos::Util::Detail::pathUtf8(Pothos::Util::Detail::utf8Path(Pothos::System::getUserConfigPath()) / "ModuleLoader.cache");
 }
 
 /***********************************************************************
@@ -46,7 +47,7 @@ static std::mutex &getLoaderMutex(void)
 //! Get the string representation of a file's modification time
 static std::string getLastModifiedTimeStr(const std::string &path)
 {
-    const auto modified = std::filesystem::last_write_time(path).time_since_epoch();
+    const auto modified = std::filesystem::last_write_time(Pothos::Util::Detail::utf8Path(path)).time_since_epoch();
     return std::to_string(std::chrono::duration_cast<std::chrono::microseconds>(modified).count());
 }
 
@@ -68,7 +69,7 @@ static bool previousLoadWasSuccessful(const std::string &modulePath)
     std::lock_guard<std::mutex> mutexLock(getLoaderMutex());
     std::lock_guard<Pothos::Util::FileLock> fileLock(getLoaderFileLock());
     Pothos::Util::Detail::PropertyMap cache;
-    try {cache = Pothos::Util::Detail::loadPropertyFile(getModuleLoaderCachePath());} catch(...){}
+    try {cache = Pothos::Util::Detail::loadPropertyFile(Pothos::Util::Detail::utf8Path(getModuleLoaderCachePath()));} catch(...){}
 
     const auto cachedLibTime = cache.find(escape(Pothos::System::getPothosRuntimeLibraryPath()));
     const auto cachedModTime = cache.find(escape(modulePath));
@@ -84,11 +85,11 @@ static void markCurrentLoadSuccessful(const std::string &modulePath)
     std::lock_guard<std::mutex> mutexLock(getLoaderMutex());
     std::lock_guard<Pothos::Util::FileLock> fileLock(getLoaderFileLock());
     Pothos::Util::Detail::PropertyMap cache;
-    try {cache = Pothos::Util::Detail::loadPropertyFile(getModuleLoaderCachePath());} catch(...){}
+    try {cache = Pothos::Util::Detail::loadPropertyFile(Pothos::Util::Detail::utf8Path(getModuleLoaderCachePath()));} catch(...){}
 
     cache[escape(Pothos::System::getPothosRuntimeLibraryPath())] = getLastModifiedTimeStr(Pothos::System::getPothosRuntimeLibraryPath());
     cache[escape(modulePath)] = getLastModifiedTimeStr(modulePath);
-    try {Pothos::Util::Detail::savePropertyFile(getModuleLoaderCachePath(), cache);} catch(...){}
+    try {Pothos::Util::Detail::savePropertyFile(Pothos::Util::Detail::utf8Path(getModuleLoaderCachePath()), cache);} catch(...){}
 }
 
 /***********************************************************************
@@ -108,7 +109,7 @@ Pothos::PluginModule Pothos::PluginModule::safeLoad(const std::string &path)
     //launch: output goes to the null device (a closed pipe would kill the
     //child with a broken pipe as soon as it prints)
     opts.discardOutput = true;
-    auto ph = Pothos::Platform::Process::launch(Pothos::System::getPothosUtilExecutablePath(), opts);
+    auto ph = Pothos::Platform::Process::launch(Pothos::Util::Detail::utf8Path(Pothos::System::getPothosUtilExecutablePath()), opts);
 
     //wait, check error condition, and throw
     if (ph.wait() != success)

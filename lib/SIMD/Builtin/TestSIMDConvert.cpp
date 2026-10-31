@@ -5,6 +5,7 @@
 #include <Pothos/System/SIMD.hpp>
 #include "SIMD/SIMDConvert.hpp"
 #include "SIMDConvertArches.hpp" //generated
+#include "System/SIMDFeatures.hpp"
 #include <algorithm>
 #include <complex>
 #include <cstdint>
@@ -135,25 +136,67 @@ POTHOS_TEST_BLOCK("/framework/tests", test_simd_convert_matches_scalar)
     POTHOS_TEST_TRUE(failures.empty());
 }
 
-POTHOS_TEST_BLOCK("/framework/tests", test_simd_convert_unaligned)
-{
-    //offset by one byte, guard bytes around the output
-    constexpr std::size_t n = 67;
-    std::vector<unsigned char> inBytes(1 + n*sizeof(std::int32_t));
-    std::vector<unsigned char> outBytes(1 + n*sizeof(float) + 16, 0xA5);
-    std::vector<std::int32_t> in(n);
-    for (std::size_t i = 0; i < n; i++) in[i] = std::int32_t(i*7919) - 100000;
-    std::memcpy(inBytes.data()+1, in.data(), n*sizeof(std::int32_t));
+namespace {
 
-    simdConvertBuffer<std::int32_t, float>(inBytes.data()+1, outBytes.data()+1, n);
-    POTHOS_TEST_EQUAL(int(outBytes[0]), 0xA5);
-    for (std::size_t i = 0; i < 16; i++) POTHOS_TEST_EQUAL(int(outBytes[1 + n*sizeof(float) + i]), 0xA5);
+//! One conversion with the input and the output at a byte offset, guard bytes after the output
+template <typename In, typename Out>
+bool unalignedMatches(std::mt19937_64 &rng, const ConvertFcn convert, const std::size_t offset)
+{
+    constexpr std::size_t n = 67; //odd: a tail after the vector loop
+    const auto in = randomInput<In, Out>(n, rng);
+    std::vector<unsigned char> inBytes(offset + n*sizeof(In));
+    std::vector<unsigned char> outBytes(offset + n*sizeof(Out) + 16, 0xA5);
+    std::memcpy(inBytes.data()+offset, in.data(), n*sizeof(In));
+    convert(inBytes.data()+offset, outBytes.data()+offset, n);
+    for (std::size_t i = 0; i < offset; i++) if (outBytes[i] != 0xA5) return false;
+    for (std::size_t i = 0; i < 16; i++) if (outBytes[offset + n*sizeof(Out) + i] != 0xA5) return false;
     for (std::size_t i = 0; i < n; i++)
     {
-        float f = 0;
-        std::memcpy(&f, outBytes.data()+1+i*sizeof(float), sizeof(float));
-        POTHOS_TEST_EQUAL(f, static_cast<float>(in[i]));
+        const Out expected = static_cast<Out>(in[i]);
+        if (std::memcmp(&expected, outBytes.data()+offset+i*sizeof(Out), sizeof(Out)) != 0) return false;
     }
+    return true;
+}
+
+template <typename In, std::size_t... I>
+void checkUnalignedOut(std::mt19937_64 &rng, const std::string &key, std::index_sequence<I...>, std::vector<std::string> &failures)
+{
+    const auto check = [&](auto outTag)
+    {
+        using Out = typename decltype(outTag)::type;
+        const ConvertFcn convert = key.empty()? &simdConvertBuffer<In, Out> : copyConvert<In, Out>(key);
+        for (const std::size_t offset : {std::size_t(1), std::size_t(3)})
+        {
+            if (not unalignedMatches<In, Out>(rng, convert, offset)) failures.push_back(
+                key + " offset " + std::to_string(offset) + ": " + typeid(In).name() + " -> " + typeid(Out).name());
+        }
+    };
+    (check(std::type_identity<std::tuple_element_t<I, Types>>()), ...);
+}
+
+template <std::size_t... I>
+void checkUnaligned(std::mt19937_64 &rng, const std::string &key, std::index_sequence<I...> seq, std::vector<std::string> &failures)
+{
+    (checkUnalignedOut<std::tuple_element_t<I, Types>>(rng, key, seq, failures), ...);
+}
+
+} //namespace
+
+POTHOS_TEST_BLOCK("/framework/tests", test_simd_convert_unaligned)
+{
+    //all type pairs, the dispatched conversion and every copy this CPU can run
+    std::mt19937_64 rng(4321);
+    std::vector<std::string> failures;
+    checkUnaligned(rng, "", std::make_index_sequence<std::tuple_size_v<Types>>(), failures);
+    #define POTHOS_SIMD_CONVERT_UNALIGNED_KEY(ns) #ns,
+    const std::vector<std::string> keys{POTHOS_SIMD_CONVERT_ARCHES(POTHOS_SIMD_CONVERT_UNALIGNED_KEY)};
+    for (const auto &key : keys)
+    {
+        if (key != "fallback" and Pothos::System::getOptimalSIMDFeatureSetKey({key}) != key) continue;
+        checkUnaligned(rng, key, std::make_index_sequence<std::tuple_size_v<Types>>(), failures);
+    }
+    for (const auto &f : failures) std::cerr << "unaligned mismatch: " << f << std::endl;
+    POTHOS_TEST_TRUE(failures.empty());
 }
 
 POTHOS_TEST_BLOCK("/framework/tests", test_simd_convert_dispatch)
@@ -184,5 +227,27 @@ POTHOS_TEST_BLOCK("/framework/tests", test_simd_convert_copy_flags)
         if (key.find("x86_avx512") != std::string::npos) {POTHOS_TEST_TRUE(arch.starts_with("avx512"));}
         else if (key.find("x86_avx2") != std::string::npos) {POTHOS_TEST_TRUE(arch.find("avx2") != std::string::npos);}
         else if (key.find("x86_avx") != std::string::npos) {POTHOS_TEST_TRUE(arch.find("avx") != std::string::npos);}
+    }
+}
+
+//every feature of a copy key must be a name that the CPU detection can
+//report: a copy with another name is never chosen (dead code)
+POTHOS_TEST_BLOCK("/framework/tests", test_simd_copy_keys_reachable)
+{
+    const auto known = Pothos::System::Detail::knownSIMDFeatureNames();
+    #define POTHOS_SIMD_CONVERT_KEY_NAME(ns) #ns,
+    const std::vector<std::string> keys{POTHOS_SIMD_CONVERT_ARCHES(POTHOS_SIMD_CONVERT_KEY_NAME)};
+    for (const auto &key : keys)
+    {
+        if (key == "fallback") continue;
+        std::string rest = key;
+        while (not rest.empty())
+        {
+            const auto pos = rest.find("__");
+            const auto feature = rest.substr(0, pos);
+            std::cout << key << ": " << feature << std::endl;
+            POTHOS_TEST_TRUE(std::find(known.begin(), known.end(), feature) != known.end());
+            rest = (pos == std::string::npos)? "" : rest.substr(pos+2);
+        }
     }
 }

@@ -9,6 +9,7 @@
 #include "Util/TempFile.hpp"
 #include <filesystem>
 #include <system_error>
+#include "Util/FileSystem.hpp" //utf8Path, pathUtf8
 
 Pothos::Util::CompilerArgs::CompilerArgs(void)
 {
@@ -21,10 +22,10 @@ Pothos::Util::CompilerArgs Pothos::Util::CompilerArgs::defaultDevEnv(void)
 
     //add devel environment libraries
     std::error_code ec;
-    for (const auto &entry : std::filesystem::directory_iterator(Pothos::System::getPothosDevLibraryPath(), ec))
+    for (const auto &entry : std::filesystem::directory_iterator(Pothos::Util::Detail::utf8Path(Pothos::System::getPothosDevLibraryPath()), ec))
     {
         const auto &library = entry.path();
-        const auto file = library.filename().string();
+        const auto file = Pothos::Util::Detail::pathUtf8(library.filename());
         if ((
             library.extension() == ".so" or
             library.extension() == ".lib" or
@@ -32,7 +33,7 @@ Pothos::Util::CompilerArgs Pothos::Util::CompilerArgs::defaultDevEnv(void)
         ) and
         (
             file.find("Pothos") != std::string::npos
-        )) args.libraries.push_back(std::filesystem::absolute(library).string());
+        )) args.libraries.push_back(Pothos::Util::Detail::pathUtf8(std::filesystem::absolute(library)));
     }
 
     //add devel environment includes
@@ -46,7 +47,7 @@ Pothos::Util::Compiler::~Compiler(void)
     for (const auto &path : _tempFiles)
     {
         std::error_code ec;
-        std::filesystem::remove(path, ec);
+        std::filesystem::remove(Pothos::Util::Detail::utf8Path(path), ec);
     }
 }
 
@@ -80,6 +81,6 @@ Pothos::Util::Compiler::Sptr Pothos::Util::Compiler::make(const std::string &nam
 
 const std::string &Pothos::Util::Compiler::createTempFile(const std::string &ext)
 {
-    _tempFiles.push_back(Pothos::Util::Detail::uniqueTempPath(ext).string());
+    _tempFiles.push_back(Pothos::Util::Detail::pathUtf8(Pothos::Util::Detail::uniqueTempPath(ext)));
     return _tempFiles.back();
 }

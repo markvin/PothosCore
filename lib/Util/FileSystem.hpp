@@ -4,6 +4,7 @@
 //Internal file system helpers (not installed, not part of the public API)
 
 #pragma once
+#include "Platform/Environment.hpp" //getEnv: UTF-8 on all systems
 #include <cctype>
 #include <cstdlib>
 #include <filesystem>
@@ -16,6 +17,23 @@
 namespace Pothos {
 namespace Util {
 namespace Detail {
+
+/*!
+ * A std::string path of Pothos is UTF-8. On Windows the std::string
+ * constructor of std::filesystem::path and path::string() use the ANSI code
+ * page: a path with other characters would change. Convert with these.
+ */
+inline std::filesystem::path utf8Path(const std::string &s)
+{
+    return std::filesystem::path(std::u8string(s.begin(), s.end()));
+}
+
+//! The UTF-8 text of a path (refer to utf8Path)
+inline std::string pathUtf8(const std::filesystem::path &p)
+{
+    const auto u = p.u8string();
+    return std::string(u.begin(), u.end());
+}
 
 enum class Access {Read, Write, Execute};
 
@@ -33,6 +51,19 @@ inline bool canAccess(const std::filesystem::path &path, const Access access)
     return ::access(path.c_str(), mode) == 0;
     #endif
 }
+
+/*!
+ * The helpers below take std::filesystem::path. A std::string path is UTF-8:
+ * the deleted overloads stop an implicit conversion (on Windows, through the
+ * ANSI code page). Use utf8Path() for the argument.
+ */
+bool canAccess(const std::string &path, Access access) = delete;
+std::filesystem::path makeAbsolute(const std::string &path, const std::filesystem::path &base) = delete;
+std::filesystem::path makeAbsolute(const std::filesystem::path &path, const std::string &base) = delete;
+std::filesystem::path makeAbsolute(const std::string &path, const std::string &base) = delete;
+void moveFile(const std::string &from, const std::filesystem::path &to) = delete;
+void moveFile(const std::filesystem::path &from, const std::string &to) = delete;
+void moveFile(const std::string &from, const std::string &to) = delete;
 
 //! A relative path is taken relative to base; an absolute path is kept
 inline std::filesystem::path makeAbsolute(const std::filesystem::path &path, const std::filesystem::path &base)
@@ -52,8 +83,7 @@ inline void moveFile(const std::filesystem::path &from, const std::filesystem::p
 
 inline std::string envOrEmpty(const std::string &name)
 {
-    const char *value = std::getenv(name.c_str());
-    return value == nullptr ? std::string() : std::string(value);
+    return Pothos::Platform::getEnv(name).value_or("");
 }
 
 /*!

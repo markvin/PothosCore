@@ -546,10 +546,10 @@ void Pothos::Util::BlockDescriptionParser::feedStream(std::istream &is)
 
 void Pothos::Util::BlockDescriptionParser::feedFilePath(const std::string &filePath)
 {
-    if (not std::filesystem::exists(filePath))
+    if (not std::filesystem::exists(Pothos::Util::Detail::utf8Path(filePath)))
         throw Pothos::FileExistsException(filePath);
 
-    std::ifstream inputFile(Pothos::Util::Detail::expandPath(filePath));
+    std::ifstream inputFile(Pothos::Util::Detail::utf8Path(Pothos::Util::Detail::expandPath(filePath)));
 
     if (not inputFile)
         throw Pothos::OpenFileException(filePath);

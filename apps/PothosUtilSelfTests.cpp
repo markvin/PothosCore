@@ -8,6 +8,7 @@
 #include <Pothos/System/Paths.hpp>
 #include "Platform/Process.hpp"
 #include "Util/StringUtils.hpp"
+#include "Util/FileSystem.hpp"
 #include <iostream>
 #include <sstream>
 #include <vector>
@@ -68,8 +69,7 @@ static bool spawnSelfTestOneProcess(const std::string &path, size_t numTrials)
     args.push_back(path);
     args.push_back("--success-code");
     args.push_back(std::to_string(success));
-    args.push_back("--num-trials");
-    args.push_back(std::to_string(numTrials));
+    //one run in each child: the trials are the children (N, not N*N)
 
     size_t numOk = 0;
 
@@ -81,7 +81,7 @@ static bool spawnSelfTestOneProcess(const std::string &path, size_t numTrials)
         opts.args = args;
         opts.out = &outPipe;
         opts.err = &outPipe;
-        auto ph = Pothos::Platform::Process::launch(Pothos::System::getPothosUtilExecutablePath(), opts);
+        auto ph = Pothos::Platform::Process::launch(Pothos::Util::Detail::utf8Path(Pothos::System::getPothosUtilExecutablePath()), opts);
 
         std::future<std::string> verboseFuture(std::async(std::launch::async, &collectVerbose, outPipe));
         const bool ok = (ph.wait() == success);
@@ -132,6 +132,7 @@ void PothosUtilBase::selfTestOne(const std::string &, const std::string &path)
     Pothos::ScopedInit init;
 
     const auto numTrials = this->config().getUInt("num-trials", 1);
+    if (numTrials < 1) throw Pothos::InvalidArgumentException("--num-trials", "must be 1 or more");
     const bool multipleTrials = (numTrials > 1);
 
     auto plugin = Pothos::PluginRegistry::get(path);
@@ -168,6 +169,7 @@ void PothosUtilBase::selfTests(const std::string &, const std::string &path)
     Pothos::ScopedInit init;
 
     const auto numTrials = this->config().getUInt("num-trials", 1);
+    if (numTrials < 1) throw Pothos::InvalidArgumentException("--num-trials", "must be 1 or more");
 
     SelfTestResults results;
     if (path.find('*') == std::string::npos)

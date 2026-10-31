@@ -61,10 +61,10 @@ static std::vector<Pothos::PluginPath> blockDescLoader(const std::map<std::strin
     if (jsonIt == config.end() or jsonIt->second.empty())
         throw Pothos::Exception("JSON file not specified");
     const auto jsonPath = Pothos::Util::Detail::makeAbsolute(
-        Pothos::Util::Detail::expandPath(jsonIt->second),
-        std::filesystem::path(confFilePathIt->second).parent_path());
+        Pothos::Util::Detail::utf8Path(Pothos::Util::Detail::expandPath(jsonIt->second)),
+        Pothos::Util::Detail::utf8Path(confFilePathIt->second).parent_path());
     if (not std::filesystem::exists(jsonPath))
-        throw Pothos::Exception(jsonPath.string() + " does not exist");
+        throw Pothos::Exception(Pothos::Util::Detail::pathUtf8(jsonPath) + " does not exist");
 
     //open an input file stream
     std::ifstream ifs(jsonPath);

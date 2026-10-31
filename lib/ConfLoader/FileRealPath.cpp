@@ -6,14 +6,15 @@
 #include <filesystem>
 #include <string>
 #include <system_error>
+#include "Util/FileSystem.hpp" //utf8Path, pathUtf8
 
 /*!
  * Resolve symbolic links into an absolute path.
  * The path is returned unchanged when it cannot be resolved.
  */
-std::string Pothos_FileRealPath(const std::string &path)
+std::filesystem::path Pothos_FileRealPath(const std::filesystem::path &path)
 {
     std::error_code ec;
     const auto real = std::filesystem::canonical(path, ec);
-    return ec? path : real.string();
+    return ec? path : real;
 }

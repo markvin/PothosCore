@@ -1,8 +1,19 @@
 name: CI
 
 on:
+  #a branch with a PR runs through pull_request: push runs only for the main branches
   push:
+    branches: [master, pothos2]
   pull_request:
+
+#the jobs only read the repository
+permissions:
+  contents: read
+
+#a new push to a branch or a PR stops its older run
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -47,8 +58,13 @@ jobs:
       - name: No network access in the build
         shell: bash
         run: |
-          if grep -rnE 'file\s*\(\s*DOWNLOAD|FetchContent|ExternalProject' CMakeLists.txt lib apps cmake; then
+          #all CMake files; tests/subproject uses FetchContent with a local SOURCE_DIR only
+          files=$(git ls-files 'CMakeLists.txt' '*/CMakeLists.txt' '*.cmake' '*.cmake.in' | grep -v '^tests/subproject/')
+          if grep -nE 'file\s*\(\s*DOWNLOAD|FetchContent|ExternalProject' $files; then
             echo "build scripts must not download anything"; exit 1
+          fi
+          if grep -nE 'URL |GIT_REPOSITORY' tests/subproject/CMakeLists.txt; then
+            echo "the subproject test must not download anything"; exit 1
           fi
 
       - name: Install Ninja (Linux)

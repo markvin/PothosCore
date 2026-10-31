@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include "PothosUtil.hpp"
+#include "Util/FileSystem.hpp"
 
 #include <Pothos/Plugin.hpp>
 #include <Pothos/Proxy.hpp>
@@ -28,15 +29,15 @@ void PothosUtilBase::generateSIMDDispatchers(const std::string&, const std::stri
     const auto simdArchesTokenizer = Pothos::Util::Detail::split(simdArchesStr, ",", true, false);
     std::vector<std::string> simdArches(simdArchesTokenizer.begin(), simdArchesTokenizer.end());
 
-    const auto fileSize = std::filesystem::file_size(jsonPath);
+    const auto fileSize = std::filesystem::file_size(Pothos::Util::Detail::utf8Path(jsonPath));
 
-    std::ifstream ifile(jsonPath.c_str(), std::ios::in);
+    std::ifstream ifile(Pothos::Util::Detail::utf8Path(jsonPath), std::ios::in);
     std::string jsonInput;
     jsonInput.resize(fileSize);
     ifile.read((char*)jsonInput.data(), fileSize);
 
     const auto outputHeaderString = simdDispatcher.call<std::string>("generateAndDumpHeader", jsonInput, simdArches);
 
-    std::ofstream ofile(outputFilePath.c_str(), std::ios::out);
+    std::ofstream ofile(Pothos::Util::Detail::utf8Path(outputFilePath), std::ios::out);
     ofile << outputHeaderString;
 }

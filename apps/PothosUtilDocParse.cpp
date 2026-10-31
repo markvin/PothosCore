@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include "PothosUtil.hpp"
+#include "Util/FileSystem.hpp"
 #include <Pothos/Util/BlockDescription.hpp>
 #include <Pothos/Plugin.hpp>
 #include <format>
@@ -57,11 +58,11 @@ void PothosUtilBase::docParse(const std::vector<std::string> &inputFilePaths)
     }
     else
     {
-        const auto outputFileName = std::filesystem::path(outputFilePath).stem().string();
-        auto outputFileExt = std::filesystem::path(outputFilePath).extension().string();
+        const auto outputFileName = Pothos::Util::Detail::pathUtf8(Pothos::Util::Detail::utf8Path(outputFilePath).stem());
+        auto outputFileExt = Pothos::Util::Detail::pathUtf8(Pothos::Util::Detail::utf8Path(outputFilePath).extension());
         if (not outputFileExt.empty()) outputFileExt.erase(0, 1); //no dot, as before
 
-        std::ofstream outputFile(outputFilePath.c_str());
+        std::ofstream outputFile(Pothos::Util::Detail::utf8Path(outputFilePath));
         if (outputFileExt == "json") outputFile << parser.getJSONArray(indentSpaces);
         else if (outputFileExt == "cpp") jsonArrayToCppStaticBlock(parser, outputFile, outputFileName);
         else throw Pothos::Exception("PothosUtilBase::docParse()", "unsupported file extension: " + outputFilePath);

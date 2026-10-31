@@ -102,6 +102,16 @@ struct TcpServer::Impl : std::enable_shared_from_this<TcpServer::Impl>
         conn->done = true;
         this->notify(--active);
         doneCond.notify_all();
+
+        //join this thread soon, not at the next accept: the join on the
+        //io_context thread waits only for this thread to return
+        if (stopping) return; //the destructor joins or detaches the threads
+        auto self = this->shared_from_this();
+        asio::post(ioContext(), [self]
+        {
+            std::lock_guard<std::mutex> lock(self->mutex);
+            self->reapFinished();
+        });
     }
 
     //! Called with the mutex held: deliveries stay in order
@@ -146,8 +156,11 @@ struct TcpServer::Impl : std::enable_shared_from_this<TcpServer::Impl>
 TcpServer::TcpServer(const std::string &host, const std::uint16_t port, Handler handler, CountHandler onCountChange):
     _impl(std::make_shared<Impl>(std::move(handler), std::move(onCountChange)))
 {
-    const auto where = "bind " + formatHostPort(host.empty()? "::" : host, port);
-    const auto addr = host.empty()? asio::ip::address(asio::ip::address_v6::any()) : resolveHost(host, std::chrono::seconds(5));
+    //an empty host is the wildcard address: IPv6 (dual-stack) when the system has it
+    const auto wildcard = ipv6Supported()?
+        asio::ip::address(asio::ip::address_v6::any()) : asio::ip::address(asio::ip::address_v4::any());
+    const auto where = "bind " + formatHostPort(host.empty()? addressText(wildcard) : host, port);
+    const auto addr = host.empty()? wildcard : resolveHost(host, std::chrono::seconds(5));
     const asio::ip::tcp::endpoint endpoint(addr, port);
     auto &acceptor = _impl->acceptor;
     asio::error_code ec;
@@ -230,4 +243,10 @@ std::string TcpServer::host(void) const
 std::uint16_t TcpServer::port(void) const
 {
     return _impl->port;
+}
+
+std::size_t TcpServer::threadCount(void) const
+{
+    std::lock_guard<std::mutex> lock(_impl->mutex);
+    return _impl->connections.size();
 }

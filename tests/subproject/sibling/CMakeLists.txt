@@ -12,8 +12,8 @@ if(NOT TARGET Pothos::Pothos)
 endif()
 
 #the module helper of the toolkits (docs scanning needs PothosUtil)
-if(POTHOS_BUILD_APPS)
-    if(NOT POTHOS_UTIL_EXE)
+if(POTHOS_BUILD_APPS OR SIBLING_DOCS)
+    if(POTHOS_BUILD_APPS AND NOT POTHOS_UTIL_EXE)
         message(FATAL_ERROR "find_package(Pothos) gave no POTHOS_UTIL_EXE")
     endif()
     POTHOS_MODULE_UTIL(

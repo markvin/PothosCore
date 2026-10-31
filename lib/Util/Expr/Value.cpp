@@ -3,6 +3,8 @@
 
 #include "Util/Expr/Value.hpp"
 #include <algorithm>
+#include <array>
+#include <charconv>
 #include <cmath>
 #include <format>
 
@@ -47,13 +49,36 @@ bool numberEquals(const Value &a, const Value &b)
     return realEquals(a, b);
 }
 
+//the repr rule of Python: the shortest digits that give the same double;
+//fixed notation for a decimal exponent from -4 to 15 (with ".0" for a whole
+//number), else scientific notation with at least 2 exponent digits
 std::string floatRepr(const double d)
 {
     if (std::isnan(d)) return "nan";
     if (std::isinf(d)) return d < 0? "-inf" : "inf";
-    auto s = std::format("{}", d);
-    if (s.find_first_of(".e") == std::string::npos) s += ".0";
-    return s;
+
+    //shortest scientific form: "-1.2345e+17", "1e-05", "0e+00"
+    std::array<char, 64> buf{};
+    const auto result = std::to_chars(buf.data(), buf.data()+buf.size(), d, std::chars_format::scientific);
+    const std::string sci(buf.data(), result.ptr);
+    const auto ePos = sci.find('e');
+    const int exponent = std::stoi(sci.substr(ePos+1));
+    std::string digits;
+    for (const char c : sci.substr(0, ePos)) if (c >= '0' and c <= '9') digits += c;
+
+    std::string out(std::signbit(d)? "-" : "");
+    if (exponent >= -4 and exponent < 16)
+    {
+        if (exponent < 0) out += "0." + std::string(std::size_t(-exponent-1), '0') + digits;
+        else if (digits.size() <= std::size_t(exponent)+1) out += digits + std::string(std::size_t(exponent)+1-digits.size(), '0') + ".0";
+        else out += digits.substr(0, std::size_t(exponent)+1) + "." + digits.substr(std::size_t(exponent)+1);
+        return out;
+    }
+    out += digits.substr(0, 1);
+    if (digits.size() > 1) out += "." + digits.substr(1);
+    auto expText = std::to_string(std::abs(exponent));
+    if (expText.size() < 2) expText = "0" + expText;
+    return out + "e" + (exponent < 0? "-" : "+") + expText;
 }
 
 std::string strRepr(const std::string &s)

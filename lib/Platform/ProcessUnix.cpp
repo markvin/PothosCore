@@ -12,7 +12,13 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#ifdef __APPLE__
+#include <crt_externs.h> //a shared library on macOS gets the environment from _NSGetEnviron()
+static char **processEnviron(void) {return *_NSGetEnviron();}
+#else
 extern char **environ;
+static char **processEnviron(void) {return environ;}
+#endif
 
 /***********************************************************************
  * Pipes and spawning share one lock: on systems without pipe2(),
@@ -146,7 +152,7 @@ Pothos::Platform::Process Pothos::Platform::Process::launch(const std::filesyste
 
     //environment: inherited variables, replaced or extended by opts.env
     std::vector<std::string> envStrs;
-    for (char **e = environ; e != nullptr and *e != nullptr; e++)
+    for (char **e = processEnviron(); e != nullptr and *e != nullptr; e++)
     {
         const std::string entry(*e);
         const auto name = entry.substr(0, entry.find('='));
@@ -211,6 +217,20 @@ int Pothos::Platform::Process::id(void) const
 
 int Pothos::Platform::Process::wait(void)
 {
+    //wait for the exit without the lock (WNOWAIT keeps the child to reap):
+    //kill() and requestTermination() from another thread take the lock
+    {
+        std::lock_guard<std::mutex> lock(_impl->mutex);
+        if (_impl->exitCode) return *_impl->exitCode;
+    }
+    siginfo_t info{};
+    while (::waitid(P_PID, id_t(_impl->pid), &info, WEXITED | WNOWAIT) < 0)
+    {
+        if (errno == ECHILD) break; //reaped by another call of this process object
+        if (errno != EINTR) throw Pothos::SystemException("Pothos::Platform::Process::wait()", errnoText(errno));
+    }
+
+    //reap under the lock (an other thread can have done it already)
     std::lock_guard<std::mutex> lock(_impl->mutex);
     if (_impl->exitCode) return *_impl->exitCode;
     int status = 0;

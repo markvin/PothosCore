@@ -184,9 +184,10 @@ public:
 
     /*!
      * Setup default logging for this process.
-     * The default logger will log all non-informational logs to the console.
+     * The default logger logs at the information level and above to the console.
      * The logger can be configured with the following environment vars:
-     * POTHOS_LOG_LEVEL - what level to display logs (default notice)
+     * POTHOS_LOG_LEVEL - the lowest level that is logged (default information;
+     *   fatal ... trace or 1 ... 8; none or off logs nothing)
      * POTHOS_LOG_CHANNEL - how to display the logs (default color)
      * POTHOS_LOG_FILE - log file path if POTHOS_LOG_CHANNEL=file specified
      */

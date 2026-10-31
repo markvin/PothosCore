@@ -62,10 +62,16 @@ processes or hosts (`/blocks/network_sink`, `/blocks/network_source`). When
 PothosBlocks is not installed, `Topology::commit()` throws a
 `TopologyConnectError` that names the missing block.
 
+A topology across hosts needs the pothos2 core (2.0) on each host. The
+remote protocol of pothos2 is not compatible with a 0.7 or 0.8 core: a
+remote host with an upstream core is not supported.
+
 ## Building
 
 Requirements: CMake 3.25 or newer, Ninja (or another generator) and a C++23
-compiler (GCC 13+, Clang 17+, Xcode 15+, Visual Studio 2022 17.8+).
+compiler (GCC 13+, Clang 17+, Xcode 15+, Visual Studio 2022 17.8+). On macOS
+the deployment target is 13.3 or higher (std::format of libc++); a lower
+`CMAKE_OSX_DEPLOYMENT_TARGET` stops the configure step.
 The build itself does not download files.
 
 With system packages (for example Arch Linux: `asio nlohmann-json xsimd`):

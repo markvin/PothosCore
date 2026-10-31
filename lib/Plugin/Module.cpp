@@ -7,6 +7,7 @@
 #include <Pothos/Plugin/Exception.hpp>
 #include <Pothos/Object.hpp> //pulls in full Object implementation
 #include "Platform/DynamicLibrary.hpp"
+#include "Util/FileSystem.hpp"
 #include <optional>
 #include <Pothos/System/Logger.hpp>
 #include <mutex>
@@ -93,7 +94,7 @@ Pothos::PluginModule::PluginModule(const std::string &path):
         registrySetActiveModuleLoading(*this);
         currentModuleVersion = &(_impl->version);
         ErrorMessageDisableGuard emdg;
-        _impl->sharedLibrary.emplace(path);
+        _impl->sharedLibrary.emplace(Pothos::Util::Detail::utf8Path(path));
         currentModuleVersion = nullptr;
         registrySetActiveModuleLoading(PluginModule());
         _impl->pluginPaths = ::getPluginPaths(*this);
@@ -112,7 +113,7 @@ Pothos::PluginModule::~PluginModule(void)
     if (_impl.use_count() != 1) return; //this is not the last copy
     if (not _impl->sharedLibrary) return; //module not loaded
 
-    POTHOS_LOG_DEBUG("Pothos.PluginModule.unload", "{}", _impl->sharedLibrary->path().string());
+    POTHOS_LOG_DEBUG("Pothos.PluginModule.unload", "{}", Pothos::Util::Detail::pathUtf8(_impl->sharedLibrary->path()));
     for (const auto &pluginPath : this->getPluginPaths())
     {
         PluginRegistry::remove(pluginPath);

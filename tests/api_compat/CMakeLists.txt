@@ -6,7 +6,10 @@
 cmake_minimum_required(VERSION 3.25)
 project(PothosApiCompat CXX)
 
-find_package(Pothos CONFIG REQUIRED)
+#the form of the toolkits: POTHOS_ROOT (a variable of the core and of the
+#test environment) is not a search prefix of find_package (CMP0144)
+cmake_policy(SET CMP0144 NEW)
+find_package(Pothos CONFIG REQUIRED NO_PACKAGE_ROOT_PATH)
 
 add_executable(api_compat
     main.cpp

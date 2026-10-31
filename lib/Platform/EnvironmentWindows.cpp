@@ -10,6 +10,7 @@
 #include <vector>
 #include <winsock2.h>
 #include <windows.h>
+#include <shellapi.h> //CommandLineToArgvW
 #include <iphlpapi.h>
 
 static std::wstring toWide(const std::string &utf8)
@@ -136,4 +137,19 @@ unsigned Pothos::Platform::processorCount(void)
 int Pothos::Platform::currentProcessId(void)
 {
     return static_cast<int>(GetCurrentProcessId());
+}
+
+std::vector<std::string> Pothos::Platform::commandLineArguments(int argc, char *argv[])
+{
+    int wargc = 0;
+    LPWSTR *wargv = CommandLineToArgvW(GetCommandLineW(), &wargc);
+    if (wargv == nullptr)
+    {
+        if (argc <= 1) return {};
+        return std::vector<std::string>(argv+1, argv+argc);
+    }
+    std::vector<std::string> args;
+    for (int i = 1; i < wargc; i++) args.push_back(toUtf8(wargv[i]));
+    LocalFree(wargv);
+    return args;
 }

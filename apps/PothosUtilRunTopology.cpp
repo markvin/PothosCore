@@ -20,13 +20,13 @@ void PothosUtilBase::runTopology(void)
 
     //sanity check the file
     const auto path = this->config().getString("run-topology");
-    if (std::filesystem::path(path).extension() == ".pothos" or
-        std::filesystem::path(path).extension() == ".pth")
+    const auto extension = Pothos::Util::Detail::utf8Path(path).extension();
+    if (extension == ".pothos" or extension == ".pth")
     {
         throw Pothos::DataFormatException("Cannot load "+path+"!\n"
             "Please export the design to the JSON topology format.");
     }
-    std::ifstream ifs(Pothos::Util::Detail::expandPath(path));
+    std::ifstream ifs(Pothos::Util::Detail::utf8Path(Pothos::Util::Detail::expandPath(path)));
     if (not ifs) throw Pothos::FileException("Can't open "+path+" for reading!");
 
     //parse the json formatted string into a JSON object
@@ -108,7 +108,7 @@ void PothosUtilBase::runTopology(void)
     {
         const auto statsFile = this->config().getString("output");
         std::cout << ">>> Dumping stats: " << statsFile << std::endl;
-        std::ofstream ofs(Pothos::Util::Detail::expandPath(statsFile));
+        std::ofstream ofs(Pothos::Util::Detail::utf8Path(Pothos::Util::Detail::expandPath(statsFile)));
         ofs << topology->queryJSONStats() << std::endl;
     }
 }

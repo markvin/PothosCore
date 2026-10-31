@@ -71,8 +71,12 @@ std::vector<std::string> Pothos::System::Detail::detectSIMDFeatures(void)
     add(sse3, "x86_sse3");
     add(sse2, "x86_sse2");
 
-    //ARM: NEON (64-bit NEON always has single precision float support)
+    //ARM: NEON (64-bit NEON always has single precision float support); the
+    //arm_* names are the names of the SIMD copies (PothosConfigSIMD.cmake)
     const bool neon = cpu.neon64() or cpu.neon();
+    add(cpu.neon64(), "arm64_neon");
+    add(neon, "arm_neon_flt_sp");
+    add(neon, "arm_neon");
     add(neon, "neonfltsp");
     add(neon, "neon");
 
@@ -81,6 +85,15 @@ std::vector<std::string> Pothos::System::Detail::detectSIMDFeatures(void)
     add(cpu.vsx(), "power_vsx_206");
     add(cpu.vsx(), "power_altivec");
     return out;
+}
+
+std::vector<std::string> Pothos::System::Detail::knownSIMDFeatureNames(void)
+{
+    return {
+        "x86_avx512vl", "x86_avx512dq", "x86_avx512bw", "x86_avx512f", "x86_fma4", "x86_fma3",
+        "x86_avx2", "x86_avx", "x86_popcnt", "x86_sse4_1", "x86_ssse3", "x86_sse3", "x86_sse2",
+        "arm64_neon", "arm_neon_flt_sp", "arm_neon", "neonfltsp", "neon",
+        "power_vsx_207", "power_vsx_206", "power_altivec"};
 }
 
 //

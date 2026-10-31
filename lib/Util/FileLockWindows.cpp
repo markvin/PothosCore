@@ -3,6 +3,7 @@
 
 #include <Pothos/Util/FileLock.hpp>
 #include <Pothos/Exception.hpp>
+#include "Platform/Process.hpp" //utf8ToWide
 
 #include <windows.h>
 #include <cstring> //memset
@@ -23,8 +24,10 @@ struct Pothos::Util::FileLock::Impl
 Pothos::Util::FileLock::FileLock(const std::string &filePath):
     _impl(new Impl())
 {
-    _impl->handle = CreateFile(
-        filePath.c_str(),
+    //the path is UTF-8: the wide API (CreateFileA would use the ANSI code page)
+    const auto widePath = Pothos::Platform::utf8ToWide(filePath);
+    _impl->handle = CreateFileW(
+        widePath.c_str(),
         GENERIC_READ,
         FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
         NULL,

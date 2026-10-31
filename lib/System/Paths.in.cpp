@@ -11,12 +11,13 @@
 #include <windows.h>
 #endif
 #include "Util/StringUtils.hpp"
+#include "Util/FileSystem.hpp" //utf8Path, pathUtf8: the std::string paths are UTF-8
 #include <algorithm>
 #include <iterator>
 
 static std::string absoluteString(const std::filesystem::path &path)
 {
-    return std::filesystem::absolute(path).string();
+    return Pothos::Util::Detail::pathUtf8(std::filesystem::absolute(path));
 }
 
 //the user's home directory (HOME, or USERPROFILE on Windows)
@@ -27,41 +28,41 @@ static std::filesystem::path homePath(void)
     #else
     const auto home = Pothos::Platform::getEnv("HOME");
     #endif
-    return home ? std::filesystem::path(*home) : std::filesystem::current_path();
+    return home ? Pothos::Util::Detail::utf8Path(*home) : std::filesystem::current_path();
 }
 
 std::string Pothos::System::getRootPath(void)
 {
     if (const auto root = Pothos::Platform::getEnv("@POTHOS_ROOT_ENV@"))
-        return absoluteString(*root);
+        return absoluteString(Pothos::Util::Detail::utf8Path(*root));
 
     // Get the path to the current dynamic linked library.
     // The path to this library can be used to determine
     // the installation root without prior knowledge.
     #ifdef _WIN32
-    char path[MAX_PATH];
+    wchar_t path[MAX_PATH];
     HMODULE hm = NULL;
-    if (GetModuleHandleExA(
+    if (GetModuleHandleExW(
         GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
         GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-        (LPCSTR) &Pothos::System::getRootPath, &hm))
+        (LPCWSTR) &Pothos::System::getRootPath, &hm))
     {
-        const DWORD size = GetModuleFileNameA(hm, path, sizeof(path));
+        const DWORD size = GetModuleFileNameW(hm, path, MAX_PATH);
         if (size != 0)
         {
-            const std::filesystem::path libPath(std::string(path, size));
-            return libPath.parent_path().parent_path().string();
+            const std::filesystem::path libPath(std::wstring(path, size));
+            return Pothos::Util::Detail::pathUtf8(libPath.parent_path().parent_path());
         }
     }
     #endif
 
     //assume that the root path is always in UNIX style
-    return absoluteString(std::filesystem::path("@POTHOS_ROOT@"));
+    return absoluteString(Pothos::Util::Detail::utf8Path("@POTHOS_ROOT@"));
 }
 
 std::string Pothos::System::getDataPath(void)
 {
-    return absoluteString(std::filesystem::path(getRootPath()) / "@CMAKE_INSTALL_DATADIR@" / "Pothos");
+    return absoluteString(Pothos::Util::Detail::utf8Path(getRootPath()) / "@CMAKE_INSTALL_DATADIR@" / "Pothos");
 }
 
 std::string Pothos::System::getUserDataPath(void)
@@ -69,11 +70,11 @@ std::string Pothos::System::getUserDataPath(void)
     std::filesystem::path dataPath;
     if (const auto xdg = Pothos::Platform::getEnv("XDG_DATA_HOME"))
     {
-        dataPath = *xdg;
+        dataPath = Pothos::Util::Detail::utf8Path(*xdg);
     }
     else if (const auto appData = Pothos::Platform::getEnv("@POTHOS_APPDATA_ENV@"))
     {
-        dataPath = *appData;
+        dataPath = Pothos::Util::Detail::utf8Path(*appData);
     }
     else
     {
@@ -87,11 +88,11 @@ std::string Pothos::System::getUserConfigPath(void)
     std::filesystem::path configPath;
     if (const auto xdg = Pothos::Platform::getEnv("XDG_CONFIG_HOME"))
     {
-        configPath = *xdg;
+        configPath = Pothos::Util::Detail::utf8Path(*xdg);
     }
     else if (const auto appData = Pothos::Platform::getEnv("@POTHOS_APPDATA_ENV@"))
     {
-        configPath = *appData;
+        configPath = Pothos::Util::Detail::utf8Path(*appData);
     }
     else
     {
@@ -102,7 +103,7 @@ std::string Pothos::System::getUserConfigPath(void)
 
 std::string Pothos::System::getPothosUtilExecutablePath(void)
 {
-    auto utilPath = std::filesystem::path(Pothos::System::getRootPath()) / "@CMAKE_INSTALL_BINDIR@" / "PothosUtil";
+    auto utilPath = Pothos::Util::Detail::utf8Path(Pothos::System::getRootPath()) / "@CMAKE_INSTALL_BINDIR@" / "PothosUtil";
     #ifdef _WIN32
     utilPath.replace_extension("exe");
     #endif
@@ -112,7 +113,7 @@ std::string Pothos::System::getPothosUtilExecutablePath(void)
 
 std::string Pothos::System::getPothosRuntimeLibraryPath(void)
 {
-    std::filesystem::path dllPath(Pothos::System::getRootPath());
+    auto dllPath = Pothos::Util::Detail::utf8Path(Pothos::System::getRootPath());
     #ifdef _WIN32
     dllPath /= "@CMAKE_INSTALL_BINDIR@";
     #else
@@ -125,12 +126,12 @@ std::string Pothos::System::getPothosRuntimeLibraryPath(void)
 
 std::string Pothos::System::getPothosDevIncludePath(void)
 {
-    return absoluteString(std::filesystem::path(Pothos::System::getRootPath()) / "@CMAKE_INSTALL_INCLUDEDIR@");
+    return absoluteString(Pothos::Util::Detail::utf8Path(Pothos::System::getRootPath()) / "@CMAKE_INSTALL_INCLUDEDIR@");
 }
 
 std::string Pothos::System::getPothosDevLibraryPath(void)
 {
-    return absoluteString(std::filesystem::path(Pothos::System::getRootPath()) / "@CMAKE_INSTALL_LIBDIR@");
+    return absoluteString(Pothos::Util::Detail::utf8Path(Pothos::System::getRootPath()) / "@CMAKE_INSTALL_LIBDIR@");
 }
 
 std::vector<std::string> Pothos::System::getPothosModuleSearchPaths()
@@ -138,7 +139,7 @@ std::vector<std::string> Pothos::System::getPothosModuleSearchPaths()
     std::vector<std::filesystem::path> searchPaths;
 
     //the default search path
-    searchPaths.push_back(std::filesystem::path(Pothos::System::getPothosDevLibraryPath()) / "Pothos" / ("modules" + Pothos::System::getAbiVersion()));
+    searchPaths.push_back(Pothos::Util::Detail::utf8Path(Pothos::System::getPothosDevLibraryPath()) / "Pothos" / ("modules" + Pothos::System::getAbiVersion()));
 
     //support /usr/local module installs when the install prefix is /usr
     if (Pothos::System::getRootPath() == "/usr")
@@ -163,7 +164,7 @@ std::vector<std::string> Pothos::System::getPothosModuleSearchPaths()
     for (const auto &pluginPath : Pothos::Util::Detail::split(pluginPaths, sep, false, false))
     {
         if (pluginPath.empty()) continue;
-        searchPaths.push_back(pluginPath);
+        searchPaths.push_back(Pothos::Util::Detail::utf8Path(pluginPath));
     }
 
     std::vector<std::string> searchPathStrings;

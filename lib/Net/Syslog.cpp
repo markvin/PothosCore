@@ -214,7 +214,7 @@ bool parseStructuredData(std::string_view &s, std::vector<std::pair<std::string,
     return true;
 }
 
-std::optional<LogRecord> parse5424(std::string_view s, const int sev)
+std::optional<LogRecord> parse5424(std::string_view s, const int sev, const std::chrono::system_clock::time_point receiveTime)
 {
     std::string_view timestamp, host, app, procId, msgId;
     if (not nextField(s, timestamp) or not nextField(s, host) or not nextField(s, app) or
@@ -233,7 +233,7 @@ std::optional<LogRecord> parse5424(std::string_view s, const int sev)
     r.level = levelFromSeverity(sev);
     r.source = (app == "-")? "" : std::string(app);
     r.text = std::string(s);
-    r.time = std::chrono::system_clock::now();
+    r.time = receiveTime;
     if (timestamp != "-")
     {
         if (const auto t = parseTimestamp(timestamp)) r.time = *t;
@@ -249,7 +249,7 @@ std::optional<LogRecord> parse5424(std::string_view s, const int sev)
 }
 
 //! RFC 3164: Mmm dd hh:mm:ss HOST TAG[PID]: TEXT
-std::optional<LogRecord> parse3164(std::string_view s, const int sev)
+std::optional<LogRecord> parse3164(std::string_view s, const int sev, const std::chrono::system_clock::time_point receiveTime)
 {
     static constexpr std::array<std::string_view, 12> months{
         "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
@@ -268,34 +268,46 @@ std::optional<LogRecord> parse3164(std::string_view s, const int sev)
     const auto tagEnd = s.find_first_of("[:");
     if (tagEnd == std::string_view::npos or tagEnd == 0) return std::nullopt;
     LogRecord r;
-    r.source = std::string(s.substr(0, tagEnd));
-    s.remove_prefix(tagEnd);
-    if (s.starts_with('['))
+    //a TAG has no space: else the message has no TAG and all of it is the text
+    if (s.substr(0, tagEnd).find(' ') == std::string_view::npos)
     {
-        const auto close = s.find(']');
-        if (close == std::string_view::npos or not parseNumber(s.substr(1, close-1), r.pid)) return std::nullopt;
-        s.remove_prefix(close+1);
+        r.source = std::string(s.substr(0, tagEnd));
+        s.remove_prefix(tagEnd);
+        if (s.starts_with('['))
+        {
+            const auto close = s.find(']');
+            if (close == std::string_view::npos or not parseNumber(s.substr(1, close-1), r.pid)) return std::nullopt;
+            s.remove_prefix(close+1);
+        }
+        if (not s.starts_with(':')) return std::nullopt;
+        s.remove_prefix(1);
+        if (s.starts_with(' ')) s.remove_prefix(1);
     }
-    if (not s.starts_with(':')) return std::nullopt;
-    s.remove_prefix(1);
-    if (s.starts_with(' ')) s.remove_prefix(1);
 
-    //no year or zone in the timestamp: this year, local time
-    std::tm tm{};
-    const auto now = std::time(nullptr);
+    //no year or zone in the timestamp: the year of the receive time, local time;
+    //a time more than one day after the receive time is from the year before
+    std::tm nowTm{};
+    const auto now = std::chrono::system_clock::to_time_t(receiveTime);
     #ifdef _WIN32
-    localtime_s(&tm, &now);
+    localtime_s(&nowTm, &now);
     #else
-    localtime_r(&now, &tm);
+    localtime_r(&now, &nowTm);
     #endif
-    tm.tm_mon = month;
-    tm.tm_mday = int(day);
-    tm.tm_hour = int(h);
-    tm.tm_min = int(mi);
-    tm.tm_sec = int(se);
-    tm.tm_isdst = -1;
-    const auto t = std::mktime(&tm);
-    r.time = (t == std::time_t(-1))? std::chrono::system_clock::now() : std::chrono::system_clock::from_time_t(t);
+    const auto makeTime = [&](const int year)
+    {
+        std::tm tm{};
+        tm.tm_year = year;
+        tm.tm_mon = month;
+        tm.tm_mday = int(day);
+        tm.tm_hour = int(h);
+        tm.tm_min = int(mi);
+        tm.tm_sec = int(se);
+        tm.tm_isdst = -1;
+        return std::mktime(&tm);
+    };
+    auto t = makeTime(nowTm.tm_year);
+    if (t != std::time_t(-1) and t > now + 24*60*60) t = makeTime(nowTm.tm_year - 1);
+    r.time = (t == std::time_t(-1))? receiveTime : std::chrono::system_clock::from_time_t(t);
     r.level = levelFromSeverity(sev);
     r.text = std::string(s);
     return r;
@@ -309,12 +321,18 @@ std::string Pothos::Net::formatSyslog(const LogRecord &r, const std::string_view
     std::string out = std::format("<{}>1 {:%FT%T}Z {} Pothos {} - [{} source=\"{}\" level=\"{}\" tid=\"{}\"] ",
         FacilityUser*8 + severity(r.level), time, headerField(hostname, 255),
         (r.pid == 0)? std::string("-") : std::to_string(r.pid), SdId,
-        escapeParam(r.source), levelName(r.level), r.threadId);
-    out += truncateUtf8(r.text, MaxSyslogMessage);
+        escapeParam(truncateUtf8(r.source, MaxSyslogSource)), levelName(r.level), r.threadId);
+    //the whole datagram fits MaxSyslogDatagram (the header has at most about 1 KB)
+    out += truncateUtf8(r.text, (out.size() < MaxSyslogDatagram)? MaxSyslogDatagram - out.size() : 0);
     return out;
 }
 
 std::optional<LogRecord> Pothos::Net::parseSyslog(std::string_view s)
+{
+    return parseSyslog(s, std::chrono::system_clock::now());
+}
+
+std::optional<LogRecord> Pothos::Net::parseSyslog(std::string_view s, const std::chrono::system_clock::time_point now)
 {
     if (not s.starts_with('<')) return std::nullopt;
     const auto close = s.find('>');
@@ -322,8 +340,8 @@ std::optional<LogRecord> Pothos::Net::parseSyslog(std::string_view s)
     int pri = 0;
     if (not parseNumber(s.substr(1, close-1), pri) or pri > 191) return std::nullopt;
     s.remove_prefix(close+1);
-    if (s.starts_with("1 ")) return parse5424(s.substr(2), pri % 8);
-    return parse3164(s, pri % 8);
+    if (s.starts_with("1 ")) return parse5424(s.substr(2), pri % 8, now);
+    return parse3164(s, pri % 8, now);
 }
 
 /***********************************************************************
@@ -398,6 +416,7 @@ struct SyslogListener::Impl : std::enable_shared_from_this<SyslogListener::Impl>
     asio::ip::udp::endpoint sender;
     const std::function<void(const LogRecord &)> onRecord;
     std::vector<char> buffer;
+    std::uint16_t port = 0; //set before the receive starts: no socket use from other threads
 };
 
 SyslogListener::SyslogListener(std::function<void(const LogRecord &)> onRecord):
@@ -418,6 +437,7 @@ SyslogListener::SyslogListener(std::function<void(const LogRecord &)> onRecord):
         if (not ec) socket.bind(asio::ip::udp::endpoint(asio::ip::address_v4::any(), 0), ec);
     }
     if (ec) throw Pothos::IOException("syslog listener", ec.message());
+    _impl->port = socket.local_endpoint(ec).port(); //before the io_context thread uses the socket
 
     //start receiving on the io_context thread, which owns the socket from now on
     auto impl = _impl;
@@ -449,6 +469,5 @@ SyslogListener::~SyslogListener(void)
 
 std::uint16_t SyslogListener::port(void) const
 {
-    asio::error_code ec;
-    return _impl->socket.local_endpoint(ec).port();
+    return _impl->port;
 }

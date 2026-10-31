@@ -47,6 +47,11 @@ void Pothos::App::installTerminationHandlers(void)
     });
 }
 
+void Pothos::App::shutdownDone(void)
+{
+    return; //only a Windows console close waits for it
+}
+
 void Pothos::App::waitForTerminationRequest(void)
 {
     installTerminationHandlers();
@@ -95,6 +100,19 @@ Pothos::App::PidFile::PidFile(std::filesystem::path path):
     std::error_code ec;
     std::filesystem::rename(tmp, _path, ec);
     if (ec) throw Pothos::FileException("PidFile", "cannot write " + _path.string() + ": " + ec.message());
+}
+
+void Pothos::App::PidFile::check(const std::filesystem::path &path)
+{
+    auto tmp = path;
+    tmp += ".tmp";
+    const bool existed = std::filesystem::exists(tmp);
+    {
+        std::ofstream file(tmp, std::ios::app);
+        if (not file) throw Pothos::FileException("PidFile", "cannot write " + tmp.string());
+    }
+    std::error_code ec;
+    if (not existed) std::filesystem::remove(tmp, ec);
 }
 
 Pothos::App::PidFile::~PidFile(void)

@@ -32,6 +32,10 @@ PropertyMap loadPropertyFile(const std::filesystem::path &path);
 //! \throws Pothos::FileException naming the path
 void savePropertyFile(const std::filesystem::path &path, const PropertyMap &map);
 
+//a UTF-8 std::string path must go through utf8Path() (refer to Util/FileSystem.hpp)
+PropertyMap loadPropertyFile(const std::string &path) = delete;
+void savePropertyFile(const std::string &path, const PropertyMap &map) = delete;
+
 } //namespace Detail
 } //namespace Util
 } //namespace Pothos

@@ -4,12 +4,15 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include "PothosUtil.hpp"
+#include "Util/FileSystem.hpp"
 #include "App/PothosUtilOptions.hpp"
 #include "App/Server.hpp"
+#include "Platform/Environment.hpp"
 #include <Pothos/System.hpp>
 #include <Pothos/System/Paths.hpp>
 #include <Pothos/Exception.hpp>
 #include <algorithm>
+#include <array>
 #include <charconv>
 #include <format>
 #include <functional>
@@ -82,10 +85,11 @@ public:
             (_config.has("run-topology") and not _config.has("run-duration") and not _config.has("idle-time"));
     }
 
-    //! Run the commands: those with a value in command line order, then the first flag command
-    void runCommands(void)
+    using Command = void (PothosUtilBase::*)(const std::string &, const std::string &);
+
+    //! The commands that take a value (in command line order)
+    static const std::map<std::string, Command> &valueCommands(void)
     {
-        using Command = void (PothosUtilBase::*)(const std::string &, const std::string &);
         static const std::map<std::string, Command> commands{
             {"system-info", &PothosUtilBase::printSystemInfo},
             {"module-info", &PothosUtilBase::printModuleInfo},
@@ -99,6 +103,26 @@ public:
             {"generate-simd-dispatchers", &PothosUtilBase::generateSIMDDispatchers},
             {"type-conversions", &PothosUtilBase::printTypeConversions},
         };
+        return commands;
+    }
+
+    //! The flag commands (only the first one runs)
+    static constexpr std::array<const char *, 4> FlagCommands{"doc-parse", "device-info", "run-topology", "simd-features"};
+
+    //! True when the command line has a command for runCommands()
+    bool hasCommand(void) const
+    {
+        for (const auto &[name, value] : _config.given())
+        {
+            if (valueCommands().contains(name)) return true;
+        }
+        return std::ranges::any_of(FlagCommands, [this](const char *name){return _config.has(name);});
+    }
+
+    //! Run the commands: those with a value in command line order, then the first flag command
+    void runCommands(void)
+    {
+        const auto &commands = valueCommands();
         for (const auto &[name, value] : _config.given())
         {
             const auto it = commands.find(name);
@@ -153,8 +177,18 @@ static int runGuarded(Fn &&f)
 
 int main(int argc, char *argv[])
 {
+    //last at the return: the logs are written, then a waiting console close
+    //handler (Windows) lets the process end
+    struct ShutdownGuard
+    {
+        ~ShutdownGuard(void)
+        {
+            Pothos::System::Logger::flush();
+            Pothos::App::shutdownDone();
+        }
+    } shutdownGuard;
     PothosUtil app;
-    const int parsed = runGuarded([&]{app.parse(std::vector<std::string>(argv+1, argv+argc)); return 0;});
+    const int parsed = runGuarded([&]{app.parse(Pothos::Platform::commandLineArguments(argc, argv)); return 0;});
     if (parsed != 0) return parsed;
 
     if (argc <= 1 or app.config().has("help"))
@@ -171,6 +205,8 @@ int main(int argc, char *argv[])
         {
             Pothos::App::ServiceOptions opts;
             if (not config.getString("register-service").empty()) opts.name = config.getString("register-service");
+            if (not app.hasCommand()) throw Pothos::InvalidArgumentException("--register-service=" + opts.name,
+                "give the command of the service, for example --proxy-server=tcp://0.0.0.0:16415");
             opts.displayName = config.getString("display-name");
             opts.description = config.getString("description");
             opts.startup = config.getString("startup", "manual");
@@ -197,6 +233,7 @@ int main(int argc, char *argv[])
         const auto umaskValue = parseUmask(config);
         if (config.has("daemon"))
         {
+            if (config.has("pidfile")) Pothos::App::PidFile::check(Pothos::Util::Detail::utf8Path(config.getString("pidfile")));
             auto args = app.argsWithout({"daemon", "umask"});
             args.push_back("--umask=" + std::format("{:o}", umaskValue.value_or(027)));
             Pothos::App::spawnDaemon(Pothos::System::getPothosUtilExecutablePath(), args);
@@ -209,7 +246,7 @@ int main(int argc, char *argv[])
         //the pid file exists: a request in between must not leave it behind
         if (app.isServerMode()) Pothos::App::installTerminationHandlers();
         std::optional<Pothos::App::PidFile> pidFile;
-        if (config.has("pidfile")) pidFile.emplace(config.getString("pidfile"));
+        if (config.has("pidfile")) pidFile.emplace(Pothos::Util::Detail::utf8Path(config.getString("pidfile")));
 
         Pothos::System::Logger::setupDefaultLogging();
         app.runCommands();

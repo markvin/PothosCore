@@ -7,11 +7,13 @@
 #include "Platform/Environment.hpp"
 #include "Util/StringUtils.hpp"
 #include "Util/TempFile.hpp"
+#include "Util/FileSystem.hpp"
 #include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -31,21 +33,30 @@ using namespace std::chrono_literals;
 
 namespace {
 
-struct Launched
+Process launchWithPipes(const std::vector<std::string> &args, const std::map<std::string, std::string> &env, Pipe &out, Pipe &err)
 {
-    Process proc;
-    Pipe out, err;
-};
-
-std::unique_ptr<Launched> launchPothosUtil(const std::vector<std::string> &args)
-{
-    auto l = std::make_unique<Launched>();
     ProcessOptions opts;
     opts.args = args;
-    opts.out = &l->out;
-    opts.err = &l->err;
-    l->proc = Process::launch(Pothos::System::getPothosUtilExecutablePath(), opts);
-    return l;
+    opts.env = env;
+    opts.out = &out;
+    opts.err = &err;
+    return Process::launch(Pothos::Util::Detail::utf8Path(Pothos::System::getPothosUtilExecutablePath()), opts);
+}
+
+struct Launched
+{
+    Launched(const std::vector<std::string> &args, const std::map<std::string, std::string> &env):
+        proc(launchWithPipes(args, env, out, err))
+    {
+        return;
+    }
+    Pipe out, err; //before proc: launch() uses them
+    Process proc;
+};
+
+std::unique_ptr<Launched> launchPothosUtil(const std::vector<std::string> &args, const std::map<std::string, std::string> &env = {})
+{
+    return std::make_unique<Launched>(args, env);
 }
 
 //! Read stdout lines until "Port: N"
@@ -100,6 +111,126 @@ POTHOS_TEST_BLOCK("/app/tests", test_app_proxy_server_terminates)
         POTHOS_TEST_EQUAL(*code, 0);
     }
     #endif
+}
+
+//PothosUtil gets a path that is not ASCII from its command line
+//(on Windows, argv uses the ANSI code page: the core reads the wide command line)
+POTHOS_TEST_BLOCK("/app/tests", test_app_non_ascii_argument)
+{
+    using Pothos::Util::Detail::utf8Path;
+    const std::string name = "pothos_\xD1\x82\xD0\xB5\xD1\x81\xD1\x82_\xC3\xA9_" + std::to_string(currentProcessId());
+    const auto dir = std::filesystem::temp_directory_path() / utf8Path(name);
+    std::filesystem::create_directories(dir);
+
+    //--run-topology (all systems): the file opens, so the error is the JSON, not the path
+    const std::string topologyPath = Pothos::Util::Detail::pathUtf8(dir) + "/top.\xD1\x84.json";
+    std::ofstream(utf8Path(topologyPath)) << "this is not JSON" << std::endl;
+    {
+        auto l = launchPothosUtil({"--run-topology=" + topologyPath});
+        readAll(l->out);
+        const auto err = readAll(l->err);
+        const auto code = waitFor(l->proc, 30s);
+        std::cout << "stderr: " << err << std::endl;
+        POTHOS_TEST_TRUE(code and *code == 64);
+        POTHOS_TEST_TRUE(err.find("Can't open") == std::string::npos);
+        POTHOS_TEST_TRUE(err.find("parse") != std::string::npos);
+    }
+
+    #ifndef _WIN32
+    //--pidfile (Unix only): the server writes and removes the pid file
+    const std::string pidPath = Pothos::Util::Detail::pathUtf8(dir) + "/pid.\xD1\x84";
+    auto l = launchPothosUtil({"--proxy-server=tcp://127.0.0.1:0", "--pidfile=" + pidPath});
+    POTHOS_TEST_TRUE(not readPort(l->out).empty());
+    {
+        std::ifstream file(utf8Path(pidPath));
+        int pid = 0;
+        POTHOS_TEST_TRUE(bool(file >> pid));
+        POTHOS_TEST_EQUAL(pid, l->proc.id());
+    }
+    l->proc.requestTermination();
+    const auto code = waitFor(l->proc, 5s);
+    POTHOS_TEST_TRUE(code and *code == 0);
+    POTHOS_TEST_TRUE(not std::filesystem::exists(utf8Path(pidPath)));
+    #endif
+
+    std::error_code ec;
+    std::filesystem::remove_all(dir, ec);
+}
+
+POTHOS_TEST_BLOCK("/app/tests", helper_count_runs)
+{
+    //adds one line to a file for each run (launched by test_app_num_trials)
+    const auto file = Pothos::Platform::getEnv("POTHOS_TEST_COUNT_FILE");
+    if (not file) return;
+    std::ofstream(Pothos::Util::Detail::utf8Path(*file), std::ios::app) << "run" << std::endl;
+}
+
+POTHOS_TEST_BLOCK("/app/tests", test_app_num_trials)
+{
+    //--num-trials=N runs a test N times (before: N*N)
+    {
+        Pothos::Util::Detail::TempFile countFile(false);
+        auto l = launchPothosUtil({"--self-tests=/app/tests/helper_count_runs", "--num-trials=2"},
+            {{"POTHOS_TEST_COUNT_FILE", Pothos::Util::Detail::pathUtf8(countFile.path())}});
+        readAll(l->out);
+        const auto code = waitFor(l->proc, 60s);
+        POTHOS_TEST_TRUE(code and *code == 0);
+        std::ifstream file(countFile.path());
+        std::size_t lines = 0;
+        for (std::string line; std::getline(file, line);) lines++;
+        POTHOS_TEST_EQUAL(lines, 2u);
+    }
+    //--num-trials=0 is an error, not a pass that runs nothing
+    for (const std::string option : {"--self-test1=/app/tests/helper_count_runs", "--self-tests=/app/tests/helper_count_runs"})
+    {
+        auto l = launchPothosUtil({option, "--num-trials=0"});
+        readAll(l->out);
+        const auto err = readAll(l->err);
+        const auto code = waitFor(l->proc, 30s);
+        POTHOS_TEST_TRUE(code and *code == 64);
+        POTHOS_TEST_TRUE(err.find("num-trials") != std::string::npos);
+    }
+}
+
+POTHOS_TEST_BLOCK("/app/tests", test_app_daemon_pidfile_error)
+{
+    #ifdef _WIN32
+    std::cout << "skipped: Unix only" << std::endl;
+    #else
+    //the pid file cannot be made: the original process reports it (the daemon has no stderr)
+    auto l = launchPothosUtil({"--daemon", "--pidfile=/no/such/dir/x.pid", "--proxy-server=tcp://127.0.0.1:0"});
+    readAll(l->out);
+    const auto err = readAll(l->err);
+    const auto code = waitFor(l->proc, 10s);
+    POTHOS_TEST_TRUE(code and *code == 64);
+    POTHOS_TEST_TRUE(err.find("/no/such/dir/x.pid") != std::string::npos);
+    #endif
+}
+
+//the user config directory has a name that is not ASCII (a Windows user
+//such as "José"): the conf files of the user and the JSON they name load
+POTHOS_TEST_BLOCK("/app/tests", test_app_non_ascii_user_config)
+{
+    using Pothos::Util::Detail::utf8Path;
+    const std::string name = "pothos_\xD1\x82\xD0\xB5\xD1\x81\xD1\x82_\xC3\xA9_cfg_" + std::to_string(currentProcessId());
+    const auto dir = std::filesystem::temp_directory_path() / utf8Path(name);
+    const auto modules = dir / "config" / "Pothos" / "modules";
+    std::filesystem::create_directories(modules);
+    std::ofstream(modules / "non_ascii.conf") << "loader = block_desc" << std::endl << "json = non_ascii.json" << std::endl;
+    std::ofstream(modules / "non_ascii.json") << R"([{"path": "/pothos_test/non_ascii_conf", "name": "Test"}])" << std::endl;
+
+    auto l = launchPothosUtil({"--plugin-tree=/blocks/docs"}, {
+        {"XDG_CONFIG_HOME", Pothos::Util::Detail::pathUtf8(dir / "config")},
+        {"XDG_DATA_HOME", Pothos::Util::Detail::pathUtf8(dir / "data")}});
+    const auto out = readAll(l->out);
+    const auto err = readAll(l->err);
+    const auto code = waitFor(l->proc, 60s);
+    std::cout << "stderr: " << err << std::endl;
+    POTHOS_TEST_TRUE(code and *code == 0);
+    POTHOS_TEST_TRUE(out.find("non_ascii_conf") != std::string::npos);
+
+    std::error_code ec;
+    std::filesystem::remove_all(dir, ec);
 }
 
 POTHOS_TEST_BLOCK("/app/tests", test_app_pothosutil_cli)
@@ -193,6 +324,31 @@ bool waitServiceState(SC_HANDLE service, const DWORD state, const std::chrono::s
     return true;
 }
 
+//! Open a service of the test, nullptr when it does not exist
+SC_HANDLE openTestService(const std::string &name, const DWORD access)
+{
+    const SC_HANDLE manager = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
+    if (manager == nullptr) return nullptr;
+    const auto wideName = std::wstring(name.begin(), name.end());
+    const SC_HANDLE service = OpenServiceW(manager, wideName.c_str(), access);
+    CloseServiceHandle(manager);
+    return service;
+}
+
+//! Wait until the service does not exist (the delete is complete)
+bool waitServiceGone(const std::string &name, const std::chrono::seconds timeout)
+{
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    while (true)
+    {
+        const SC_HANDLE service = openTestService(name, SERVICE_QUERY_STATUS);
+        if (service == nullptr and GetLastError() == ERROR_SERVICE_DOES_NOT_EXIST) return true;
+        if (service != nullptr) CloseServiceHandle(service);
+        if (std::chrono::steady_clock::now() > deadline) return false;
+        std::this_thread::sleep_for(100ms);
+    }
+}
+
 } //namespace
 #endif
 
@@ -244,6 +400,56 @@ POTHOS_TEST_BLOCK("/app/tests", test_app_windows_service)
     if (service != nullptr) CloseServiceHandle(service);
     CloseServiceHandle(manager);
     POTHOS_TEST_TRUE(gone);
+
+    //unregister a running service: it stops and goes away (before: only marked for delete)
+    opts.name = "PothosUtilTestRun" + std::to_string(GetCurrentProcessId());
+    Pothos::App::registerService(opts);
+    {
+        const SC_HANDLE run = openTestService(opts.name, SERVICE_START | SERVICE_QUERY_STATUS);
+        POTHOS_TEST_TRUE(run != nullptr);
+        bool running = false;
+        if (run != nullptr and StartServiceW(run, 0, nullptr)) running = waitServiceState(run, SERVICE_RUNNING, 30s);
+        if (run != nullptr) CloseServiceHandle(run);
+        Pothos::App::unregisterService(opts.name);
+        POTHOS_TEST_TRUE(running);
+        POTHOS_TEST_TRUE(waitServiceGone(opts.name, 15s));
+    }
+
+    //an error in the service: the service-specific exit code 64 (before: 1)
+    opts.name = "PothosUtilTestError" + std::to_string(GetCurrentProcessId());
+    Pothos::Util::Detail::TempFile missing(false);
+    opts.args = {"--run-topology=" + Pothos::Util::Detail::pathUtf8(missing.path())};
+    Pothos::App::registerService(opts);
+    {
+        const SC_HANDLE failing = openTestService(opts.name, SERVICE_START | SERVICE_QUERY_STATUS);
+        POTHOS_TEST_TRUE(failing != nullptr);
+        SERVICE_STATUS status{};
+        bool ended = false;
+        if (failing != nullptr and StartServiceW(failing, 0, nullptr)) ended = waitServiceState(failing, SERVICE_STOPPED, 30s);
+        if (failing != nullptr) QueryServiceStatus(failing, &status);
+        if (failing != nullptr) CloseServiceHandle(failing);
+        Pothos::App::unregisterService(opts.name);
+        POTHOS_TEST_TRUE(ended);
+        POTHOS_TEST_EQUAL(status.dwWin32ExitCode, DWORD(ERROR_SERVICE_SPECIFIC_ERROR));
+        POTHOS_TEST_EQUAL(status.dwServiceSpecificExitCode, DWORD(64));
+    }
+    #endif
+}
+
+POTHOS_TEST_BLOCK("/app/tests", test_app_register_service_no_command)
+{
+    #ifndef _WIN32
+    std::cout << "skipped: Windows only" << std::endl;
+    #else
+    //the check comes before the service control manager: no elevation needed
+    const std::string name = "PothosUtilNoCommand" + std::to_string(GetCurrentProcessId());
+    auto l = launchPothosUtil({"--register-service=" + name, "--startup=manual"});
+    readAll(l->out);
+    const auto err = readAll(l->err);
+    const auto code = waitFor(l->proc, 30s);
+    if (code and *code == 0) Pothos::App::unregisterService(name); //a failed check: no service left behind
+    POTHOS_TEST_TRUE(code and *code == 64);
+    POTHOS_TEST_TRUE(err.find("command") != std::string::npos);
     #endif
 }
 
@@ -261,12 +467,7 @@ POTHOS_TEST_BLOCK("/app/tests", test_app_signal_interrupts_commands)
     std::cout << "skipped: Unix only" << std::endl;
     #else
     //Ctrl-C ends commands that do not wait for a termination request
-    auto l = std::make_unique<Launched>();
-    ProcessOptions opts;
-    opts.args = {"--self-test1=/app/tests/helper_sleep"};
-    opts.env = {{"POTHOS_TEST_SLEEP", "1"}};
-    opts.out = &l->out;
-    l->proc = Process::launch(Pothos::System::getPothosUtilExecutablePath(), opts);
+    auto l = launchPothosUtil({"--self-test1=/app/tests/helper_sleep"}, {{"POTHOS_TEST_SLEEP", "1"}});
     {
         PipeInputStream is(l->out);
         std::string line;
@@ -297,13 +498,8 @@ POTHOS_TEST_BLOCK("/app/tests", test_app_daemon_with_threads)
     //threads that start while the library loads (syslog forwarding, the async logger)
     //must not keep the daemon from terminating
     Pothos::Util::Detail::TempFile pidFile(false);
-    auto l = std::make_unique<Launched>();
-    ProcessOptions opts;
-    opts.args = {"--daemon", "--pidfile=" + pidFile.path().string(), "--proxy-server=tcp://127.0.0.1:0"};
-    opts.env = {{"POTHOS_SYSLOG_ADDR", "127.0.0.1:9"}, {"POTHOS_LOG_LEVEL", "bogus"}};
-    opts.out = &l->out;
-    opts.err = &l->err;
-    l->proc = Process::launch(Pothos::System::getPothosUtilExecutablePath(), opts);
+    auto l = launchPothosUtil({"--daemon", "--pidfile=" + pidFile.path().string(), "--proxy-server=tcp://127.0.0.1:0"},
+        {{"POTHOS_SYSLOG_ADDR", "127.0.0.1:9"}, {"POTHOS_LOG_LEVEL", "bogus"}});
     POTHOS_TEST_TRUE(waitFor(l->proc, 10s).value_or(-1) == 0);
 
     pid_t pid = 0;
@@ -322,4 +518,39 @@ POTHOS_TEST_BLOCK("/app/tests", test_app_daemon_with_threads)
     if (not exited) ::kill(pid, SIGKILL);
     POTHOS_TEST_TRUE(exited);
     #endif
+}
+
+POTHOS_TEST_BLOCK("/app/tests", test_app_bad_log_level_once)
+{
+    //the logger is configured at load and again by PothosUtil: one warning only
+    auto l = launchPothosUtil({"--system-info"}, {{"POTHOS_LOG_LEVEL", "bogus"}, {"POTHOS_LOG_CHANNEL", "console"}});
+    readAll(l->out);
+    const auto err = readAll(l->err);
+    POTHOS_TEST_TRUE(waitFor(l->proc, 30s).has_value());
+    std::size_t count = 0;
+    for (auto pos = err.find("invalid POTHOS_LOG_LEVEL"); pos != std::string::npos; pos = err.find("invalid POTHOS_LOG_LEVEL", pos+1)) count++;
+    std::cout << "stderr: " << err << std::endl;
+    POTHOS_TEST_EQUAL(count, 1u);
+}
+
+POTHOS_TEST_BLOCK("/app/tests", test_app_bad_syslog_addr)
+{
+    //an address that does not resolve: one warning, the command still works
+    auto l = launchPothosUtil({"--system-info"}, {{"POTHOS_SYSLOG_ADDR", "no.such.host.invalid:514"}, {"POTHOS_LOG_CHANNEL", "console"}});
+    const auto out = readAll(l->out);
+    const auto err = readAll(l->err);
+    const auto code = waitFor(l->proc, 60s);
+    std::cout << "stderr: " << err << std::endl;
+    POTHOS_TEST_TRUE(code and *code == 0);
+    POTHOS_TEST_TRUE(not out.empty());
+    std::size_t count = 0;
+    for (auto pos = err.find("POTHOS_SYSLOG_ADDR"); pos != std::string::npos; pos = err.find("POTHOS_SYSLOG_ADDR", pos+1)) count++;
+    POTHOS_TEST_EQUAL(count, 1u);
+
+    //a host name (not an IP literal) is resolved at the library load: no crash
+    auto l2 = launchPothosUtil({"--system-info"}, {{"POTHOS_SYSLOG_ADDR", "localhost:9"}});
+    POTHOS_TEST_TRUE(not readAll(l2->out).empty());
+    readAll(l2->err);
+    const auto code2 = waitFor(l2->proc, 60s);
+    POTHOS_TEST_TRUE(code2 and *code2 == 0);
 }

@@ -806,3 +806,42 @@ POTHOS_TEST_BLOCK("/util/tests", test_expr_float_stream_fallback)
     POTHOS_TEST_TRUE(std::isinf(parseFloatStream("1e400")));
     POTHOS_TEST_EQUAL(std::get<double>(lexOne("5e-324").literal.data), 5e-324);
 }
+
+POTHOS_TEST_BLOCK("/util/tests", test_expr_float_out_of_range)
+{
+    //the direction comes from the value, not from the sign of the written exponent
+    const std::string zeros(400, '0');
+    POTHOS_TEST_EQUAL(std::get<double>(ev("0." + zeros + "1").data), 0.0);
+    POTHOS_TEST_EQUAL(std::get<double>(ev("0." + zeros + "1e5").data), 0.0);
+    POTHOS_TEST_TRUE(std::isinf(std::get<double>(ev("1" + zeros + ".0").data)));
+    POTHOS_TEST_TRUE(std::isinf(std::get<double>(ev("1" + zeros + ".0e-5").data)));
+    POTHOS_TEST_CLOSE(std::get<double>(ev("1" + zeros + ".0e-100").data), 1e300, 1e285);
+    POTHOS_TEST_TRUE(std::isinf(std::get<double>(ev("1e400").data)));
+    POTHOS_TEST_EQUAL(std::get<double>(ev("1e-400").data), 0.0);
+}
+
+POTHOS_TEST_BLOCK("/util/tests", test_expr_round_overflow)
+{
+    //round to -19 digits: the result 10**19 does not fit an int64
+    POTHOS_TEST_THROWS(ev("round(9000000000000000000, -19)"), ExprError);
+    POTHOS_TEST_THROWS(ev("round(-9000000000000000000, -19)"), ExprError);
+    POTHOS_TEST_TRUE(same(ev("round(5000000000000000000, -19)"), Value(0)));
+    POTHOS_TEST_TRUE(same(ev("round(9000000000000000000, -20)"), Value(0)));
+}
+
+POTHOS_TEST_BLOCK("/util/tests", test_expr_float_repr_python)
+{
+    //the repr rule of Python: fixed notation for an exponent from -4 to 15
+    POTHOS_TEST_EQUAL(Value(100000.0).repr(), "100000.0");
+    POTHOS_TEST_EQUAL(Value(1e15).repr(), "1000000000000000.0");
+    POTHOS_TEST_EQUAL(Value(1e16).repr(), "1e+16");
+    POTHOS_TEST_EQUAL(Value(0.0001).repr(), "0.0001");
+    POTHOS_TEST_EQUAL(Value(0.00001).repr(), "1e-05");
+    POTHOS_TEST_EQUAL(Value(1.5).repr(), "1.5");
+    POTHOS_TEST_EQUAL(Value(-0.0).repr(), "-0.0");
+    POTHOS_TEST_EQUAL(Value(0.1).repr(), "0.1");
+    POTHOS_TEST_EQUAL(Value(123456789012345680.0).repr(), "1.2345678901234568e+17");
+    POTHOS_TEST_EQUAL(Value(1.5e-7).repr(), "1.5e-07");
+    POTHOS_TEST_EQUAL(Value(1e100).repr(), "1e+100");
+    POTHOS_TEST_EQUAL(ev("str(1e5)").repr(), "'100000.0'");
+}
