@@ -11,7 +11,10 @@
 
 #pragma once
 #include <Pothos/Config.hpp>
+#include <chrono>
+#include <cstddef>
 #include <format>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -35,6 +38,36 @@ enum class LogLevel : int
     Debug,
     Trace,
 };
+
+/*!
+ * One log message, as the sink and the log listeners get it.
+ */
+struct LogRecord
+{
+    //! The severity of the message
+    LogLevel level = LogLevel::Information;
+
+    //! The time when the message was logged
+    std::chrono::system_clock::time_point time;
+
+    //! The name of the logging component, for example "Pothos.Topology"
+    std::string source;
+
+    //! The text of the message
+    std::string text;
+
+    //! A hash of the id of the thread that logged the message
+    unsigned long threadId = 0;
+
+    //! The id of the process that logged the message
+    int pid = 0;
+};
+
+/*!
+ * A log listener gets each log record that is written.
+ * Refer to Logger::addListener() for the rules.
+ */
+using LogListener = std::function<void(const LogRecord &)>;
 
 /*!
  * Logger class contains static methods to log messages
@@ -70,6 +103,41 @@ public:
 
     //! Wait until every message logged so far has been written
     static void flush(void);
+
+    /*!
+     * Add a listener that gets each log record that is written.
+     *
+     * The rules:
+     * - The listener gets each record that goes to the sink: the records
+     *   that pass the level filter, and the records that the syslog
+     *   listener gets from other processes. It gets them also when the
+     *   sink is empty (POTHOS_LOG_CHANNEL=null) or when syslog forwarding
+     *   replaced the sink.
+     * - The listeners are called one at a time, in the order of the
+     *   records, from the thread that writes the record (the writer
+     *   thread in asynchronous mode). A listener must return quickly.
+     * - The logger catches an exception from a listener and ignores it.
+     * - A message that a listener logs goes only to the sink, not to the
+     *   listeners. Thus a listener that logs causes no deadlock and no
+     *   infinite recursion.
+     * - After flush() returns, the listeners got all records that were
+     *   logged before the call.
+     *
+     * \param listener the function to call for each record
+     * \return an identifier for removeListener(), never 0
+     */
+    static std::size_t addListener(LogListener listener);
+
+    /*!
+     * Remove a listener that addListener() added.
+     * After this call returns, the logger does not call the listener
+     * again, and no call of it continues in another thread.
+     * Thus the owner can delete the data of the listener after this call.
+     * When a listener calls this function, the change applies after the
+     * current record. An unknown identifier does nothing.
+     * \param id the identifier from addListener()
+     */
+    static void removeListener(const std::size_t id);
 
     /*!
      * Start a listener for syslog messages from other processes.

@@ -280,3 +280,184 @@ POTHOS_TEST_BLOCK("/system/tests", test_logger_syslog_forwarding)
     if (previousAddr) Pothos::Platform::setEnv("POTHOS_SYSLOG_ADDR", *previousAddr);
     else Pothos::Platform::unsetEnv("POTHOS_SYSLOG_ADDR");
 }
+
+/***********************************************************************
+ * Log listeners
+ **********************************************************************/
+using Pothos::System::LogRecord;
+
+//! Record what a listener gets while in scope, then remove the listener
+struct CaptureListener
+{
+    CaptureListener(void):
+        id(Logger::addListener([this](const LogRecord &r)
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            records.push_back(r);
+        }))
+    {
+        return;
+    }
+    ~CaptureListener(void)
+    {
+        Logger::removeListener(id);
+    }
+    std::vector<LogRecord> get(void)
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        return records;
+    }
+    std::mutex mutex;
+    std::vector<LogRecord> records;
+    const std::size_t id;
+};
+
+POTHOS_TEST_BLOCK("/system/tests", test_logger_listener_fields)
+{
+    CaptureSink capture;
+    CaptureListener listener;
+    POTHOS_TEST_TRUE(listener.id != 0);
+    POTHOS_LOG_WARNING("Test.Listener", "hello {}", 42);
+    Logger::flush();
+    const auto records = listener.get();
+    POTHOS_TEST_EQUAL(records.size(), 1u);
+    POTHOS_TEST_TRUE(records.at(0).level == LogLevel::Warning);
+    POTHOS_TEST_EQUAL(records.at(0).source, "Test.Listener");
+    POTHOS_TEST_EQUAL(records.at(0).text, "hello 42");
+    const auto age = std::chrono::system_clock::now() - records.at(0).time;
+    POTHOS_TEST_TRUE(age >= std::chrono::seconds(0) and age < std::chrono::seconds(10));
+    POTHOS_TEST_TRUE(records.at(0).pid != 0);
+}
+
+POTHOS_TEST_BLOCK("/system/tests", test_logger_listener_level_filter)
+{
+    CaptureSink capture;
+    const auto oldLevel = Logger::getLevel("Test.Filter");
+    Logger::setLevel(LogLevel::Information, "Test.Filter");
+    CaptureListener listener;
+    POTHOS_LOG_DEBUG("Test.Filter", "hidden");
+    POTHOS_LOG_INFORMATION("Test.Filter", "shown");
+    Logger::flush();
+    Logger::setLevel(oldLevel, "Test.Filter");
+    const auto records = listener.get();
+    POTHOS_TEST_EQUAL(records.size(), 1u);
+    POTHOS_TEST_EQUAL(records.at(0).text, "shown");
+}
+
+POTHOS_TEST_BLOCK("/system/tests", test_logger_listener_deliver)
+{
+    //the syslog listener path: no level filter, as for the sink
+    CaptureSink capture;
+    CaptureListener listener;
+    LogRecord r;
+    r.level = LogLevel::Trace;
+    r.source = "Test.Remote";
+    r.text = "from far away";
+    r.time = std::chrono::system_clock::now();
+    Detail::deliver(r);
+    Logger::flush();
+    const auto records = listener.get();
+    POTHOS_TEST_EQUAL(records.size(), 1u);
+    POTHOS_TEST_EQUAL(records.at(0).source, "Test.Remote");
+    POTHOS_TEST_EQUAL(records.at(0).text, "from far away");
+}
+
+POTHOS_TEST_BLOCK("/system/tests", test_logger_listener_null_sink)
+{
+    const auto previous = Detail::getLogSink();
+    Detail::setLogSink(nullptr);
+    CaptureListener listener;
+    POTHOS_LOG_ERROR("Test.Null", "no sink");
+    Logger::flush();
+    Detail::setLogSink(previous);
+    const auto records = listener.get();
+    POTHOS_TEST_EQUAL(records.size(), 1u);
+    POTHOS_TEST_EQUAL(records.at(0).text, "no sink");
+}
+
+POTHOS_TEST_BLOCK("/system/tests", test_logger_listener_two_and_remove)
+{
+    CaptureSink capture;
+    auto listener1 = std::make_unique<CaptureListener>();
+    CaptureListener listener2;
+    POTHOS_TEST_TRUE(listener1->id != listener2.id);
+    for (int i = 0; i < 3; i++) POTHOS_LOG_ERROR("Test.Two", "{}", i);
+    Logger::flush();
+    Logger::removeListener(listener1->id);
+    POTHOS_LOG_ERROR("Test.Two", "{}", 3);
+    Logger::flush();
+    Logger::removeListener(12345678); //unknown: does nothing
+    const auto records1 = listener1->get();
+    const auto records2 = listener2.get();
+    POTHOS_TEST_EQUAL(records1.size(), 3u);
+    POTHOS_TEST_EQUAL(records2.size(), 4u);
+    for (int i = 0; i < 3; i++)
+    {
+        POTHOS_TEST_EQUAL(records1.at(i).text, std::to_string(i));
+        POTHOS_TEST_EQUAL(records2.at(i).text, std::to_string(i));
+    }
+}
+
+POTHOS_TEST_BLOCK("/system/tests", test_logger_listener_throws)
+{
+    CaptureSink capture;
+    const auto thrower = Logger::addListener([](const LogRecord &)
+    {
+        throw std::runtime_error("listener failure");
+    });
+    CaptureListener listener;
+    POTHOS_LOG_ERROR("Test.Throw", "a");
+    POTHOS_LOG_ERROR("Test.Throw", "b");
+    Logger::flush();
+    Logger::removeListener(thrower);
+    POTHOS_TEST_EQUAL(listener.get().size(), 2u);
+    POTHOS_TEST_EQUAL(capture.get().size(), 2u);
+}
+
+POTHOS_TEST_BLOCK("/system/tests", test_logger_listener_nested_log)
+{
+    //a listener that logs: no deadlock (async and sync path), no recursion
+    CaptureSink capture;
+    std::atomic<bool> criticalDone(false);
+    std::mutex mutex;
+    std::vector<LogRecord> seen;
+    const auto id = Logger::addListener([&](const LogRecord &r)
+    {
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            seen.push_back(r);
+        }
+        if (r.source == "Test.Nested") return;
+        POTHOS_LOG_ERROR("Test.Nested", "nested for {}", r.text);
+        if (not criticalDone.exchange(true)) POTHOS_LOG_CRITICAL("Test.Nested", "nested critical");
+    });
+    for (int i = 0; i < 3; i++) POTHOS_LOG_ERROR("Test.Outer", "{}", i);
+    POTHOS_LOG_CRITICAL("Test.Outer", "outer critical");
+    Logger::flush();
+    Logger::removeListener(id);
+    Logger::flush();
+
+    size_t nestedInSink = 0;
+    for (const auto &r : capture.get()) if (r.source == "Test.Nested") nestedInSink++;
+    POTHOS_TEST_EQUAL(nestedInSink, 5u); //4 nested errors and 1 nested critical
+    std::lock_guard<std::mutex> lock(mutex);
+    POTHOS_TEST_EQUAL(seen.size(), 4u);
+    for (const auto &r : seen) POTHOS_TEST_EQUAL(r.source, "Test.Outer");
+}
+
+POTHOS_TEST_BLOCK("/system/tests", test_logger_listener_remove_waits)
+{
+    //after removeListener returns, no call of the listener is in progress
+    CaptureSink capture;
+    std::atomic<bool> entered(false), done(false);
+    const auto id = Logger::addListener([&](const LogRecord &)
+    {
+        if (entered.exchange(true)) return;
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        done = true;
+    });
+    POTHOS_LOG_ERROR("Test.Remove", "slow");
+    while (not entered) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    Logger::removeListener(id);
+    POTHOS_TEST_TRUE(done.load());
+}

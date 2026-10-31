@@ -82,6 +82,10 @@ Public API (source compatible for blocks):
 - The implicit conversion of BufferChunk accepts only pointer types
   (const float *p = buffer;). Before, it accepted any type, thus Qt 6 moc
   found an order of BufferChunk through int and refused it in slots
+- Log listeners: Logger::addListener() and removeListener() give each
+  written log record (System::LogRecord: level, time, source, text,
+  thread and process id) to a callback, also the records from remote
+  processes. PothosFlow shows the log messages with it
 - Util::SpinLock waits (std::atomic_flag::wait) instead of spinning when
   contended; ports and registries use std::mutex/std::shared_mutex
 - Removed: Pothos/Util/SpinLockRW.hpp (use std::shared_mutex)

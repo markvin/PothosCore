@@ -19,6 +19,8 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <utility>
+#include <vector>
 
 using namespace Pothos::System;
 
@@ -34,9 +36,11 @@ struct LoggerState
     LogLevel rootLevel = LogLevel::Information;
     std::map<std::string, LogLevel, std::less<>> levels;
 
-    //the active sink: one writer at a time
+    //the active sink and the listeners: one writer at a time
     std::mutex sinkMutex;
     Detail::LogSink sink;
+    std::map<std::size_t, LogListener> listeners;
+    std::size_t nextListenerId = 1;
 
     //asynchronous writer
     std::mutex queueMutex;
@@ -57,6 +61,19 @@ static LoggerState &state(void)
     return *s;
 }
 
+//the state of a thread while it calls the listeners (it has the sink lock)
+static thread_local bool inListener = false;
+static thread_local std::vector<Detail::LogRecord> nestedRecords; //logged by a listener
+static thread_local std::vector<std::pair<std::size_t, LogListener>> pendingAdds;
+static thread_local std::vector<std::size_t> pendingRemoves;
+
+static void callSink(LoggerState &s, const Detail::LogRecord &record)
+{
+    if (not s.sink) return;
+    try {s.sink(record);}
+    catch (...) {} //a failing sink must never break the caller
+}
+
 static void writeToSink(const Detail::LogRecord &record, const bool tryOnly = false)
 {
     auto &s = state();
@@ -66,9 +83,26 @@ static void writeToSink(const Detail::LogRecord &record, const bool tryOnly = fa
         if (not lock.try_lock()) return; //give up rather than hang
     }
     else lock.lock();
-    if (not s.sink) return;
-    try {s.sink(record);}
-    catch (...) {} //a failing sink must never break the caller
+    callSink(s, record);
+    if (s.listeners.empty()) return;
+
+    inListener = true;
+    for (const auto &pair : s.listeners)
+    {
+        try {pair.second(record);}
+        catch (...) {} //a failing listener must never break the caller
+    }
+    inListener = false;
+
+    //the messages of the listeners go only to the sink: no recursion
+    for (const auto &nested : nestedRecords) callSink(s, nested);
+    nestedRecords.clear();
+
+    //listener changes that the listeners made
+    for (auto &pair : pendingAdds) s.listeners.emplace(pair.first, std::move(pair.second));
+    pendingAdds.clear();
+    for (const auto id : pendingRemoves) s.listeners.erase(id);
+    pendingRemoves.clear();
 }
 
 static void workerLoop(void)
@@ -92,6 +126,12 @@ static void workerLoop(void)
 //write a record: synchronously or through the asynchronous writer
 static void dispatch(Detail::LogRecord &&record)
 {
+    //a listener logs: this thread has the sink lock, writeToSink() writes it later
+    if (inListener)
+    {
+        nestedRecords.push_back(std::move(record));
+        return;
+    }
     auto &s = state();
     const bool urgent = record.level <= LogLevel::Critical;
     if (urgent or not s.async or s.shutdown)
@@ -176,6 +216,34 @@ void Logger::flush(void)
     //only the records logged before this call: other threads may keep logging
     const auto target = s.enqueued;
     s.idleCond.wait(lock, [&s, target]{return s.written >= target;});
+}
+
+std::size_t Logger::addListener(LogListener listener)
+{
+    auto &s = state();
+    if (inListener) //this thread has the sink lock: apply after the current record
+    {
+        const auto id = s.nextListenerId++;
+        pendingAdds.emplace_back(id, std::move(listener));
+        return id;
+    }
+    std::lock_guard<std::mutex> lock(s.sinkMutex);
+    const auto id = s.nextListenerId++;
+    s.listeners.emplace(id, std::move(listener));
+    return id;
+}
+
+void Logger::removeListener(const std::size_t id)
+{
+    auto &s = state();
+    if (inListener) //this thread has the sink lock: apply after the current record
+    {
+        pendingRemoves.push_back(id);
+        return;
+    }
+    //the sink lock is held for each listener call: this waits for a call in progress
+    std::lock_guard<std::mutex> lock(s.sinkMutex);
+    s.listeners.erase(id);
 }
 
 /***********************************************************************
