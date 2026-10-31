@@ -26,6 +26,18 @@ foreach(var SRC WORK GENERATOR CXX CC)
 endforeach()
 
 #an initial cache: a list of prefixes stays one value
+#the generator settings of the calling build 
+set(generator_args)
+if (MAKE_PROGRAM)
+    list(APPEND generator_args "-DCMAKE_MAKE_PROGRAM=${MAKE_PROGRAM}")
+endif ()
+if (PLATFORM)
+    list(APPEND generator_args -A "${PLATFORM}")
+endif ()
+if (TOOLSET)
+    list(APPEND generator_args -T "${TOOLSET}")
+endif ()
+
 set(dependency_args)
 if (TOOLCHAIN OR PREFIX_PATH)
     string(REPLACE "|" ";" prefix_path "${PREFIX_PATH}")
@@ -39,12 +51,26 @@ endif ()
 function(configure_parent dir)
     file(REMOVE_RECURSE "${dir}")
     execute_process(
-        COMMAND ${CMAKE_COMMAND} -S "${SRC}/tests/subproject" -B "${dir}" -G "${GENERATOR}"
+        COMMAND ${CMAKE_COMMAND} -S "${SRC}/tests/subproject" -B "${dir}" -G "${GENERATOR}" ${generator_args}
             "-DPOTHOS_SOURCE=${SRC}" "-DCMAKE_CXX_COMPILER=${CXX}" "-DCMAKE_C_COMPILER=${CC}"
             ${dependency_args} ${ARGN}
         RESULT_VARIABLE rc OUTPUT_VARIABLE out ERROR_VARIABLE err)
     if (NOT rc EQUAL 0 OR NOT out MATCHES "PARENT_CHECK OK" OR NOT out MATCHES "SIBLING_CHECK OK")
         message(FATAL_ERROR "configuring the parent (${ARGN}) failed (${rc}):\n${out}\n${err}")
+    endif ()
+endfunction()
+
+#configure the parent and expect a failure with a text
+function(configure_parent_fails dir text)
+    file(REMOVE_RECURSE "${dir}")
+    execute_process(
+        COMMAND ${CMAKE_COMMAND} -S "${SRC}/tests/subproject" -B "${dir}" -G "${GENERATOR}" ${generator_args}
+            "-DPOTHOS_SOURCE=${SRC}" "-DCMAKE_CXX_COMPILER=${CXX}" "-DCMAKE_C_COMPILER=${CC}"
+            ${dependency_args} ${ARGN}
+        RESULT_VARIABLE rc OUTPUT_VARIABLE out ERROR_VARIABLE err)
+    string(REGEX REPLACE "[ \n\r]+" " " all "${out}${err}")
+    if (rc EQUAL 0 OR NOT all MATCHES "${text}")
+        message(FATAL_ERROR "configuring the parent (${ARGN}) should fail with \"${text}\" (${rc}):\n${out}\n${err}")
     endif ()
 endfunction()
 
@@ -77,6 +103,51 @@ endif ()
 
 #optional parts of the core
 configure_parent("${WORK}/no-apps" -DPOTHOS_BUILD_APPS=OFF)
+#a module with docs needs PothosUtil: a configure error, not an empty build command
+configure_parent_fails("${WORK}/no-apps-docs" "docs need PothosUtil" -DPOTHOS_BUILD_APPS=OFF -DSIBLING_DOCS=ON)
+
+#an installed core found by the parent before add_subdirectory of the core
+if (STAGE)
+    configure_parent_fails("${WORK}/find-first" "Pothos::Pothos already exists"
+        -DPOTHOS_SUBPROJECT_FIND_FIRST=ON "-DPothos_DIR=${STAGE}/share/cmake/Pothos")
+endif ()
+
+#macOS: the core needs a deployment target of 13.3 or higher (std::format)
+if (APPLE)
+    configure_parent_fails("${WORK}/macos-12" "13.3" -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0)
+endif ()
+
+#a copy of the core without .git inside another git work tree: the version
+#has no hash (not the hash of the other repository)
+find_program(GIT_EXECUTABLE git)
+if (GIT_EXECUTABLE)
+    set(outer "${WORK}/vendored")
+    file(REMOVE_RECURSE "${outer}")
+    file(MAKE_DIRECTORY "${outer}/core")
+    #the files of the work tree (not HEAD: the check must see changes that are not committed)
+    execute_process(COMMAND ${GIT_EXECUTABLE} -C "${SRC}" ls-files
+        OUTPUT_VARIABLE tracked OUTPUT_STRIP_TRAILING_WHITESPACE)
+    string(REPLACE "\n" ";" tracked "${tracked}")
+    foreach(file IN LISTS tracked)
+        if (EXISTS "${SRC}/${file}")
+            get_filename_component(dir "${outer}/core/${file}" DIRECTORY)
+            file(COPY "${SRC}/${file}" DESTINATION "${dir}")
+        endif ()
+    endforeach()
+    execute_process(COMMAND ${GIT_EXECUTABLE} init -q "${outer}")
+    execute_process(COMMAND ${GIT_EXECUTABLE} -C "${outer}" -c user.name=test -c user.email=test@test
+        commit -q --allow-empty -m outer)
+    execute_process(
+        COMMAND ${CMAKE_COMMAND} -S "${outer}/core" -B "${outer}/build" -G "${GENERATOR}" ${generator_args}
+            "-DCMAKE_CXX_COMPILER=${CXX}" "-DCMAKE_C_COMPILER=${CC}" -DPOTHOS_BUILD_DOCS=OFF
+            ${dependency_args}
+        RESULT_VARIABLE rc OUTPUT_VARIABLE out ERROR_VARIABLE err)
+    if (NOT rc EQUAL 0 OR NOT out MATCHES "Pothos version: v[0-9.]+-unknown")
+        message(FATAL_ERROR "a vendored core (no .git) should have the version suffix -unknown (${rc}):\n${out}\n${err}")
+    endif ()
+else ()
+    message(STATUS "no git: the vendored core check is skipped")
+endif ()
 configure_parent("${WORK}/docs" -DPOTHOS_BUILD_DOCS=ON)
 
 #declared with OVERRIDE_FIND_PACKAGE: the core still finds its own configuration

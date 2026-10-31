@@ -30,7 +30,9 @@ function(run_step name)
 endfunction()
 
 file(REMOVE_RECURSE "${WORK}/build")
-run_step(configure ${CMAKE_COMMAND} -S "${SRC}" -B "${WORK}/build" -G "${GENERATOR}"
+#-Werror=dev: a developer warning of the package (for example a policy warning
+#of find_package) is an error, as a toolkit with warnings as errors sees it
+run_step(configure ${CMAKE_COMMAND} -S "${SRC}" -B "${WORK}/build" -G "${GENERATOR}" -Werror=dev
     "-DCMAKE_PREFIX_PATH=${PREFIX}" "-DCMAKE_BUILD_TYPE=${CONFIG}")
 run_step(build ${CMAKE_COMMAND} --build "${WORK}/build" --config "${CONFIG}")
 

@@ -128,6 +128,13 @@ function(POTHOS_MODULE_UTIL)
     #setup json doc file generation and install
     if (POTHOS_MODULE_UTIL_ENABLE_DOCS)
 
+        #the docs are made with PothosUtil: a core without the apps has none
+        if (NOT POTHOS_UTIL_EXE)
+            message(FATAL_ERROR "POTHOS_MODULE_UTIL(${POTHOS_MODULE_UTIL_TARGET}): the docs need PothosUtil, "
+                "and the Pothos core is built with POTHOS_BUILD_APPS=OFF. "
+                "Build the core with its apps, or give no ENABLE_DOCS and no DOC_SOURCES.")
+        endif ()
+
         #turn sources into an absolute path: a relative path is relative to
         #the source directory (EXISTS with a relative path would use the
         #working directory of cmake, which is the build directory when the

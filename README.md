@@ -65,7 +65,9 @@ PothosBlocks is not installed, `Topology::commit()` throws a
 ## Building
 
 Requirements: CMake 3.25 or newer, Ninja (or another generator) and a C++23
-compiler (GCC 13+, Clang 17+, Xcode 15+, Visual Studio 2022 17.8+).
+compiler (GCC 13+, Clang 17+, Xcode 15+, Visual Studio 2022 17.8+). On macOS
+the deployment target is 13.3 or higher (std::format of libc++); a lower
+`CMAKE_OSX_DEPLOYMENT_TARGET` stops the configure step.
 The build itself does not download files.
 
 With system packages (for example Arch Linux: `asio nlohmann-json xsimd`):

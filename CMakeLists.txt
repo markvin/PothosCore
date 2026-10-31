@@ -20,6 +20,13 @@ set(POTHOS_LIBVER "${CMAKE_MATCH_1}")
 ########################################################################
 project(Pothos VERSION ${POTHOS_LIBVER} LANGUAGES C CXX)
 
+#macOS: std::format with floating point and chrono needs macOS 13.3 or higher
+#in libc++ (no default here: the target is a global setting of the parent)
+if(APPLE AND CMAKE_OSX_DEPLOYMENT_TARGET AND CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS 13.3)
+    message(FATAL_ERROR "Pothos needs macOS 13.3 or higher: CMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}. "
+        "Set CMAKE_OSX_DEPLOYMENT_TARGET=13.3 or higher.")
+endif()
+
 option(POTHOS_BUILD_APPS "Build PothosUtil (needed by the self-tests and module safe-loading)" ON)
 option(POTHOS_BUILD_DOCS "Build the Doxygen documentation (when Doxygen is found)" ${PROJECT_IS_TOP_LEVEL})
 option(POTHOS_BUILD_TESTS "Register the CTest tests of the core" ${PROJECT_IS_TOP_LEVEL})
@@ -36,6 +43,11 @@ if(PROJECT_IS_TOP_LEVEL)
     endif()
 endif()
 
+#the hash only from the git repository of the core: a copy without .git
+#inside another repository must not get the hash of that repository
+if (NOT POTHOS_EXTVER AND NOT EXISTS "${PROJECT_SOURCE_DIR}/.git")
+    set(POTHOS_EXTVER "unknown")
+endif()
 if (NOT POTHOS_EXTVER)
     include(${PROJECT_SOURCE_DIR}/cmake/Modules/GetGitRevisionDescription.cmake)
     get_git_head_revision(GITREFSPEC GITHASH)
@@ -74,7 +86,6 @@ set(POTHOS_ROOT_ENV "POTHOS_ROOT" CACHE STRING
 set(POTHOS_APPDATA_ENV "APPDATA" CACHE STRING
     "Environment variable for Pothos::System::getUserDataPath()")
 
-include(FeatureSummary)
 include(GNUInstallDirs)
 
 ########################################################################
@@ -91,9 +102,13 @@ endfunction()
 #the install RPATH is relative to the installed binary, so that an installation
 #can be relocated (bin/ and lib/ are siblings)
 function(pothos_target_settings target)
-    set_target_properties(${target} PROPERTIES
-        CXX_EXTENSIONS OFF
-        INSTALL_RPATH_USE_LINK_PATH TRUE)
+    set_target_properties(${target} PROPERTIES CXX_EXTENSIONS OFF)
+    #the link directories of non-system dependencies go into the install
+    #RPATH, unless the parent or a packager set CMAKE_INSTALL_RPATH_USE_LINK_PATH
+    #(the target property then comes from that variable)
+    if(NOT DEFINED CMAKE_INSTALL_RPATH_USE_LINK_PATH)
+        set_target_properties(${target} PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
+    endif()
     pothos_warnings_as_errors(${target})
     if(APPLE)
         set_target_properties(${target} PROPERTIES INSTALL_RPATH "@loader_path/../${CMAKE_INSTALL_LIBDIR}")
@@ -114,6 +129,12 @@ include(${PROJECT_SOURCE_DIR}/cmake/PothosDependencies.cmake)
 #resolve to a package redirect of the parent (OVERRIDE_FIND_PACKAGE)
 include(${PROJECT_SOURCE_DIR}/cmake/Modules/PothosConfig.cmake)
 add_subdirectory(include)
+#a parent that found an installed core with find_package(Pothos) and also
+#adds this core: the two cores cannot be in one project
+if(TARGET Pothos::Pothos)
+    message(FATAL_ERROR "Pothos::Pothos already exists: the parent project found an installed Pothos core "
+        "(find_package(Pothos)) before add_subdirectory of this core. Use one of them.")
+endif()
 add_subdirectory(lib)
 add_subdirectory(cmake/Modules)
 if(POTHOS_BUILD_APPS)
@@ -197,7 +218,13 @@ if(POTHOS_BUILD_TESTS)
                 "-DTOOLCHAIN=${CMAKE_TOOLCHAIN_FILE}"
                 "-DPREFIX_PATH=${pothos_subproject_prefix_path}"
                 "-DBUILD_TYPE=${CMAKE_BUILD_TYPE}"
+                "-DMAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}"
+                "-DPLATFORM=${CMAKE_GENERATOR_PLATFORM}"
+                "-DTOOLSET=${CMAKE_GENERATOR_TOOLSET}"
+                -DSTAGE=${POTHOS_STAGE_DIR}
                 -P ${PROJECT_SOURCE_DIR}/cmake/PothosSubprojectTest.cmake)
+        #the find-first check uses the installed core of the stage
+        set_tests_properties(pothos.subproject PROPERTIES FIXTURES_REQUIRED pothos_stage)
     endif()
 
     add_test(NAME pothos.test_env_guard
@@ -229,19 +256,12 @@ if(PROJECT_IS_TOP_LEVEL)
 endif()
 
 ########################################################################
-# print features summary (not into a parent project's output)
+# configure summary
 ########################################################################
-if(PROJECT_IS_TOP_LEVEL)
-    message(STATUS "")
-    message(STATUS "######################################################")
-    message(STATUS "## Enabled features")
-    message(STATUS "######################################################")
-    feature_summary(WHAT ENABLED_FEATURES)
-    message(STATUS "######################################################")
-    message(STATUS "## Disabled features")
-    message(STATUS "######################################################")
-    feature_summary(WHAT DISABLED_FEATURES)
+if(NOT POTHOS_BUILD_DOCS)
+    set(POTHOS_DOCS_STATUS "OFF (POTHOS_BUILD_DOCS=OFF)")
 endif()
 message(STATUS "Pothos version: v${POTHOS_VERSION}")
 message(STATUS "ABI/so version: v${POTHOS_ABI_VERSION}")
 message(STATUS "Install prefix: ${CMAKE_INSTALL_PREFIX}")
+message(STATUS "Documentation: ${POTHOS_DOCS_STATUS}")

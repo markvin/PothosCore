@@ -1332,6 +1332,11 @@ endfunction()
 #                  dynamic dispatch header file
 #
 function(PothosGenerateSIMDSources FileListVariable JSONInputFile)
+    #the dispatchers are made with PothosUtil: a core without the apps has none
+    if(NOT POTHOS_UTIL_EXE)
+        message(FATAL_ERROR "PothosGenerateSIMDSources(${JSONInputFile}): the SIMD dispatchers need PothosUtil, "
+            "and the Pothos core is built with POTHOS_BUILD_APPS=OFF. Build the core with its apps.")
+    endif()
     set(SIMDSourceFiles ${ARGV})
     list(REMOVE_AT SIMDSourceFiles 0 1) # Remove non-source parameters
 

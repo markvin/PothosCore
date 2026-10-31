@@ -16,8 +16,22 @@ set(NUMA_LIBRARIES "/parent/libnuma.so" CACHE FILEPATH "the parent's own NUMA li
 add_custom_target(uninstall)
 add_custom_target(docs)
 
+#a packager turns the link directories off in the install RPATH
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH OFF)
+
+#parent variables with names that the core once read: they must not reach
+#the exported target of the core
+set(Pothos_LINKER_FLAGS parent_leak_link)
+set(Pothos_COMPILE_OPTIONS -DPARENT_LEAK_OPTION)
+set(Pothos_COMPILE_DEFINITIONS PARENT_LEAK_DEFINITION)
+
 get_cmake_property(cache_before CACHE_VARIABLES)
 get_property(build_type_before CACHE CMAKE_BUILD_TYPE PROPERTY VALUE)
+
+#an installed core found first (the parent mixes the two ways): a clear error
+if(POTHOS_SUBPROJECT_FIND_FIRST)
+    find_package(Pothos CONFIG REQUIRED NO_PACKAGE_ROOT_PATH)
+endif()
 
 #the core as add_subdirectory, or as FetchContent that also overrides find_package
 if(POTHOS_SUBPROJECT_FETCHCONTENT)
@@ -72,6 +86,16 @@ if(NOT TARGET Pothos::Pothos)
 endif()
 if(TARGET pothos_uninstall)
     list(APPEND errors "the core created an uninstall target (uninstall belongs to the parent)")
+endif()
+foreach(prop INTERFACE_LINK_LIBRARIES INTERFACE_COMPILE_OPTIONS INTERFACE_COMPILE_DEFINITIONS)
+    get_target_property(value Pothos ${prop})
+    if(value MATCHES "PARENT_LEAK|parent_leak")
+        list(APPEND errors "a parent variable reached ${prop} of the core: ${value}")
+    endif()
+endforeach()
+get_target_property(rpath_link_path Pothos INSTALL_RPATH_USE_LINK_PATH)
+if(rpath_link_path)
+    list(APPEND errors "the core ignores the CMAKE_INSTALL_RPATH_USE_LINK_PATH=OFF of the parent")
 endif()
 get_target_property(numa_defs Pothos COMPILE_DEFINITIONS)
 if(numa_defs MATCHES "HAVE_LIBNUMA" AND NOT POTHOS_ENABLE_LIBNUMA)

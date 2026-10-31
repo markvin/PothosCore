@@ -9,13 +9,12 @@ else()
     set(HAVE_DOT NO)
 endif()
 
-########################################################################
-## Feature registration
-########################################################################
-add_feature_info("Pothos docs" DOXYGEN_FOUND "Doxygen generated docs for Pothos library")
+#the docs line of the configure summary of the top level CMakeLists.txt
 if (NOT DOXYGEN_FOUND)
+    set(POTHOS_DOCS_STATUS "OFF (Doxygen is not found)" PARENT_SCOPE)
     return()
 endif()
+set(POTHOS_DOCS_STATUS "ON (Doxygen ${DOXYGEN_VERSION})" PARENT_SCOPE)
 
 #header sources used in the generate rule
 file(GLOB_RECURSE POTHOS_INCLUDES ${PROJECT_SOURCE_DIR}/include/*.hpp)
