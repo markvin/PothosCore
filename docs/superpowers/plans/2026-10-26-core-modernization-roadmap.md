@@ -27,6 +27,7 @@ Poco goes away step by step: the intermediate phases keep it as a
 | 15 | flow on the pothos2 core (user decisions, 2026-10-31) | a PR into the core first: a public log listener API (`Logger::addListener`/`removeListener`, public `LogRecord`) and the fix of the known data races (wait mode flags, reads of the plugin registry); the fork `markvin/PothosFlow` (branch `pothos2`): built against the installed core (CMake 3.25, `CMP0144` NEW), without Poco (the message window uses the listener API), only Qt 6 (≥ 6.5, Widgets and Concurrent) from the system or the Qt installer; the application sources are an internal static library; a smoke test without a display (the main window, the block cache, Help → About, the message window, a selected block, the exit) needs PothosBlocks in the prefix; CI: 4 jobs (Conan for the core + `install-qt-action`) + `linux-system` (Arch, `qt6-base`); flow is a submodule of PothosBase with the test `base.flow` | `2026-10-31-phase15-flow.md` |
 | 16 | Version 2.0 (user decisions, 2026-10-31) | library 2.0.0, API `0x02000000`, ABI `2.0-0` (before: 0.8.0, `0x00070000`, `0.7-4` of the upstream development branch): `libPothos.so.2.0-0` and `lib/Pothos/modules2.0-0`, thus modules of upstream 0.7 and 0.8 builds are not loaded; a self-test checks the numbers; the toolkits take the ABI from `POTHOS_ABI_VERSION` and only need a rebuild | (a small change, described in the chat; no plan file) |
 | 17 | audio on the pothos2 core (user decisions, 2026-10-31) | the fork `markvin/PothosAudio` (branch `pothos2`): miniaudio 0.11.25 in place of PortAudio, as a copy of `miniaudio.h` in `third_party/miniaudio` (only device input and output; no audio packages for the build); the block API stays; a ring buffer between the device callback and `work()`; the device converts format, channels and rate; `POTHOS_AUDIO_BACKEND` selects the backend (`null` for the tests); 16 self-tests on the null backend; CI: 4 jobs (Conan) + `linux-system` (Arch); audio is a submodule of PothosBase | `2026-10-31-phase17-audio.md` |
+| 18 | the deferred minor findings (user decision, 2026-10-31: "triage them yourself and fix all of them") | about 90 minor findings of the reviews of phases 1–17: a triage (VALID 60, DECISION 18 decided by the designer, OBSOLETE 13) and the fixes in the core, PothosBlocks, PothosFlow and PothosAudio; the test environment of the core and of all toolkits unsets the POTHOS_* variables of a developer shell; UTF-8 paths on Windows everywhere (wide API, `utf8Path`/`pathUtf8`); no new features and no ABI change | `2026-10-31-phase18-minors.md` |
 
 The order of phases 2 and 3 can change. **User decision (2026-10-26):
 phase 3 occurs before phase 2.**
@@ -216,6 +217,18 @@ phase 3 occurs before phase 2.**
   source → sink graph must allow xrun reports (the two devices have
   independent clocks). PothosBase: the audio self-tests run with
   `POTHOS_AUDIO_BACKEND=null`.
+
+- Phase 18 (user decision, 2026-10-31) — done: core PR #24 (merge
+  `77f4af67`), PothosBlocks #2, PothosFlow #2, PothosAudio #2,
+  PothosComms #4, PothosWidgets #2, PothosSoapy #2, PothosPlotters #2 and
+  PothosBase #8. The spec has a triage appendix
+  (`2026-10-31-phase18-minors-triage.md`) with the evidence for each
+  finding. Found on the way: a host name in `POTHOS_SYSLOG_ADDR` crashed
+  the library load (static init order of the lookup cache). The Windows
+  CI found two UTF-8 defects that Linux cannot show (a conf file path
+  through the ANSI code page) and two test defects. Deferred: six minor
+  findings of the final review (the next small PR before the release
+  2.0.0).
 
 ## Decisions for the next phases
 

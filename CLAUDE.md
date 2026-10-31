@@ -144,6 +144,12 @@ nlohmann-json xsimd`; Asio has no CMake config: `cmake/Findasio.cmake`).
   and are never installed. Their self-tests stay in libPothos (`Builtin/`).
 - Internal helpers: `lib/Util/StringUtils.hpp`, `FileSystem.hpp`,
   `TempFile.hpp` (namespace `Pothos::Util::Detail`). Not installed.
+- Paths: a `std::string` path is UTF-8. Convert it with
+  `Pothos::Util::Detail::utf8Path()` and back with `pathUtf8()`, never with
+  `std::filesystem::path(std::string)` or `path::string()` (on Windows they
+  use the ANSI code page). The helpers of `FileSystem.hpp` and
+  `PropertyFile.hpp` have deleted `std::string` overloads. The Windows CI
+  tests with directories that are not ASCII.
 - Child processes: `Pothos::Platform::ProcessOptions`; to ignore a child's
   output set `discardOutput` (null device). Never pass pipes and close them:
   the child dies with SIGPIPE on its first print (that broke module safe load).
